@@ -3,27 +3,30 @@
 import { useState } from "react";
 
 export default function ContactPage() {
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<string>("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.currentTarget;
+    setStatus("Sending...");
+
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      name: String(fd.get("name") ?? ""),
+      email: String(fd.get("email") ?? ""),
+      message: String(fd.get("message") ?? ""),
+    };
 
     const res = await fetch("/api/contact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name.value,
-        email: form.email.value,
-        message: form.message.value,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (res.ok) {
       setStatus("Message sent successfully.");
-      form.reset();
+      e.currentTarget.reset();
     } else {
-      setStatus("Looks like something went wrong. Try again.");
+      setStatus("Something went wrong. Try again.");
     }
   }
 
@@ -53,7 +56,11 @@ export default function ContactPage() {
             Send
           </button>
 
-          {status && <p className="muted" style={{ marginTop: 12 }}>{status}</p>}
+          {status && (
+            <p className="muted" style={{ marginTop: 12 }}>
+              {status}
+            </p>
+          )}
         </form>
       </div>
     </>
