@@ -156,4 +156,65 @@ p  { margin: 0 0 14px; color: rgba(232, 236, 245, 0.92); }
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  .form { margin-top: 8px; }
+
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (min-width: 860px) {
+  .formGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .fieldFull {
+    grid-column: 1 / -1;
+  }
+}
+
+.field { display: flex; flex-direction: column; }
+
+.label {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.input, .textarea {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  outline: none;
+}
+
+.textarea { resize: vertical; min-height: 180px; }
+
+.input:focus, .textarea:focus {
+  border-color: rgba(120, 160, 255, 0.45);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.actions .button {
+  min-width: 140px;
+}
+
+@media (max-width: 480px) {
+  .actions .button {
+    width: 100%;
+  }
+}
+
+.status { padding-top: 2px; }
 }
