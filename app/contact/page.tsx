@@ -23,7 +23,7 @@ export default function ContactPage() {
       setStatus("Message sent successfully.");
       form.reset();
     } else {
-      setStatus("Something went wrong. Try again.");
+      setStatus("Looks like something went wrong. Try again.");
     }
   }
 
