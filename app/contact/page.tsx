@@ -1,4 +1,42 @@
-<form onSubmit={handleSubmit} className="form">
+"use client";
+
+import { useState } from "react";
+
+export default function ContactPage() {
+  const [status, setStatus] = useState<string>("");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStatus("Sending...");
+
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      name: String(fd.get("name") ?? ""),
+      email: String(fd.get("email") ?? ""),
+      message: String(fd.get("message") ?? ""),
+    };
+
+    const res = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      setStatus("Message sent successfully.");
+      e.currentTarget.reset();
+    } else {
+      setStatus("Something went wrong. Try again.");
+    }
+  }
+
+  return (
+    <>
+      <div className="kicker">Consulting • collaboration</div>
+      <h1>Contact</h1>
+
+      <div className="card">
+      <form onSubmit={handleSubmit} className="form">
   <div className="formGrid">
     <div className="field">
       <label className="label" htmlFor="name">Name</label>
@@ -36,3 +74,7 @@
     </div>
   </div>
 </form>
+      </div>
+    </>
+  );
+}
