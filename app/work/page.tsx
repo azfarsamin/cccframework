@@ -24,7 +24,7 @@ export default function WorkPage() {
                   <Link className="button" href="/work/debt-money-interest">
                     Details
                   </Link>
-                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
+                  <a className="button primary" href="https://www.amazon.ca/Architecture-Debt-Money-Interest-Qur%CA%BE%C4%81nic-Diagnosis-ebook/dp/B0GNPDXCM6/" target="_blank" rel="noreferrer">
                     Amazon
                   </a>
                 </div>
