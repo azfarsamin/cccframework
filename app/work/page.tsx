@@ -24,7 +24,12 @@ export default function WorkPage() {
                   <Link className="button" href="/work/debt-money-interest">
                     Details
                   </Link>
-                  <a className="button primary" href="https://www.amazon.ca/Architecture-Debt-Money-Interest-Qur%CA%BE%C4%81nic-Diagnosis-ebook/dp/B0GNPDXCM6/" target="_blank" rel="noreferrer">
+                  <a
+                    className="button primary"
+                    href="https://www.amazon.ca/Architecture-Debt-Money-Interest-Qur%CA%BE%C4%81nic-Diagnosis-ebook/dp/B0GNPDXCM6/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Amazon
                   </a>
                 </div>
@@ -55,13 +60,36 @@ export default function WorkPage() {
         </div>
 
         <div className="card">
-          <h2>Domains I analyze</h2>
-          <ul className="list">
-            <li>Economic system design and failure modes</li>
-            <li>Incentives, metrics, and unintended consequences</li>
-            <li>AI systems: behavior, evaluation, and drift</li>
-            <li>Epistemology and decision frameworks</li>
-          </ul>
+          <h2>Articles</h2>
+          <p className="muted">
+            Short-form analysis applying the CCC lens to current debates and recurring failure modes.
+          </p>
+
+          <div style={{ marginTop: 12 }}>
+            <div className="muted" style={{ fontSize: 13 }}>
+              2026-02-24
+            </div>
+
+            <div style={{ marginTop: 6, fontWeight: 600 }}>
+              <Link href="/articles/outsourced-thinking-or-misplaced-anxiety">
+                Outsourced Thinking or Misplaced Anxiety? Why the Real Threat Isn’t AI — It’s Epistemic Surrender
+              </Link>
+            </div>
+
+            <p className="muted" style={{ marginTop: 8 }}>
+              Civilization is built on outsourcing lower-level burdens so higher-order thought can flourish. The risk
+              isn’t AI—it’s epistemic surrender.
+            </p>
+
+            <div className="bookActions" style={{ marginTop: 12 }}>
+              <Link className="button primary" href="/articles/outsourced-thinking-or-misplaced-anxiety">
+                Read
+              </Link>
+              <Link className="button" href="/articles">
+                View all
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
