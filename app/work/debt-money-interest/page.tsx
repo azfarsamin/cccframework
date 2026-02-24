@@ -84,7 +84,7 @@ export default function DebtMoneyPage() {
           </p>
 
           <div className="bookActions">
-            <a className="button primary" href="#" target="_blank" rel="noreferrer">
+            <a className="button primary" href="https://www.amazon.ca/Architecture-Debt-Money-Interest-Qur%CA%BE%C4%81nic-Diagnosis-ebook/dp/B0GNPDXCM6/ref=sr_1_1?crid=DQF7532PWZSK&dib=eyJ2IjoiMSJ9.yjyKtixQ9g49rIRIbaMUog.xm8GZEuN_EoB8s41kzWr99p85dcemdxXU803BkHL-yk&dib_tag=se&keywords=azafran+samin&qid=1771895558&s=books&sprefix=azfar+samin%2Cstripbooks%2C107&sr=1-1" target="_blank" rel="noreferrer">
               Buy on Amazon
             </a>
 
