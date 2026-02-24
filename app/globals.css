@@ -374,3 +374,28 @@ p  { margin: 0 0 14px; color: rgba(232, 236, 245, 0.92); }
 .bookContent em {
   font-style: italic;
 }
+.bookHero {
+  display: grid;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+@media (min-width: 860px) {
+  .bookHero {
+    grid-template-columns: 340px 1fr;
+    align-items: center;
+  }
+}
+
+.bookCover img {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.bookHeroText {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
