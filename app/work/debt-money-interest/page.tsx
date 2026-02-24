@@ -30,7 +30,7 @@ export default function DebtMoneyPage() {
       <div className="card">
         <div className="bookContent">
           <p>
-            The core lesson in Plato’s Allegory of the Cave is that most people mistake appearances for
+            The core lesson in <em>Plato’s Allegory of the Cave</em> is that most people mistake appearances for
             reality. When one prisoner is freed and forced to face the source of the shadows, his
             awakening is painful and disoriented.
           </p>
