@@ -255,6 +255,8 @@ export default function ArticlePage() {
       <p>
         AI is not a crutch, it’s a whetstone. A sloppy human-written argument is not morally superior to a rigorously
         tested AI-assisted one. At the end of the day, what counts is that truth doesn’t care about authorship romance.
+      </p>
+      <p>
         It cares about how closely claims correspond to reality.
       </p>
 
