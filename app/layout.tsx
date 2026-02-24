@@ -20,16 +20,11 @@ export default function RootLayout({
         <Header />
         <main className="container main">{children}</main>
 
-        <footer className="footer">
-          <div className="container footerInner">
-            <div className="muted">© {new Date().getFullYear()} CCC Framework</div>
-            <div className="muted">
-              <a className="link" href="mailto:david@cccframework.ca">
-                david@cccframework.ca
-              </a>
-            </div>
-          </div>
-        </footer>
+       <footer className="footer">
+  <div className="container footerInner">
+    <div className="muted">© {new Date().getFullYear()} CCC Framework</div>
+  </div>
+</footer>
       </body>
     </html>
   );
