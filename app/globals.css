@@ -334,3 +334,28 @@ p  { margin: 0 0 14px; color: rgba(232, 236, 245, 0.92); }
   display: grid !important;
   gap: 8px !important;
 }
+.bookStack {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.bookCard {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.bookTitle {
+  font-weight: 650;
+  margin-bottom: 6px;
+  letter-spacing: -0.2px;
+}
+
+.bookActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
