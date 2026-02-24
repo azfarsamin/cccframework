@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function DebtMoneyPage() {
@@ -5,9 +6,29 @@ export default function DebtMoneyPage() {
     <>
       <div className="kicker">Book</div>
 
-      <h1 className="bookHeroTitle">
-        The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis
-      </h1>
+      <div className="bookHero">
+        <div className="bookCover">
+          <Image
+            src="/books/debt-money.jpg"
+            alt="The Architecture of Debt-Money and Interest book cover"
+            width={420}
+            height={630}
+            priority
+          />
+        </div>
+
+        <div className="bookHeroText">
+          <h1 className="bookHeroTitle">
+            The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis
+          </h1>
+          <p className="muted">
+            A first-principles diagnosis of modern money creation, compounding debt, and systemic exploitation — tested through coherence, correspondence, and calibration.
+          </p>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="bookContent">
 
       <div className="card">
         <div className="bookContent">
