@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function TruthArchitecturePage() {
@@ -5,10 +6,27 @@ export default function TruthArchitecturePage() {
     <>
       <div className="kicker">Book</div>
 
-      <h1 className="bookHeroTitle">
-        Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews
-      </h1>
+      <div className="bookHero">
+        <div className="bookCover">
+          <Image
+            src="/books/reason-revelation.jpg"
+            alt="Reason, Revelation, and the Architecture of Truth book cover"
+            width={420}
+            height={630}
+            priority
+          />
+        </div>
 
+        <div className="bookHeroText">
+          <h1 className="bookHeroTitle">
+            Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews
+          </h1>
+
+          <p className="muted">
+            A coherence–correspondence–calibration framework for testing competing truth claims across reason, experience, and moral consequence.
+          </p>
+        </div>
+      </div>
       <div className="card">
         <div className="bookContent">
           <p>
