@@ -1,6 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata = {
+export const metadata: Metadata = {
   title:
     "Outsourced Thinking or Misplaced Anxiety? Why the Real Threat Isn’t AI — It’s Epistemic Surrender | CCC Framework",
   description:
@@ -10,9 +11,7 @@ export const metadata = {
 export default function ArticlePage() {
   return (
     <>
-      <div className="kicker">
-        Articles • AI • epistemology • calibration
-      </div>
+      <div className="kicker">Articles • AI • epistemology • calibration</div>
 
       <h1>
         Outsourced Thinking or Misplaced Anxiety? Why the Real Threat Isn’t AI — It’s Epistemic Surrender
@@ -182,7 +181,6 @@ export default function ArticlePage() {
       <h3>Calibration: This is where moral responsibility actually lives</h3>
 
       <p>This is the crucial point.</p>
-
       <p>The moral line is not: “Did a machine help?”</p>
       <p>The moral line is: Who did the epistemic judgment (discernment)?</p>
 
@@ -256,8 +254,7 @@ export default function ArticlePage() {
         AI is not a crutch, it’s a whetstone. A sloppy human-written argument is not morally superior to a rigorously
         tested AI-assisted one. At the end of the day, what counts is that truth doesn’t care about authorship romance.
       </p>
-      <p>
-        It cares about how closely claims correspond to reality.
+      <p>It cares about how closely claims correspond to reality.
       </p>
 
       <div className="card" style={{ marginTop: 18 }}>
