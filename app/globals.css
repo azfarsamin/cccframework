@@ -359,3 +359,18 @@ p  { margin: 0 0 14px; color: rgba(232, 236, 245, 0.92); }
   flex-wrap: wrap;
   margin-top: 12px;
 }
+.bookHeroTitle {
+  font-size: 44px;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  margin-bottom: 22px;
+}
+
+.bookContent p {
+  margin-bottom: 16px;
+  color: rgba(232, 236, 245, 0.92);
+}
+
+.bookContent em {
+  font-style: italic;
+}
