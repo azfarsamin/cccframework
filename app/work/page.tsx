@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function WorkPage() {
   return (
     <>
@@ -10,12 +12,45 @@ export default function WorkPage() {
       <div className="grid two">
         <div className="card">
           <h2>Books</h2>
-          <ul className="list">
-            <li><strong>The Architecture of Debt-Money and Interest</strong></li>
-            <li><strong>Reason, Revelation, and the Architecture of Truth</strong> (CCC foundations)</li>
-          </ul>
-          <p className="muted">
-            (We can add cover images, blurbs, and purchase links once you’re ready.)
+
+          <div className="bookStack">
+            <div className="bookCard">
+              <div className="bookMeta">
+                <div className="bookTitle">The Architecture of Debt-Money and Interest</div>
+                <div className="muted">
+                  A first-principles breakdown of modern money creation, compounding debt, and systemic drift.
+                </div>
+                <div className="bookActions">
+                  <Link className="button" href="/work/debt-money-interest">
+                    Details
+                  </Link>
+                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
+                    Amazon
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="bookCard">
+              <div className="bookMeta">
+                <div className="bookTitle">Reason, Revelation, and the Architecture of Truth</div>
+                <div className="muted">
+                  CCC foundations: coherence, correspondence, and calibration as a method for testing truth claims.
+                </div>
+                <div className="bookActions">
+                  <Link className="button" href="/work/reason-revelation-architecture-truth">
+                    Details
+                  </Link>
+                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
+                    Amazon
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="muted" style={{ marginTop: 12 }}>
+            (We’ll add cover images, endorsements, and sample excerpts when you’re ready.)
           </p>
         </div>
 
