@@ -9,7 +9,7 @@ export default function DebtMoneyPage() {
       <div className="bookHero">
         <div className="bookCover">
           <Image
-            src="/books/debt-interest.jpg"
+            src="/books/debt-money.jpg"
             alt="The Architecture of Debt-Money and Interest book cover"
             width={420}
             height={630}
