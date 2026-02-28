@@ -59,7 +59,7 @@ export default function TruthArchitecturePage() {
           </p>
 
           <div className="bookActions">
-            <a className="button primary" href="#" target="_blank" rel="noreferrer">
+            <a className="button primary" href="https://www.amazon.ca/dp/B0GHV3LGRH" target="_blank" rel="noreferrer">
               Buy on Amazon
             </a>
 
