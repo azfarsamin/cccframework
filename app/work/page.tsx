@@ -46,7 +46,7 @@ export default function WorkPage() {
                   <Link className="button" href="/work/reason-revelation-architecture-truth">
                     Details
                   </Link>
-                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
+                  <a className="button primary" href="https://www.amazon.ca/dp/B0GHV3LGRH" target="_blank" rel="noreferrer">
                     Amazon
                   </a>
                 </div>
