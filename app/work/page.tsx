@@ -96,11 +96,11 @@ export default function WorkPage() {
       <div className="hr" />
 
       <div className="card">
-        <h2>Next additions (optional)</h2>
+        <h2>On-going Projects</h2>
         <ul className="list">
-          <li>3–5 “mini case studies” (1 page each)</li>
-          <li>One CCC diagram and a “how I work” flow</li>
-          <li>Short example deliverables (redacted)</li>
+          <li>CCC Framework applied to Austrian Economics</li>
+          <li>AI-based calibrated thinking and reasoning</li>
+          <li>Humean IS-OUGHT problem applied to modern thinking</li>
         </ul>
       </div>
     </>
