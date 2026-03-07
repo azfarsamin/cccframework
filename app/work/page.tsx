@@ -55,7 +55,7 @@ export default function WorkPage() {
           </div>
 
           <p className="muted" style={{ marginTop: 12 }}>
-            (We’ll add cover images, endorsements, and sample excerpts when you’re ready.)
+            (Click on "Details" for more information or on "Amazon" if you are interested in purchase.)
           </p>
         </div>
 
