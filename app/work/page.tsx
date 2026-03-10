@@ -7,7 +7,7 @@ export default function WorkPage() {
       <div className="kicker">Books • analysis • applied thinking</div>
       <h1>Work</h1>
       <p className="muted">
-        Selected published work and areas of analysis. This page will evolve into case-style breakdowns.
+       Selected published books, articles, conference presentations, and ongoing research.
       </p>
 
       <div className="grid two">
