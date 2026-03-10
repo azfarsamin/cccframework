@@ -93,7 +93,7 @@ export default function WorkPage() {
       <div className="hr" />
 
       <div className="card">
-        <h2>Next additions (optional)</h2>
+        <h2>On-going Work</h2>
         <ul className="list">
 <li>CCC Framework applied to Austrian Economics</li>
 <li>AI-based calibrated thinking and reasoning</li>
