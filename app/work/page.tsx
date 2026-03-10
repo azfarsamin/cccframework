@@ -26,7 +26,7 @@ export default function WorkPage() {
                   </Link>
                   <a
                     className="button primary"
-                    href="https://www.amazon.ca/Architecture-Debt-Money-Interest-Qur%CA%BE%C4%81nic-Diagnosis-ebook/dp/B0GNPDXCM6/"
+                    href="https://www.amazon.ca/dp/1067462201"
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -46,7 +46,7 @@ export default function WorkPage() {
                   <Link className="button" href="/work/reason-revelation-architecture-truth">
                     Details
                   </Link>
-                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
+                  <a className="button primary" href="https://www.amazon.ca/dp/106746221X" target="_blank" rel="noreferrer">
                     Amazon
                   </a>
                 </div>
