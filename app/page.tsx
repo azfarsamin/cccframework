@@ -41,7 +41,33 @@ export default function HomePage() {
       </div>
 
       <div className="hr" />
+      <div className="hr" />
 
+      <div className="card">
+        <div className="kicker">Research / Talks</div>
+        <h2>AERC 2026</h2>
+        <p>
+          <strong>Coherence, Correspondence, Calibration: A Meta-Epistemology Applied to Austrian Economics</strong>
+        </p>
+        <p className="muted">
+          Conference presentation at the Austrian Economics Research Conference applying the CCC Framework to Austrian methodology, catallaxy, and decentralized intelligence systems.
+        </p>
+
+        <div className="bookActions">
+          <Link className="button" href="/work/aerc-2026">
+            View Presentation Page
+          </Link>
+
+          <a
+            className="button primary"
+            href="/pdfs/aerc-2026-slides.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View Slides (PDF)
+          </a>
+        </div>
+      </div>
       <div className="grid three">
         <div className="card">
           <div className="kicker">Coherence</div>
