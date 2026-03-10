@@ -9,7 +9,7 @@ export default function AERC2026Page() {
       <div className="bookHero">
         <div className="bookCover">
           <Image
-            src="/images/aerc-2026-cover.jpg"
+            src="/images/aerc-2026-cover.webp"
             alt="AERC 2026 presentation cover"
             width={420}
             height={630}
