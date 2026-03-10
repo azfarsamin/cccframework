@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
+export const metadata = {
+  title: "Reason, Revelation, and the Architecture of Truth | CCC Framework",
+  description:
+    "A framework for evaluating world views using the Coherence, Correspondence and Calibration",
+};
+
 export default function TruthArchitecturePage() {
   return (
     <>
