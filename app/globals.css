@@ -380,3 +380,40 @@ p, h1, h2, h3 { max-width: 78ch; }
   flex-direction: column;
   gap: 10px;
 }
+/* --- Work page cards --- */
+
+.bookStack {
+  display: grid;
+  gap: 18px;
+}
+
+.bookCard {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+  transition: transform 0.15s ease, border 0.15s ease;
+}
+
+.bookCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,0.25);
+}
+
+.bookMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bookTitle {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.bookActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
