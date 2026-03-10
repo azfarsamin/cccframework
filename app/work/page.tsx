@@ -46,61 +46,58 @@ export default function WorkPage() {
                   <Link className="button" href="/work/reason-revelation-architecture-truth">
                     Details
                   </Link>
-                  <a className="button primary" href="https://www.amazon.ca/dp/B0GHV3LGRH" target="_blank" rel="noreferrer">
+                  <a className="button primary" href="#" target="_blank" rel="noreferrer">
                     Amazon
                   </a>
                 </div>
               </div>
             </div>
           </div>
-
-          <p className="muted" style={{ marginTop: 12 }}>
-            (Click on "Details" for more information or on "Amazon" if you are interested in purchase.)
-          </p>
         </div>
 
         <div className="card">
-          <h2>Articles</h2>
-          <p className="muted">
-            Short-form analysis applying the CCC lens to current debates and recurring failure modes.
-          </p>
-
-          <div style={{ marginTop: 12 }}>
-            <div className="muted" style={{ fontSize: 13 }}>
-              2026-02-24
-            </div>
-
-            <div style={{ marginTop: 6, fontWeight: 600 }}>
-              <Link href="/articles/outsourced-thinking-or-misplaced-anxiety">
-                Outsourced Thinking or Misplaced Anxiety? Why the Real Threat Isn’t AI — It’s Epistemic Surrender
-              </Link>
-            </div>
-
-            <p className="muted" style={{ marginTop: 8 }}>
-              Civilization is built on outsourcing lower-level burdens so higher-order thought can flourish. The risk
-              isn’t AI—it’s epistemic surrender.
-            </p>
-
-            <div className="bookActions" style={{ marginTop: 12 }}>
-              <Link className="button primary" href="/articles/outsourced-thinking-or-misplaced-anxiety">
-                Read
-              </Link>
-              <Link className="button" href="/articles">
-                View all
-              </Link>
-            </div>
-          </div>
+          <h2>Domains I analyze</h2>
+          <ul className="list">
+            <li>Economic system design and failure modes</li>
+            <li>Incentives, metrics, and unintended consequences</li>
+            <li>AI systems: behavior, evaluation, and drift</li>
+            <li>Epistemology and decision frameworks</li>
+          </ul>
         </div>
       </div>
 
       <div className="hr" />
 
       <div className="card">
-        <h2>On-going Projects</h2>
+        <h2>AERC 2026</h2>
+        <p className="muted">
+          Conference presentation applying the CCC Framework as a meta-epistemology to Austrian Economics.
+        </p>
+
+        <div className="bookActions">
+          <Link className="button" href="/work/aerc-2026">
+            View page
+          </Link>
+
+          <a
+            className="button primary"
+            href="/pdfs/aerc-2026-slides.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Slides (PDF)
+          </a>
+        </div>
+      </div>
+
+      <div className="hr" />
+
+      <div className="card">
+        <h2>Next additions (optional)</h2>
         <ul className="list">
-          <li>CCC Framework applied to Austrian Economics</li>
-          <li>AI-based calibrated thinking and reasoning</li>
-          <li>Humean IS-OUGHT problem applied to modern thinking</li>
+<li>CCC Framework applied to Austrian Economics</li>
+<li>AI-based calibrated thinking and reasoning</li>
+<li>Humean IS-OUGHT problem applied to modern thinking</li>
         </ul>
       </div>
     </>
