@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function WorkPage() {
@@ -6,68 +7,89 @@ export default function WorkPage() {
       <div className="kicker">Books • analysis • applied thinking</div>
       <h1>Work</h1>
       <p className="muted">
-        Selected published work, articles, conference papers and areas of analysis.
+        Selected published work and areas of analysis. This page will evolve into case-style breakdowns.
       </p>
 
       <div className="grid two">
-
         <div className="card">
           <h2>Books</h2>
 
           <div className="bookStack">
             <div className="bookCard">
-              <div className="bookMeta">
-                <div className="bookTitle">
-                  The Architecture of Debt-Money and Interest
+              <div className="bookItem">
+                <div className="bookThumb">
+                  <Image
+                    src="/books/debt-money.jpg"
+                    alt="The Architecture of Debt-Money and Interest book cover"
+                    width={110}
+                    height={165}
+                  />
                 </div>
 
-                <div className="muted">
-                  A first-principles breakdown of modern money creation, compounding debt, and systemic drift.
-                </div>
+                <div className="bookMeta">
+                  <div className="bookTitle">
+                    The Architecture of Debt-Money and Interest
+                  </div>
 
-                <div className="bookActions">
-                  <Link className="button" href="/work/debt-money-interest">
-                    Details
-                  </Link>
+                  <div className="muted">
+                    A first-principles breakdown of modern money creation, compounding debt, and systemic drift.
+                  </div>
 
-                  <a
-                    className="button primary"
-                    href="https://www.amazon.ca/dp/1067462201"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Amazon
-                  </a>
+                  <div className="bookActions">
+                    <Link className="button" href="/work/debt-money-interest">
+                      Details
+                    </Link>
+
+                    <a
+                      className="button primary"
+                      href="https://www.amazon.ca/dp/1067462201"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Amazon
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="bookCard">
-              <div className="bookMeta">
-                <div className="bookTitle">
-                  Reason, Revelation, and the Architecture of Truth
+              <div className="bookItem">
+                <div className="bookThumb">
+                  <Image
+                    src="/books/reason-revelation.jpg"
+                    alt="Reason, Revelation, and the Architecture of Truth book cover"
+                    width={110}
+                    height={165}
+                  />
                 </div>
 
-                <div className="muted">
-                  CCC foundations: coherence, correspondence, and calibration as a method for testing truth claims.
-                </div>
+                <div className="bookMeta">
+                  <div className="bookTitle">
+                    Reason, Revelation, and the Architecture of Truth
+                  </div>
 
-                <div className="bookActions">
-                  <Link
-                    className="button"
-                    href="/work/reason-revelation-architecture-truth"
-                  >
-                    Details
-                  </Link>
+                  <div className="muted">
+                    CCC foundations: coherence, correspondence, and calibration as a method for testing truth claims.
+                  </div>
 
-                  <a
-                    className="button primary"
-                    href="https://www.amazon.ca/dp/106746221X"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Amazon
-                  </a>
+                  <div className="bookActions">
+                    <Link
+                      className="button"
+                      href="/work/reason-revelation-architecture-truth"
+                    >
+                      Details
+                    </Link>
+
+                    <a
+                      className="button primary"
+                      href="https://www.amazon.ca/dp/106746221X"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Amazon
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -94,7 +116,6 @@ export default function WorkPage() {
             </Link>
           </div>
         </div>
-
       </div>
 
       <div className="hr" />
