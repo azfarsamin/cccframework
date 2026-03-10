@@ -20,6 +20,7 @@ export default function WorkPage() {
                 <div className="bookTitle">
                   The Architecture of Debt-Money and Interest
                 </div>
+
                 <div className="muted">
                   A first-principles breakdown of modern money creation, compounding debt, and systemic drift.
                 </div>
@@ -74,16 +75,6 @@ export default function WorkPage() {
         </div>
 
         <div className="card">
-          <h2>Domains I analyze</h2>
-          <ul className="list">
-            <li>Economic system design and failure modes</li>
-            <li>Incentives, metrics, and unintended consequences</li>
-            <li>AI systems: behavior, evaluation, and drift</li>
-            <li>Epistemology and decision frameworks</li>
-          </ul>
-        </div>
-
-        <div className="card">
           <h2>Articles</h2>
 
           <div className="bookTitle">
@@ -91,8 +82,7 @@ export default function WorkPage() {
           </div>
 
           <div className="muted">
-            A CCC-based analysis arguing that the real risk of AI is not automation of thinking, but
-            epistemic surrender—abandoning judgment, verification, and calibration.
+            A CCC-based analysis arguing that the real risk of AI is not automation of thinking, but epistemic surrender.
           </div>
 
           <div className="bookActions">
@@ -139,8 +129,8 @@ export default function WorkPage() {
 
         <ul className="list">
           <li>CCC Framework applied to Austrian Economics</li>
-          <li>AI-based calibrated thinking and reasoning</li>
-          <li>Humean IS-OUGHT problem applied to modern thinking</li>
+          <li>AI-based calibrated reasoning and thinking systems</li>
+          <li>Humean IS–OUGHT problem in modern epistemology</li>
         </ul>
       </div>
     </>
