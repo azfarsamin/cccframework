@@ -7,7 +7,7 @@ export default function WorkPage() {
       <div className="kicker">Books • analysis • applied thinking</div>
       <h1>Work</h1>
       <p className="muted">
-       Selected published books, articles, conference presentations, and ongoing research.
+        Selected books, articles, conference presentations, and ongoing research applying the CCC Framework.
       </p>
 
       <div className="grid two">
