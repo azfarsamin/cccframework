@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
+export const metadata = {
+  title: "The Architecture of Debt-Money and Interest | CCC Framework",
+  description:
+    "A first-principles analysis of modern debt-based monetary systems and interest using a Qurʾānic epistemic framework.",
+};
+
 export default function DebtMoneyPage() {
   return (
     <>
