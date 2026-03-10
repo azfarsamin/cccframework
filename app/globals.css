@@ -417,3 +417,26 @@ p, h1, h2, h3 { max-width: 78ch; }
   margin-top: 6px;
   flex-wrap: wrap;
 }
+.bookItem {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.bookThumb img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 640px) {
+  .bookItem {
+    grid-template-columns: 1fr;
+  }
+
+  .bookThumb {
+    max-width: 140px;
+  }
+}
