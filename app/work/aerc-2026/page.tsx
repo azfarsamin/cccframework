@@ -80,11 +80,11 @@ export default function AERC2026Page() {
 
             <a
               className="button"
-              href="/pdfs/aerc-2026-paper.pdf"
+              href="/pdfs/AERCabstract.pdf"
               target="_blank"
               rel="noreferrer"
             >
-              Paper (coming soon)
+              Abstract (paper coming soon)
             </a>
           </div>
 
