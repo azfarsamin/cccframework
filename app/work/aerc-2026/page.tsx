@@ -23,8 +23,15 @@ export default function AERC2026Page() {
           </h1>
 
           <p className="muted">
-            Austrian Economics Research Conference (AERC) 2026
-          </p>
+  Presented at the{" "}
+  <a
+    href="https://mises.org/events/austrian-economics-research-conference-2026"
+    target="_blank"
+    rel="noreferrer"
+  >
+    Austrian Economics Research Conference (AERC) 2026
+  </a>.
+</p>
         </div>
       </div>
 
