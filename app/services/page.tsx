@@ -3,8 +3,8 @@ import Link from "next/link";
 export default function ServicesPage() {
   return (
     <>
-      <div className="kicker">Clear deliverables • scoped engagements</div>
-      <h1>Services</h1>
+      <div className="kicker">First-principles • Systems thinking</div>
+      <h1>Articles</h1>
       <p className="muted">
         Practical analysis with structured outputs. If you’re not sure what you need, start with a diagnostic.
       </p>
