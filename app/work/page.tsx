@@ -4,10 +4,10 @@ import Link from "next/link";
 export default function WorkPage() {
   return (
     <>
-      <div className="kicker">Books • analysis • applied thinking</div>
+      <div className="kicker">Books • conference talks • ongoing research</div>
       <h1>Work</h1>
       <p className="muted">
-        Selected books, articles, conference presentations, and ongoing research applying the CCC Framework.
+        Selected books, conference presentations, and ongoing research applying the CCC Framework.
       </p>
 
       <div className="grid two">
@@ -93,27 +93,6 @@ export default function WorkPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <h2>Articles</h2>
-
-          <div className="bookTitle">
-            Outsourced Thinking or Misplaced Anxiety?
-          </div>
-
-          <div className="muted">
-            A CCC-based analysis arguing that the real risk of AI is not automation of thinking, but epistemic surrender.
-          </div>
-
-          <div className="bookActions">
-            <Link
-              className="button"
-              href="/articles/outsourced-thinking-or-misplaced-anxiety"
-            >
-              Read Article
-            </Link>
           </div>
         </div>
       </div>
