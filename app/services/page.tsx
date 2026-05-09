@@ -3,24 +3,18 @@ import Link from "next/link";
 export default function ServicesPage() {
   return (
     <>
-      <div className="kicker">First-principles • Systems thinking</div>
+      <div className="kicker">First-principles • Systems thinking • Architecture</div>
       <h1>Articles</h1>
       <p className="muted">
-        Practical analysis with structured outputs. If you’re not sure what you need, start with a diagnostic.
+        Practical analysis with structured reasoning from first principles. Looking at truth as a whole as opposed to individual parts. 
       </p>
 
       <div className="grid two">
         <div className="card">
-          <h2>Systems & Gap Analysis</h2>
+          <h2>Outsourced Thinking or Misplaced Anxiety?</h2>
           <p>
-            Deep structural breakdown of a problem space to identify root causes, hidden assumptions,
-            contradictions, and leverage points.
+            A CCC-based analysis arguing that the real risk of AI is not automation of thinking, but epistemic surrender.
           </p>
-          <ul className="list">
-            <li>System map + failure modes</li>
-            <li>Assumption audit</li>
-            <li>Priority leverage points</li>
-          </ul>
         </div>
 
         <div className="card">
