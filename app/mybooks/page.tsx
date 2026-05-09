@@ -96,43 +96,6 @@ export default function WorkPage() {
           </div>
         </div>
       </div>
-
-      <div className="hr" />
-
-      <div className="card">
-        <h2>AERC 2026</h2>
-
-        <p className="muted">
-          Conference presentation applying the CCC Framework as a meta-epistemology to Austrian Economics.
-        </p>
-
-        <div className="bookActions">
-          <Link className="button" href="/work/aerc-2026">
-            View page
-          </Link>
-
-          <a
-            className="button primary"
-            href="/pdfs/aerc-2026-slides.pdf"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Slides (PDF)
-          </a>
-        </div>
-      </div>
-
-      <div className="hr" />
-
-      <div className="card">
-        <h2>On-going Work</h2>
-
-        <ul className="list">
-          <li>CCC Framework applied to Austrian Economics</li>
-          <li>AI-based calibrated reasoning and thinking systems</li>
-          <li>Humean IS–OUGHT problem in modern epistemology</li>
-        </ul>
-      </div>
     </>
   );
 }
