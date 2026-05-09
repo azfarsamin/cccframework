@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function ArticlesPage() {
   return (
     <>
-      <div className="kicker">First-principles • systems thinking • architecture</div>
+      <div className="kicker">First-principles • Systems thinking • Architecture</div>
       <h1>Articles</h1>
       <p className="muted">
         Practical analysis using structured reasoning from first principles, looking at truth as a whole rather than isolated parts.
