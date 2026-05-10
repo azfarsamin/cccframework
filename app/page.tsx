@@ -12,7 +12,8 @@ export default function HomePage() {
 
       <div className="ctaRow">
         <Link className="button primary" href="/contact">Start a conversation</Link>
-        <Link className="button" href="/services">View services</Link>
+        <Link className="button" href="/mybooks">View Books</Link>
+        <Link className="button" href="/myarticles">View Articles</Link>
         <Link className="button" href="/ccc">What is CCC?</Link>
       </div>
 
