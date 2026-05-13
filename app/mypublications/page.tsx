@@ -37,7 +37,7 @@ export default function PublicationsPage() {
                 target="_blank"
                 rel="noreferrer"
               >
-                AL-AASAR Journal Link
+                Link
               </a>
             </div>
 
