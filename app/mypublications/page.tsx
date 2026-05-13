@@ -44,6 +44,31 @@ export default function PublicationsPage() {
           </div>
         </div>
 
+        <div className="bookCard">
+          <div className="bookMeta">
+
+            <div className="bookTitle">
+              Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān
+            </div>
+
+            <div className="muted">
+              Working Paper
+            </div>
+
+            <div className="bookActions">
+              <a
+                className="button primary"
+                href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6748782"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Link
+              </a>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </>
   );
