@@ -9,7 +9,7 @@ const nav = [
   { href: "/ccc", label: "CCC Framework" },
   { href: "/mybooks", label: "Books" },
   { href: "/myarticles", label: "Articles" },
-   { href: "/myarticles", label: "Publications" },
+   { href: "/mypublications", label: "Publications" },
   { href: "/contact", label: "Contact" },
 ];
 
