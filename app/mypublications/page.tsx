@@ -23,21 +23,21 @@ export default function PublicationsPage() {
           <div className="bookMeta">
 
             <div className="bookTitle">
-              Coherence, Correspondence, Calibration: A Meta-Epistemology Applied to Austrian Economics
+              The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis
             </div>
 
             <div className="muted">
-              Austrian Economics Research Conference (AERC) 2026
+              AL AASAR JOURNAL
             </div>
 
             <div className="bookActions">
               <a
                 className="button primary"
-                href="#"
+                href="https://al-aasar.com/index.php/Journal/article/view/816"
                 target="_blank"
                 rel="noreferrer"
               >
-                SSRN
+                AL-AASAR Journal Link
               </a>
             </div>
 
