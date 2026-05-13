@@ -52,7 +52,7 @@ export default function PublicationsPage() {
             </div>
 
             <div className="muted">
-              Working Paper
+              SSRN
             </div>
 
             <div className="bookActions">
