@@ -49,6 +49,14 @@ export default function WorkPage() {
                   >
                     Amazon
                   </a>
+                   <a
+            className="button primary"
+            href="/pdfs/ArchitectureOfDebtMoneyAndInterest_Paperback 1.21.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Free PDF
+          </a>
                 </div>
               </div>
             </div>
@@ -90,6 +98,14 @@ export default function WorkPage() {
                   >
                     Amazon
                   </a>
+                    <a
+            className="button primary"
+            href="/pdfs/ReasonRevelationTruth_Paperback_v1.1.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Free PDF
+          </a>
                 </div>
               </div>
             </div>
