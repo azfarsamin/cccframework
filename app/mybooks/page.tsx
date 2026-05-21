@@ -51,7 +51,7 @@ export default function WorkPage() {
                   </a>
                    <a
             className="button primary"
-            href="/pdfs/ArchitectureOfDebtMoneyAndInterest_Paperback 1.21.pdf"
+            href="/pdfs/ArchitectureOfDebtMoneyAndInterest_freepdf.pdf"
             target="_blank"
             rel="noreferrer"
           >
