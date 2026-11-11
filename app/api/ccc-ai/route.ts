@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
         ],
       }), signal: AbortSignal.timeout(120000),
     });
-    const json = await response.json();
-    
+   const json = await response.json();
 if (!response.ok) {
   console.error("Chutes request failed", {
     status: response.status,
@@ -49,4 +48,37 @@ if (!response.ok) {
     },
     { status: 502 }
   );
+}
+    
+    const choice = json?.choices?.[0];
+    const answer = choice?.message?.content;
+
+    console.log("Chutes diagnostic:", {
+      finishReason: choice?.finish_reason,
+      contentLength:
+        typeof answer === "string" ? answer.length : 0,
+      reasoningLength:
+        choice?.message?.reasoning_content?.length ?? 0,
+      usage: json?.usage,
+    });
+
+    if (typeof answer !== "string" || !answer.trim()) {
+      return NextResponse.json({
+        answer: "No response returned.",
+      });
+    }
+
+    return NextResponse.json({ answer });
+
+  } catch (error) {
+    console.error(
+      "CCC AI request failed:",
+      error instanceof Error ? error.name : "Unknown error"
+    );
+
+    return NextResponse.json(
+      { error: "AI research request failed." },
+      { status: 502 }
+    );
+  }
 }
