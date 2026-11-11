@@ -1,136 +1,97 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useMemo, useState } from "react";
-import styles from "./quran.module.css";
-
-type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
-type Ayah = { numberInSurah: number; text: string };
-type QuranResponse<T> = { code: number; data: T };
-type Note = { id: string; reference: string; question: string; response: string; created: string };
-
-function refOf(chapter: number, verse: number) { return `${chapter}:${verse}`; }
-function storageRead(): Note[] {
-  try { return JSON.parse(localStorage.getItem("ccc-quran-notes-v1") || "[]") as Note[]; }
-  catch { return []; }
-}
-
-export default function QuranResearchPage() {
-  const [surahs, setSurahs] = useState<Surah[]>([]);
-  const [chapter, setChapter] = useState(19);
-  const [ayahs, setAyahs] = useState<Ayah[]>([]);
-  const [selected, setSelected] = useState<number[]>([28]);
-  const [search, setSearch] = useState("");
-  const [question, setQuestion] = useState("Analyze the selected verse(s) through coherence, correspondence, and calibration. Distinguish explicit statements from inference. Do not import hadith or biblical chronology as unquestioned premises.");
-  const [password, setPassword] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => { setNotes(storageRead());
-    fetch("https://api.alquran.cloud/v1/surah")
-      .then((r) => { if (!r.ok) throw new Error("Surah list unavailable"); return r.json(); })
-      .then((j: QuranResponse<Surah[]>) => setSurahs(j.data))
-      .catch(() => setStatus("Could not load the surah list. Check network access."));
-  }, []);
-  useEffect(() => {
-    let cancelled = false;
-    setAyahs([]); setSelected([]); setAiResponse("");
-    fetch(`https://api.alquran.cloud/v1/surah/${chapter}/quran-uthmani`)
-      .then((r) => { if (!r.ok) throw new Error("Unable to fetch Arabic text"); return r.json(); })
-      .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) { setAyahs(j.data.ayahs); setStatus(""); } })
-      .catch(() => { if (!cancelled) setStatus("Unable to load Arabic text from the data provider."); });
-    return () => { cancelled = true; };
-  }, [chapter]);
-
-  const visible = useMemo(() => {
-    const q = search.trim();
-    return q ? ayahs.filter(a => a.text.includes(q) || String(a.numberInSurah) === q || refOf(chapter, a.numberInSurah) === q) : ayahs;
-  }, [ayahs, search, chapter]);
-  const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
-  const currentSurah = surahs.find(s => s.number === chapter);
-  function toggleAyah(n: number) { setSelected(old => old.includes(n) ? old.filter(v => v !== n) : [...old, n].sort((a,b) => a-b)); }
-  async function analyze() {
-    if (!selectedAyahs.length) { setStatus("Select at least one verse first."); return; }
-    setLoading(true); setStatus(""); setAiResponse("");
-    try {
-      const response = await fetch("/api/ccc-ai", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
-        body: JSON.stringify({ question, chapter, verses: selectedAyahs.map(a => ({ verse: a.numberInSurah, arabic: a.text })) }),
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "Research service unavailable");
-      setAiResponse(json.answer || "No response returned.");
-    } catch (e) { setStatus(e instanceof Error ? e.message : "Unexpected problem"); }
-    finally { setLoading(false); }
-  }
-  function saveNote() {
-    if (!selectedAyahs.length) { setStatus("Select a verse before saving a note."); return; }
-    const entry: Note = {
-      id: `${Date.now()}`, reference: selectedAyahs.map(a => refOf(chapter, a.numberInSurah)).join(", "),
-      question, response: aiResponse || "No AI analysis saved; question only.", created: new Date().toISOString(),
-    };
-    const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
-    setStatus("Saved in this browser. Export notes before clearing browser data.");
-  }
-  function exportNotes() {
-    const file = new Blob([JSON.stringify(notes, null, 2)], { type: "application/json" });
-    const href = URL.createObjectURL(file); const a = document.createElement("a");
-    a.href = href; a.download = "ccc-quran-research-notes.json"; a.click(); URL.revokeObjectURL(href);
-  }
+export default function HomePage() {
   return (
-    <main className={styles.main}>
-      <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
-        <span className={styles.beta}>Research prototype</span>
+    <>
+      <div className="kicker">Systems thinking • first principles • gap analysis</div>
+      <h1>Systems Thinking for Complex Problems</h1>
+      <p className="muted">
+        I help analyze complex systems from first principles to uncover hidden assumptions,
+        structural gaps, and leverage points for better decisions.
+      </p>
+
+      <div className="ctaRow">
+        <Link className="button primary" href="/contact">Start a conversation</Link>
+        <Link className="button" href="/mybooks">View Books</Link>
+        <Link className="button" href="/myarticles">View Articles</Link>
+        <Link className="button" href="/ccc">What is CCC?</Link>
       </div>
-      <div className={styles.layout}>
-        <section className={styles.panel} aria-label="Quran reader">
-          <div className={styles.panelHeader}><h2>Qurʾān reader</h2><span>{ayahs.length} verses</span></div>
-          <div className={styles.controls}>
-            <label>Surah
-              <select value={chapter} onChange={e => setChapter(Number(e.target.value))}>
-                {surahs.length ? surahs.map(s => <option value={s.number} key={s.number}>{s.number}. {s.englishName}</option>) : <option value={19}>19. Maryam</option>}
-              </select>
-            </label>
-            <label>Find within surah
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Arabic text or verse number" />
-            </label>
-          </div>
-          <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
-          <div className={styles.verses}>
-            {visible.map(a => <button type="button" key={a.numberInSurah} onClick={() => toggleAyah(a.numberInSurah)}
-              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`} aria-pressed={selected.includes(a.numberInSurah)}>
-              <span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span>
-              <span className={styles.arabic} dir="rtl" lang="ar">{a.text}</span>
-            </button>)}
-            {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
-            {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
-          </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text.</p>
-        </section>
-        <aside className={styles.sidebar}>
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{selectedAyahs.length} selected</span></div>
-            <div className={styles.selection}>{selectedAyahs.length ? selectedAyahs.map(a => <span key={a.numberInSurah}>{refOf(chapter, a.numberInSurah)}</span>) : "Choose a verse on the left"}</div>
-            <label className={styles.label}>Research question
-              <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
-            </label>
-            <label className={styles.label}>Private research passcode
-              <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
-            </label>
-            <button type="button" className={styles.primary} disabled={loading || !selectedAyahs.length} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
-            {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Research response</h3><pre>{aiResponse}</pre></div>}
-            <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
-            <p className={styles.hint}>Research output may be mistaken. Only the selected verses are sent to AI; pan-textual completeness is not yet automated.</p>
-          </section>
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}><h2>Research notebook</h2><button type="button" className={styles.small} onClick={exportNotes} disabled={!notes.length}>Export JSON</button></div>
-            {!notes.length ? <p className={styles.hint}>No saved notes yet. Notes stay in this browser until exported.</p> : notes.slice(0, 12).map(n => <details key={n.id} className={styles.note}><summary>{n.reference} · {new Date(n.created).toLocaleDateString()}</summary><p>{n.question}</p><pre>{n.response}</pre></details>)}
-          </section>
-        </aside>
+
+      <div className="hr" />
+
+      <div className="grid two">
+        <div className="card">
+          <h2>What I do</h2>
+          <ul className="list">
+            <li>Model systems and arguments from first principles</li>
+            <li>Identify contradictions, drift, and incentive failures</li>
+            <li>Turn messy problem spaces into clear decision frameworks</li>
+            <li>Deliver concise, actionable outputs (not fluff)</li>
+          </ul>
+        </div>
+
+        <div className="card">
+          <h2>Who this is for</h2>
+          <ul className="list">
+            <li>Founders and operators dealing with complexity and uncertainty</li>
+            <li>Researchers and writers building frameworks or long-form work</li>
+            <li>Teams evaluating AI systems, metrics, or decision processes</li>
+            <li>Organizations needing a structural “second brain” to stress-test assumptions</li>
+          </ul>
+        </div>
       </div>
-    </main>
+
+      <div className="hr" />
+      <div className="hr" />
+
+      <div className="card">
+        <div className="kicker">Research / Talks</div>
+        <h2>AERC 2026</h2>
+        <p>
+          <strong>Coherence, Correspondence, Calibration: A Meta-Epistemology Applied to Austrian Economics</strong>
+        </p>
+        <p className="muted">
+          Conference presentation at the Austrian Economics Research Conference applying the CCC Framework to Austrian methodology, catallaxy, and decentralized intelligence systems.
+        </p>
+
+        <div className="bookActions">
+          <Link className="button" href="/work/aerc-2026">
+            View Presentation Page
+          </Link>
+
+          <a
+            className="button primary"
+            href="/pdfs/aerc-2026-slides.pdf"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View Slides (PDF)
+          </a>
+        </div>
+      </div>
+      <div className="grid three">
+        <div className="card">
+          <div className="kicker">Coherence</div>
+          <h2>Internal structure</h2>
+          <p>
+            Does the model hold together without contradiction? Are the definitions stable and the logic sound?
+          </p>
+        </div>
+        <div className="card">
+          <div className="kicker">Correspondence</div>
+          <h2>Reality fit</h2>
+          <p>
+            Does it match observed behavior and outcomes? Where does lived reality expose failure modes?
+          </p>
+        </div>
+        <div className="card">
+          <div className="kicker">Calibration</div>
+          <h2>Correction loop</h2>
+          <p>
+            What forces continuous correction? How do we prevent metric gaming, drift, and false certainty?
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
