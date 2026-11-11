@@ -43,7 +43,6 @@ if (!response.ok) {
     errorCode: json?.error?.code,
     errorType: json?.error?.type,
   });
-
   return NextResponse.json(
     {
       error: `Chutes returned HTTP ${response.status}. Check Vercel runtime logs for details.`,
