@@ -6,6 +6,16 @@ import styles from "./quran.module.css";
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
 type Ayah = { numberInSurah: number; text: string };
 type QuranResponse<T> = { code: number; data: T };
+type TranslationEdition = "en.asad" | "en.sahih" | "en.yusufali" | "en.pickthall" | "en.itani" | "gerrans";
+const editions: { id: TranslationEdition; name: string }[] = [
+  { id: "en.asad", name: "Muhammad Asad" },
+  { id: "en.sahih", name: "Saheeh International" },
+  { id: "en.yusufali", name: "Abdullah Yusuf Ali" },
+  { id: "en.pickthall", name: "Marmaduke Pickthall" },
+  { id: "en.itani", name: "Talal Itani" },
+  { id: "gerrans", name: "Sam Gerrans" },
+];
+type GerransMap = Record<string, string>;
 type Note = { id: string; reference: string; question: string; response: string; created: string };
 
 function refOf(chapter: number, verse: number) { return `${chapter}:${verse}`; }
@@ -18,6 +28,10 @@ export default function QuranResearchPage() {
   const [surahs, setSurahs] = useState<Surah[]>([]);
   const [chapter, setChapter] = useState(19);
   const [ayahs, setAyahs] = useState<Ayah[]>([]);
+  const [edition, setEdition] = useState<TranslationEdition>("en.asad");
+  const [translations, setTranslations] = useState<Ayah[]>([]);
+  const [gerrans, setGerrans] = useState<GerransMap>({});
+  const [translationError, setTranslationError] = useState("");
   const [selected, setSelected] = useState<number[]>([28]);
   const [search, setSearch] = useState("");
   const [question, setQuestion] = useState("Analyze the selected verse(s) through coherence, correspondence, and calibration. Distinguish explicit statements from inference. Do not import hadith or biblical chronology as unquestioned premises.");
@@ -42,6 +56,29 @@ export default function QuranResearchPage() {
       .catch(() => { if (!cancelled) setStatus("Unable to load Arabic text from the data provider."); });
     return () => { cancelled = true; };
   }, [chapter]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTranslations([]);
+    setTranslationError("");
+    if (edition === "gerrans") {
+      fetch("/data/gerrans.json")
+        .then(r => { if (!r.ok) throw new Error("Gerrans data not installed yet"); return r.json(); })
+        .then((data: GerransMap) => {
+          if (!cancelled) {
+            if (!data || Array.isArray(data) || typeof data !== "object") throw new Error("Gerrans data is not in the expected verse-map format");
+            setGerrans(data);
+          }
+        })
+        .catch(() => { if (!cancelled) setTranslationError("Gerrans is available for download from Quranite Reader; the data file still needs to be installed in this website."); });
+    } else {
+      fetch(`https://api.alquran.cloud/v1/surah/${chapter}/${edition}`)
+        .then(r => { if (!r.ok) throw new Error("Translation unavailable"); return r.json(); })
+        .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) setTranslations(j.data.ayahs); })
+        .catch(() => { if (!cancelled) setTranslationError("Translation could not be loaded. Try another edition."); });
+    }
+    return () => { cancelled = true; };
+  }, [chapter, edition]);
 
   const visible = useMemo(() => {
     const q = search.trim();
@@ -97,17 +134,29 @@ export default function QuranResearchPage() {
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Arabic text or verse number" />
             </label>
           </div>
+          <div className={styles.translationControl}>
+            <label htmlFor="ccc-translation">English translation</label>
+            <select id="ccc-translation" value={edition} onChange={e => setEdition(e.target.value as TranslationEdition)}>
+              {editions.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
+            </select>
+            {translationError && <p className={styles.translationNotice}>{translationError}</p>}
+          </div>
           <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
           <div className={styles.verses}>
             {visible.map(a => <button type="button" key={a.numberInSurah} onClick={() => toggleAyah(a.numberInSurah)}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`} aria-pressed={selected.includes(a.numberInSurah)}>
               <span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span>
               <span className={styles.arabic} dir="rtl" lang="ar">{a.text}</span>
+              <span className={styles.english} lang="en">
+                {edition === "gerrans"
+                  ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
+                  : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
+              </span>
             </button>)}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
           </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text.</p>
+          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. English renderings are supplied by their respective translators and are not treated as authoritative Arabic text.</p>
         </section>
         <aside className={styles.sidebar}>
           <section className={styles.panel}>
