@@ -115,3 +115,30 @@
 .markdown code{font-family:ui-monospace,monospace;background:#f2f5f8;border-radius:4px;padding:1px 4px}
 .markdown blockquote{border-left:3px solid #bdc8d6;padding-left:12px;color:#566375;margin:10px 0}
 .incomplete{font-size:13px;line-height:1.5;color:#7a3f11;background:#fff4e6;border:1px solid #f0d0a5;border-radius:7px;padding:10px}
+
+/* QA Release 1.1 — explicit high-contrast research Markdown. */
+/* Global theme rules may otherwise make response text nearly white on white. */
+.answer .markdown,
+.note .markdown {
+  color: #1f2937 !important;
+  background-color: #fff;
+  opacity: 1;
+}
+.answer .markdown :is(p, li, strong, em, span, div, blockquote, h1, h2, h3, h4),
+.note .markdown :is(p, li, strong, em, span, div, blockquote, h1, h2, h3, h4) {
+  color: #1f2937 !important;
+  opacity: 1;
+}
+.answer .markdown :is(h1, h2, h3, h4),
+.note .markdown :is(h1, h2, h3, h4) {
+  color: #172b4d !important;
+  font-weight: 750;
+}
+.answer .markdown :is(strong, b),
+.note .markdown :is(strong, b) { font-weight: 750; }
+.answer .markdown code,
+.note .markdown code { color: #192b41 !important; background-color: #edf2f7; }
+.answer .markdown blockquote,
+.note .markdown blockquote { border-left-color: #71849a; }
+.answer .markdown a,
+.note .markdown a { color: #174b89 !important; text-decoration: underline; }
