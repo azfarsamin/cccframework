@@ -193,6 +193,7 @@ export async function retrieveConceptualContext(
   candidates: ConceptCandidates,
 ): Promise<{
   text: string;
+  suppliedVerses: { reference: string; arabic: string }[];
   diagnostics: { candidateReferences: number; validReferences: number; matchingRootVerses: number; sentVerses: number; roots: string[]; truncated: boolean };
 }> {
   const [morphology, arabic] = await Promise.all([getMorphology(), getArabicCorpus()]);
@@ -220,6 +221,7 @@ export async function retrieveConceptualContext(
   // Bounded output avoids swallowing the Chutes model context.
   const ordered = [...direct, ...extra];
   const verses: string[] = [];
+  const suppliedVerses: { reference: string; arabic: string }[] = [];
   let chars = 0;
   for (const ref of ordered) {
     const verse = arabic.get(ref);
@@ -227,6 +229,7 @@ export async function retrieveConceptualContext(
     const addition = `${ref} ${verse}`;
     if (verses.length >= 65 || chars + addition.length > 23000) break;
     verses.push(addition);
+    suppliedVerses.push({ reference: ref, arabic: verse });
     chars += addition.length;
   }
   const omitted = ordered.length - verses.length;
@@ -242,6 +245,7 @@ export async function retrieveConceptualContext(
   ];
   return {
     text: `${header.join('\n')}\n\nVERIFIED ARABIC VERSES (candidate relevance to be evaluated):\n${verses.join('\n') || 'None.'}`,
+    suppliedVerses,
     diagnostics: {
       candidateReferences: candidates.references.length,
       validReferences: direct.filter(r => candidates.references.includes(r)).length,
