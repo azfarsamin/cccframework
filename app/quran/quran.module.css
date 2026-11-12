@@ -106,7 +106,13 @@
 .searchRef{font-size:13px}
 
 /* Safe Markdown presentation for CCC research and saved notes. */
-.markdown{font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+.markdown {
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  color: #1f2937 !important;
+  background-color: #ffffff;
+  opacity: 1;}
 .markdown p{margin:9px 0}
 .markdown h2{font-size:16px;margin:19px 0 8px;color:#23344c}
 .markdown h3{font-size:15px;margin:16px 0 7px;color:#23344c}
