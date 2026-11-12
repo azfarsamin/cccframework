@@ -30,3 +30,24 @@
 .rootForm{display:flex;gap:8px;margin:12px 0}.rootForm input{flex:1;min-width:0;border:1px solid #cdd2d7;border-radius:7px;padding:10px;font:inherit}.rootForm button,.rootLink,.verseSelect{border:1px solid #596e80;background:#fff;color:#273b4e;padding:8px 10px;border-radius:7px;cursor:pointer}.rootForm button{background:#24364a;color:#fff}.rootForm button:disabled{opacity:.5}
 .wordInspector{padding:12px;border-radius:8px;background:#fff;border:1px solid #e4e4e6;display:flex;flex-direction:column;gap:8px}.wordInspector p{margin:0;font-size:13px}.inspectorArabic{font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:26px}.segment{font-size:12px;overflow-wrap:anywhere;padding:5px;border-top:1px solid #eee}.rootLink{align-self:flex-start}.rootHits{display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto}.rootHits button{cursor:pointer;background:#fff;border:1px solid #e2e4e8;text-align:left;padding:8px;border-radius:5px}.rootHits button:hover{background:#f5f0e7}.morphCredit{font-size:11px;line-height:1.5;color:#656a74}.morphCredit a{color:inherit}
 .verseToolbar{display:flex;align-items:center;justify-content:space-between;gap:8px}.verseSelect{font-size:12px;padding:6px 9px}.verseSelect[aria-pressed="true"]{background:#e5dbbf}.arabicWord{font-family:inherit;font-size:inherit;line-height:inherit;display:inline;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;padding:0 3px;margin:0 2px}.arabicWord:hover,.arabicWord:focus-visible{background:#e7dec5;outline:1px solid #bfa56b}.arabicWord:disabled{cursor:not-allowed;text-decoration:underline dotted #bf8c55}
+
+/* Inspector readability fix: explicit contrast despite inherited global styles. */
+.morphTools,.wordInspector,.rootHits{color:#202833}
+.wordInspector{gap:14px;padding:16px}
+.wordInspector>strong{font-size:16px;color:#202833}
+.inspectorArabic{color:#15263b;text-align:right;font-size:30px;line-height:1.8}
+.morphFacts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.morphFacts>div{background:#f4f6f8;border:1px solid #d9dee5;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:5px}
+.morphLabel{display:block;color:#485466;font-size:12px;font-weight:700}
+.morphArabicValue{font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:25px;line-height:1.5;color:#182638}
+.morphSegments{display:flex;flex-direction:column;gap:6px}
+.morphSegments .segment{border:1px solid #e0e5e9;background:#fafbfc;border-radius:6px;padding:8px 10px;font-size:13px;color:#263444;line-height:1.5}
+.morphTechnical{font-size:12px;color:#495566;border-top:1px solid #e0e5e9;padding-top:10px}
+.morphTechnical summary{cursor:pointer;font-weight:600}
+.morphTechnical code{color:#28394b;overflow-wrap:anywhere}
+.rootHits{max-height:300px;gap:7px}
+.rootHits button{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;color:#293545;font-size:13px}
+.rootHits button strong{min-width:42px;color:#1d334e}
+.rootHits button span:nth-child(2){color:#556174}
+.hitLemma{margin-left:auto;font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:20px;color:#162638}
+@media(max-width:580px){.morphFacts{grid-template-columns:1fr}}
