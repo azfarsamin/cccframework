@@ -182,7 +182,7 @@ export default function QuranResearchPage() {
             setSelected([verse]);
             scrollTarget.current = refOf(chapter, verse);
           } else {
-            setJumpError(`Surah ${chapter} has only ${j.data.ayahs.length} verses.`);
+            setGlobalError(`Surah ${chapter} has only ${j.data.ayahs.length} verses.`);
           }
           pendingJump.current = null;
         }
