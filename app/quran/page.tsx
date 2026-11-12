@@ -493,10 +493,6 @@ export default function QuranResearchPage() {
   }
   return (
     <main className={styles.main}>
-      <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
-        <span className={styles.beta}>Research prototype</span>
-      </div>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
         <p className={styles.hint}>Enter a reference such as 19:28 to jump directly to that verse, or search all 114 surahs by Arabic text or your selected English translation. Keyword searches are not root searches.</p>
