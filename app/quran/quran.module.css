@@ -69,23 +69,22 @@
 .wordMeaning strong{font-size:18px;line-height:1.45;font-weight:700;color:#182638}
 .wordMeaning small{font-size:12px;line-height:1.5;color:#596579}
 
-/* CCC Qur'an Research Engine — workspace redesign */
-
-.main {
-  max-width: none;
-  width: 100%;
-  min-height: 100vh;
-  background: #f5f6f8;
-  padding: 20px 24px 60px;
-  box-sizing: border-box;
-}
-
-.globalSearch {
-  margin-top: 0;
-}
-
-@media (max-width: 580px) {
-  .main {
-    padding: 12px;
-  }
-}
+/* Redesign step 1 — move research tools to the right; preserve reader and search */
+.researchSide{display:block;min-width:0}
+.researchPanel{position:sticky;top:12px;max-height:calc(100vh - 24px);display:flex;flex-direction:column;gap:0;padding:18px}
+.researchTabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:#f1f3f6;border:1px solid #dfe3e8;border-radius:10px;padding:4px;margin-top:16px}
+.researchTabs button{border:0;background:transparent;color:#4a5566;border-radius:7px;padding:11px 5px;font:inherit;font-size:13px;font-weight:650;cursor:pointer;min-width:0}
+.researchTabs button:hover{background:#e4e9f0}
+.researchTabs button[aria-selected="true"]{background:#26364c;color:#fff}
+.researchTabs button:focus-visible{outline:3px solid #6486bd;outline-offset:2px}
+.researchContent{min-height:0;overflow-y:auto;margin-top:12px;overscroll-behavior:contain}
+.tabBody{min-width:0;padding:4px 1px 12px}
+.toolTitle{font-size:16px;margin:4px 0 12px;color:#202833}
+.toolIntro{font-size:13px;line-height:1.55;color:#5b6572;margin-bottom:12px}
+.emptyTool{padding:18px;background:#f6f8fa;border-radius:8px;font-size:14px;color:#526071;line-height:1.55}
+.researchContent .morphCredit{border-top:1px solid #e2e5e9;padding-top:12px;margin-top:16px}
+.researchContent .rootForm{margin:8px 0 14px}
+.researchContent .wordInspector{margin:0}
+.researchContent .panelHeader{margin-bottom:12px}
+@media(max-width:900px){.researchPanel{position:static;max-height:none}.researchContent{overflow:visible}}
+@media(max-width:580px){.researchTabs button{font-size:12px;padding:10px 2px}}
