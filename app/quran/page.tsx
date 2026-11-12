@@ -29,6 +29,22 @@ function normalizeArabic(value: string) {
     .replace(/ئ/g, "ي");
 }
 
+
+type MorphSegment = [string, string, string];
+type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
+type Morphology = Record<string, MorphWord[]>;
+type WordChoice = { reference: string; index: number; display: string };
+type RootHit = { reference: string; index: number; lemma: string | null };
+const buckwalterArabic: Record<string, string> = {
+  A: "ا", b: "ب", t: "ت", v: "ث", j: "ج", H: "ح", x: "خ", d: "د", '*': "ذ", r: "ر", z: "ز", s: "س", '$': "ش", S: "ص", D: "ض", T: "ط", Z: "ظ", E: "ع", g: "غ", f: "ف", q: "ق", k: "ك", l: "ل", m: "م", n: "ن", h: "ه", w: "و", y: "ي", '<': "إ", '>': "أ", '&': "ؤ", '}': "ئ", p: "ة", Y: "ى", '|': "آ", '{': "ٱ", 'X': "خ"
+};
+function translitToArabic(value: string) {
+  return Array.from(value).map(character => buckwalterArabic[character] || character).join("");
+}
+function normalizedRoot(value: string) {
+  return normalizeArabic(value).replace(/\s+/g, "").trim();
+}
+
 type Note = { id: string; reference: string; question: string; response: string; created: string };
 
 function refOf(chapter: number, verse: number) { return `${chapter}:${verse}`; }
@@ -48,6 +64,13 @@ export default function QuranResearchPage() {
   const [selected, setSelected] = useState<number[]>([28]);
   const [search, setSearch] = useState("");
   const [verseReference, setVerseReference] = useState("");
+  const [morph, setMorph] = useState<Morphology | null>(null);
+  const [morphLoading, setMorphLoading] = useState(false);
+  const [morphError, setMorphError] = useState("");
+  const [wordChoice, setWordChoice] = useState<WordChoice | null>(null);
+  const [rootQuery, setRootQuery] = useState("");
+  const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
+  const [rootTotal, setRootTotal] = useState<number | null>(null);
   const [globalQuery, setGlobalQuery] = useState("");
   const [globalLanguage, setGlobalLanguage] = useState<"arabic" | "english">("arabic");
   const [globalResults, setGlobalResults] = useState<SearchResult[]>([]);
@@ -236,6 +259,52 @@ export default function QuranResearchPage() {
     }
   }
 
+  async function loadMorphology(): Promise<Morphology> {
+    if (morph) return morph;
+    setMorphLoading(true); setMorphError("");
+    try {
+      const response = await fetch("/data/morphology.json");
+      if (!response.ok) throw new Error("Morphology data unavailable. Upload public/data/morphology.json.");
+      const data = await response.json() as Morphology;
+      if (!data["1:1"] || !data["114:6"]) throw new Error("Incomplete morphology dataset.");
+      setMorph(data);
+      return data;
+    } catch (error) {
+      setMorphError(error instanceof Error ? error.message : "Cannot load morphology data.");
+      throw error;
+    } finally { setMorphLoading(false); }
+  }
+
+  async function inspectWord(reference: string, index: number, display: string) {
+    setWordChoice({ reference, index, display });
+    try { await loadMorphology(); } catch { /* error shown above inspector */ }
+  }
+  async function findRoot(root: string) {
+    const requested = normalizedRoot(root);
+    setRootMatches([]); setRootTotal(null);
+    if (!requested) return;
+    try {
+      const dataset = await loadMorphology();
+      const results: RootHit[] = [];
+      for (const [reference, words] of Object.entries(dataset)) {
+        words.forEach((w, index) => {
+          if (w.r && normalizedRoot(translitToArabic(w.r)) === requested) {
+            results.push({ reference, index: index + 1, lemma: w.l });
+          }
+        });
+      }
+      setRootTotal(results.length);
+      setRootMatches(results.slice(0, 200));
+    } catch { /* error already displayed */ }
+  }
+  function openRootHit(hit: RootHit) {
+    const [targetChapter, targetVerse] = hit.reference.split(":").map(Number);
+    setWordChoice({ reference: hit.reference, index: hit.index, display: "" });
+    openSearchResult({ chapter: targetChapter, verse: targetVerse, arabic: "", english: "" });
+  }
+  const inspectedWord = wordChoice && morph?.[wordChoice.reference]?.[wordChoice.index - 1];
+  const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
+
   const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
   const currentSurah = surahs.find(s => s.number === chapter);
   function toggleAyah(n: number) { setSelected(old => old.includes(n) ? old.filter(v => v !== n) : [...old, n].sort((a,b) => a-b)); }
@@ -320,18 +389,46 @@ export default function QuranResearchPage() {
             </select>
             {translationError && <p className={styles.translationNotice}>{translationError}</p>}
           </div>
+          <div className={styles.morphTools}>
+            <h3>Arabic word inspector and root concordance</h3>
+            <p className={styles.hint}>Click an Arabic word below to inspect its corpus annotations. Root searches use corpus-assigned roots, not simple string matching.</p>
+            <form className={styles.rootForm} onSubmit={(event) => {event.preventDefault(); void findRoot(rootQuery);}}>
+              <input aria-label="Search Arabic root" value={rootQuery} onChange={e => setRootQuery(e.target.value)} placeholder="Arabic root, e.g. ر ح م" />
+              <button type="submit" disabled={morphLoading}>{morphLoading ? "Loading…" : "Find root"}</button>
+            </form>
+            {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
+            {wordChoice && <div className={styles.wordInspector}>
+              <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
+              <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
+              {inspectedWord ? <>
+                <p>Root: <strong dir="rtl" lang="ar">{selectedRoot || "Not annotated"}</strong> {inspectedWord.r ? `(${inspectedWord.r})` : ""}</p>
+                <p>Lemma (Buckwalter): <code>{inspectedWord.l || "Not annotated"}</code></p>
+                {inspectedWord.s.map((segment, ix) => <div key={ix} className={styles.segment}><code>{segment[0] || "—"}</code> · <strong>{segment[1]}</strong> · <span>{segment[2]}</span></div>)}
+                {selectedRoot && <button type="button" className={styles.rootLink} onClick={() => {setRootQuery(selectedRoot); void findRoot(selectedRoot);}}>Find all occurrences of {selectedRoot}</button>}
+              </> : <p className={styles.hint}>{morphLoading ? "Loading annotations…" : "No annotation available at this reference."}</p>}
+            </div>}
+            {rootTotal !== null && <div className={styles.rootHits}>
+              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
+              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}>{hit.reference} · word {hit.index} · {hit.lemma || "—"}</button>)}
+            </div>}
+            <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
+          </div>
           <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
           <div className={styles.verses}>
-            {visible.map(a => <button type="button" id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah} onClick={() => toggleAyah(a.numberInSurah)}
-              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`} aria-pressed={selected.includes(a.numberInSurah)}>
-              <span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span>
-              <span className={styles.arabic} dir="rtl" lang="ar">{a.text}</span>
+            {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
+              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
+              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
+              <span className={styles.arabic} dir="rtl" lang="ar">{a.text.trim().split(/\s+/).map((token, i) => {
+                const reference = refOf(chapter, a.numberInSurah);
+                const alignmentOk = !morph?.[reference] || morph[reference].length === a.text.trim().split(/\s+/).length;
+                return <button key={i} type="button" className={styles.arabicWord} disabled={!alignmentOk} title={alignmentOk ? `Inspect word ${i + 1}` : "Word alignment differs from corpus; manual verification required"} onClick={() => void inspectWord(reference, i + 1, token)}>{token}</button>;
+              })}</span>
               <span className={styles.english} lang="en">
                 {edition === "gerrans"
                   ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
                   : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
               </span>
-            </button>)}
+            </div>)}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
           </div>
