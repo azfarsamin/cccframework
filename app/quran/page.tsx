@@ -34,7 +34,13 @@ type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
 type Morphology = Record<string, MorphWord[]>;
 type WordChoice = { reference: string; index: number; display: string };
-type RootHit = { reference: string; index: number; lemma: string | null };
+type RootHit = {
+  reference: string;
+  index: number;
+  surface: string;
+  morphology: string;
+  context?: { before: string[]; match: string; after: string[] };
+};
 
 // Match displayed Arabic words to corpus word positions, never by raw index alone.
 // Orthographic normalization is used for matching only; it never changes the source text.
@@ -428,12 +434,58 @@ export default function QuranResearchPage() {
       for (const [reference, words] of Object.entries(dataset)) {
         words.forEach((w, index) => {
           if (w.r && normalizedRoot(translitToArabic(w.r)) === requested) {
-            results.push({ reference, index: index + 1, lemma: w.l });
+            const verb = w.s.find(segment => segment[1] === "V");
+            const formTag = verb?.[2].match(/\((I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\)/)?.[1];
+            const noun = w.s.find(segment => ["N", "ADJ", "PN"].includes(segment[1]));
+            const morphology = verb
+              ? `Verb · ${formTag ? `Form ${formTag}` : "Form I"}`
+              : noun ? (partOfSpeechLabels[noun[1]] || "Noun") : "Other form";
+            const surface = w.s.map(segment => translitToArabic(segment[0])).join("");
+            results.push({ reference, index: index + 1, surface, morphology });
           }
         });
       }
       setRootTotal(results.length);
-      setRootMatches(results.slice(0, 200));
+      const firstResults = results.slice(0, 200);
+      setRootMatches(firstResults);
+      // The corpus word form is immediately available. Enrich it with a verse
+      // excerpt only when an exact Arabic word alignment can be verified.
+      try {
+        if (!arabicCorpus.current) arabicCorpus.current = await getFullCorpus("quran-uthmani");
+        const verses = new Map<string, string>();
+        for (const surah of arabicCorpus.current) {
+          for (const ayah of surah.ayahs) {
+            const reference = refOf(surah.number, ayah.numberInSurah);
+            if (dataset[reference]) verses.set(reference, ayah.text);
+          }
+        }
+        const alignmentCache = new Map<string, { tokens: string[]; mapping: (number | null)[] }>();
+        const enriched = firstResults.map(hit => {
+          const arabic = verses.get(hit.reference);
+          const words = dataset[hit.reference];
+          if (!arabic || !words) return hit;
+          let aligned = alignmentCache.get(hit.reference);
+          if (!aligned) {
+            const tokens = arabic.trim().split(/\s+/);
+            aligned = { tokens, mapping: alignVerseWords(tokens, words) };
+            alignmentCache.set(hit.reference, aligned);
+          }
+          const at = aligned.mapping.findIndex(position => position === hit.index);
+          if (at < 0) return hit;
+          return {
+            ...hit,
+            surface: aligned.tokens[at],
+            context: {
+              before: aligned.tokens.slice(Math.max(0, at - 5), at),
+              match: aligned.tokens[at],
+              after: aligned.tokens.slice(at + 1, at + 6)
+            }
+          };
+        });
+        setRootMatches(enriched);
+      } catch {
+        // Do not block the concordance when the optional Arabic text service fails.
+      }
     } catch { /* error already displayed */ }
   }
   function openRootHit(hit: RootHit) {
@@ -633,7 +685,22 @@ export default function QuranResearchPage() {
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
             {rootTotal !== null && <div className={styles.rootHits}>
               <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
-              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
+              {rootMatches.map(hit => (
+                <button type="button" className={styles.rootOccurrence} key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}>
+                  <span className={styles.rootOccurrenceHeader}>
+                    <strong>{hit.reference}</strong>
+                    <span className={styles.rootOccurrenceType}>{hit.morphology}</span>
+                    <span className={styles.rootOccurrenceWord} dir="rtl" lang="ar">{hit.surface}</span>
+                  </span>
+                  {hit.context && (
+                    <span className={styles.rootContext} dir="rtl" lang="ar">
+                      {hit.context.before.join(" ")}{hit.context.before.length ? " " : ""}
+                      <mark>{hit.context.match}</mark>
+                      {hit.context.after.length ? " " : ""}{hit.context.after.join(" ")}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>}
             {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
