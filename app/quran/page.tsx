@@ -46,10 +46,15 @@ type RootHit = {
 // Match displayed Arabic words to corpus word positions, never by raw index alone.
 // Orthographic normalization is used for matching only; it never changes the source text.
 function wordKey(value: string): string {
+  // The displayed Uthmani text may retain hamza as an independent letter
+  // (e.g. ٱلشُّهَدَآءَ), whereas the segmented Buckwalter surface can omit it.
+  // Compare orthographic skeletons symmetrically; preserve the original forms
+  // for display and keep the order/occurrence safeguards in alignVerseWords.
   return normalizeArabic(value)
     .replace(/\u0671/g, "ا")
     .replace(/\u06E5/g, "و")
     .replace(/\u06E6/g, "ي")
+    .replace(/ء/g, "")
     .replace(/[^\u0621-\u064A]/g, "");
 }
 
