@@ -58,13 +58,55 @@ const featureLabels: Record<string,string> = {
   SUBJ: "Subjunctive", JUS: "Jussive", MS: "Masculine singular",
   FS: "Feminine singular", MP: "Masculine plural", FP: "Feminine plural"
 };
+const verbFormLabels: Record<string, string> = {
+  I: "Form I", II: "Form II", III: "Form III", IV: "Form IV", V: "Form V",
+  VI: "Form VI", VII: "Form VII", VIII: "Form VIII", IX: "Form IX",
+  X: "Form X", XI: "Form XI", XII: "Form XII"
+};
+const personLabels: Record<string, string> = {
+  "1S": "First-person singular (I)", "1P": "First-person plural (we)",
+  "2MS": "Second-person masculine singular (you)",
+  "2FS": "Second-person feminine singular (you)",
+  "2D": "Second-person dual (you two)",
+  "2MP": "Second-person masculine plural (you)",
+  "2FP": "Second-person feminine plural (you)",
+  "3MS": "Third-person masculine singular (he)",
+  "3FS": "Third-person feminine singular (she)",
+  "3D": "Third-person dual (they two)",
+  "3MD": "Third-person masculine dual (they two)",
+  "3FD": "Third-person feminine dual (they two)",
+  "3MP": "Third-person masculine plural (they)",
+  "3FP": "Third-person feminine plural (they)"
+};
 function segmentSummary(segment: MorphSegment) {
   const features = segment[2].split("|");
-  const readable = features.filter(v => featureLabels[v]).map(v => featureLabels[v]);
-  if (features.some(v => v.startsWith("PREFIX"))) readable.unshift("Prefix");
-  if (features.some(v => v.startsWith("SUFFIX"))) readable.unshift("Suffix");
-  if (features.includes("STEM")) readable.unshift("Stem");
-  return [partOfSpeechLabels[segment[1]] || segment[1], ...Array.from(new Set(readable))].join(" · ");
+  const kind = segment[1];
+  const result: string[] = [];
+  const form = features.map(v => /^\((I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\)$/.exec(v)?.[1])
+    .find(Boolean);
+  const person = features.find(v => personLabels[v]);
+  if (kind === "V") {
+    result.push(form ? `${verbFormLabels[form]} verb` : "Verb");
+    if (features.includes("PERF")) result.push("Perfect (completed action)");
+    if (features.includes("IMPF")) result.push("Imperfect (ongoing/incomplete action)");
+    if (features.includes("IMPV")) result.push("Imperative (command)");
+    if (features.includes("PASS")) result.push("Passive voice");
+    else if (features.includes("ACT")) result.push("Active voice");
+    if (person) result.push(personLabels[person]);
+  } else if (kind === "PRON") {
+    result.push(features.some(v => v.startsWith("SUFFIX")) ? "Attached pronoun" : "Pronoun");
+    if (person) result.push(personLabels[person]);
+  } else {
+    result.push(partOfSpeechLabels[kind] || kind);
+    if (features.some(v => v.startsWith("PREFIX"))) result.push("Prefix");
+    if (features.some(v => v.startsWith("SUFFIX"))) result.push("Suffix");
+    for (const feature of features) {
+      if (featureLabels[feature] && !result.includes(featureLabels[feature]))
+        result.push(featureLabels[feature]);
+    }
+    if (person) result.push(personLabels[person]);
+  }
+  return result.join(" · ");
 }
 function normalizedRoot(value: string) {
   return normalizeArabic(value).replace(/\s+/g, "").trim();
