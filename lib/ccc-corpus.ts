@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import type { ConceptCandidates } from "./ccc-conceptual";
+
 export type ResearchVerse = { chapter: number; verse: number; arabic: string };
 type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
@@ -17,6 +19,10 @@ export type RetrievalResult = {
   concordance: Concordance | null;
   concordanceVerses: { reference: string; count: number; arabic: string }[];
   diagnostics: {
+    thematicCandidates?: number;
+    thematicVerified?: number;
+    thematicRoots?: string[];
+    thematicPartial?: boolean;
     selectedCount: number;
     queryTerm: string | null;
     totalWordOccurrences: number;
@@ -173,6 +179,76 @@ export async function retrieveQuranContext(selected: ResearchVerse[], question: 
       retrievedAdditionalVerses: snippets.length,
       exhaustiveLexicalIndex: !!target,
       source: "Qur'anic Arabic Corpus v0.4 morphology + Al Quran Cloud quran-uthmani",
+    },
+  };
+}
+
+
+/** Verify model-proposed references against BOTH indexed morphology and Arabic
+ * verses. A valid citation is not proof that its theme is relevant. Root
+ * matches are exhaustive for that ROOT, not for the whole semantic concept.
+ */
+export async function retrieveConceptualContext(
+  selected: ResearchVerse[],
+  candidates: ConceptCandidates,
+): Promise<{
+  text: string;
+  diagnostics: { candidateReferences: number; validReferences: number; matchingRootVerses: number; sentVerses: number; roots: string[]; truncated: boolean };
+}> {
+  const [morphology, arabic] = await Promise.all([getMorphology(), getArabicCorpus()]);
+  const indexRoots = new Map<string, Set<string>>();
+  for (const words of Object.values(morphology)) for (const word of words) if (word.r) {
+    const arabicRoot = norm(asArabic(word.r));
+    if (!indexRoots.has(arabicRoot)) indexRoots.set(arabicRoot, new Set());
+    indexRoots.get(arabicRoot)!.add(word.r);
+  }
+  const roots = new Set<string>();
+  for (const suggested of candidates.roots) {
+    const matches = indexRoots.get(norm(suggested));
+    if (matches?.size === 1) roots.add([...matches][0]);
+  }
+  const rootHits: string[] = [];
+  if (roots.size) for (const [ref, words] of Object.entries(morphology)) {
+    if (words.some(w => w.r && roots.has(w.r))) rootHits.push(ref);
+  }
+  rootHits.sort(sortRefs);
+  const direct = [...new Set([...selected.map(v => `${v.chapter}:${v.verse}`), ...candidates.references])]
+    .filter(r => morphology[r] && arabic.has(r));
+  const directSet = new Set(direct);
+  const extra = rootHits.filter(r => !directSet.has(r));
+  // The model's references are prioritized, then lexical family results.
+  // Bounded output avoids swallowing the Chutes model context.
+  const ordered = [...direct, ...extra];
+  const verses: string[] = [];
+  let chars = 0;
+  for (const ref of ordered) {
+    const verse = arabic.get(ref);
+    if (!verse) continue;
+    const addition = `${ref} ${verse}`;
+    if (verses.length >= 65 || chars + addition.length > 23000) break;
+    verses.push(addition);
+    chars += addition.length;
+  }
+  const omitted = ordered.length - verses.length;
+  const rootNames = [...roots].map(r => asArabic(r));
+  const header = [
+    'THEMATIC RETRIEVAL — CANDIDATE DISCOVERY AND CORPUS VERIFICATION',
+    `Research theme: ${candidates.queryConcept || 'User question'}`,
+    `Model-proposed references: ${candidates.references.length}; valid Qur'anic references: ${direct.filter(r => candidates.references.includes(r)).length}.`,
+    `Corpus-confirmed Arabic roots: ${rootNames.join(', ') || 'none'}.`,
+    `Verses containing these roots (lexically exhaustive for each accepted root): ${rootHits.length}.`,
+    `Verified Arabic passages supplied below: ${verses.length}; omitted because of excerpt budget: ${Math.max(0, omitted)}.`,
+    'CAUTION: This is NOT an exhaustive conceptual concordance. A proposed reference has been checked to exist and its Arabic text retrieved, but its semantic relevance has NOT been independently certified. Root matches may include unrelated meanings. Assess each passage and exclude false positives. Do not say "only these verses" or "all relevant verses".',
+  ];
+  return {
+    text: `${header.join('\n')}\n\nVERIFIED ARABIC VERSES (candidate relevance to be evaluated):\n${verses.join('\n') || 'None.'}`,
+    diagnostics: {
+      candidateReferences: candidates.references.length,
+      validReferences: direct.filter(r => candidates.references.includes(r)).length,
+      matchingRootVerses: rootHits.length,
+      sentVerses: verses.length,
+      roots: rootNames,
+      truncated: omitted > 0,
     },
   };
 }
