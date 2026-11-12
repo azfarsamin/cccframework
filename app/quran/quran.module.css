@@ -63,3 +63,8 @@
 .grammarField dd{margin:0;color:#152438;font-size:14px;line-height:1.5;font-weight:650}
 .grammarNote{margin:0;color:#536073;font-size:12px;line-height:1.55}
 @media(max-width:580px){.grammarGrid{grid-template-columns:1fr}}
+
+/* Contextual word meaning beneath the selected Arabic word */
+.wordMeaning{display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #e0e5e9;padding:0 0 14px;color:#223047}
+.wordMeaning strong{font-size:18px;line-height:1.45;font-weight:700;color:#182638}
+.wordMeaning small{font-size:12px;line-height:1.5;color:#596579}
