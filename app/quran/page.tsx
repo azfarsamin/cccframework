@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./quran.module.css";
 
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
@@ -16,6 +16,19 @@ const editions: { id: TranslationEdition; name: string }[] = [
   { id: "gerrans", name: "Sam Gerrans" },
 ];
 type GerransMap = Record<string, string>;
+type FullSurah = { number: number; ayahs: Ayah[] };
+type SearchResult = { chapter: number; verse: number; arabic: string; english: string };
+const MAX_SEARCH_RESULTS = 100;
+
+function normalizeArabic(value: string) {
+  return value.normalize("NFKD")
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "")
+    .replace(/[إأآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي");
+}
+
 type Note = { id: string; reference: string; question: string; response: string; created: string };
 
 function refOf(chapter: number, verse: number) { return `${chapter}:${verse}`; }
@@ -34,6 +47,20 @@ export default function QuranResearchPage() {
   const [translationError, setTranslationError] = useState("");
   const [selected, setSelected] = useState<number[]>([28]);
   const [search, setSearch] = useState("");
+  const [verseReference, setVerseReference] = useState("");
+  const [globalQuery, setGlobalQuery] = useState("");
+  const [globalLanguage, setGlobalLanguage] = useState<"arabic" | "english">("arabic");
+  const [globalResults, setGlobalResults] = useState<SearchResult[]>([]);
+  const [globalTotal, setGlobalTotal] = useState<number | null>(null);
+  const [globalShown, setGlobalShown] = useState(MAX_SEARCH_RESULTS);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [globalError, setGlobalError] = useState("");
+  const arabicCorpus = useRef<FullSurah[] | null>(null);
+  const englishCorpus = useRef<Record<string, FullSurah[]>>({});
+
+  const [jumpError, setJumpError] = useState("");
+  const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
+  const scrollTarget = useRef<string | null>(null);
   const [question, setQuestion] = useState("Analyze the selected verse(s) through coherence, correspondence, and calibration. Distinguish explicit statements from inference. Do not import hadith or biblical chronology as unquestioned premises.");
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
@@ -52,7 +79,20 @@ export default function QuranResearchPage() {
     setAyahs([]); setSelected([]); setAiResponse("");
     fetch(`https://api.alquran.cloud/v1/surah/${chapter}/quran-uthmani`)
       .then((r) => { if (!r.ok) throw new Error("Unable to fetch Arabic text"); return r.json(); })
-      .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) { setAyahs(j.data.ayahs); setStatus(""); } })
+      .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) {
+        setAyahs(j.data.ayahs);
+        setStatus("");
+        if (pendingJump.current?.chapter === chapter) {
+          const verse = pendingJump.current.verse;
+          if (verse <= j.data.ayahs.length) {
+            setSelected([verse]);
+            scrollTarget.current = refOf(chapter, verse);
+          } else {
+            setJumpError(`Surah ${chapter} has only ${j.data.ayahs.length} verses.`);
+          }
+          pendingJump.current = null;
+        }
+      } })
       .catch(() => { if (!cancelled) setStatus("Unable to load Arabic text from the data provider."); });
     return () => { cancelled = true; };
   }, [chapter]);
@@ -84,6 +124,118 @@ export default function QuranResearchPage() {
     const q = search.trim();
     return q ? ayahs.filter(a => a.text.includes(q) || String(a.numberInSurah) === q || refOf(chapter, a.numberInSurah) === q) : ayahs;
   }, [ayahs, search, chapter]);
+  useEffect(() => {
+    if (!scrollTarget.current) return;
+    const id = scrollTarget.current;
+    const target = document.getElementById(`ccc-verse-${id.replace(":", "-")}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollTarget.current = null;
+    }
+  }, [ayahs, search, selected]);
+
+  function jumpToVerse(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setJumpError("");
+    const match = verseReference.trim().match(/^(\d{1,3})\s*:\s*(\d{1,3})$/);
+    if (!match) {
+      setJumpError("Enter a reference like 19:28 (surah:verse).");
+      return;
+    }
+    const targetChapter = Number(match[1]);
+    const targetVerse = Number(match[2]);
+    if (targetChapter < 1 || targetChapter > 114 || targetVerse < 1) {
+      setJumpError("Enter a valid surah (1–114) and verse number.");
+      return;
+    }
+    const surah = surahs.find(s => s.number === targetChapter);
+    if (surah && targetVerse > surah.numberOfAyahs) {
+      setJumpError(`Surah ${targetChapter} has only ${surah.numberOfAyahs} verses.`);
+      return;
+    }
+    setSearch(String(targetVerse));
+    scrollTarget.current = refOf(targetChapter, targetVerse);
+    if (chapter === targetChapter && ayahs.some(a => a.numberInSurah === targetVerse)) {
+      setSelected([targetVerse]);
+    } else {
+      pendingJump.current = { chapter: targetChapter, verse: targetVerse };
+      setChapter(targetChapter);
+    }
+  }
+
+  async function getFullCorpus(editionId: string): Promise<FullSurah[]> {
+    const endpoint = `https://api.alquran.cloud/v1/quran/${editionId}`;
+    const res = await fetch(endpoint);
+    if (!res.ok) throw new Error(`Cannot load ${editionId} corpus (HTTP ${res.status}).`);
+    const payload: QuranResponse<{ surahs: FullSurah[] }> = await res.json();
+    if (!Array.isArray(payload?.data?.surahs) || payload.data.surahs.length !== 114) {
+      throw new Error(`Invalid or incomplete ${editionId} corpus.`);
+    }
+    return payload.data.surahs;
+  }
+
+  async function searchWholeQuran(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = globalQuery.trim();
+    setGlobalError("");
+    setGlobalResults([]);
+    setGlobalTotal(null);
+    setGlobalShown(MAX_SEARCH_RESULTS);
+    if (!query) { setGlobalError("Enter a keyword to search."); return; }
+    setGlobalLoading(true);
+    try {
+      if (!arabicCorpus.current) arabicCorpus.current = await getFullCorpus("quran-uthmani");
+      let translationVerses: FullSurah[] | null = null;
+      let gerransMap: GerransMap | null = null;
+      if (globalLanguage === "english") {
+        if (edition === "gerrans") {
+          if (Object.keys(gerrans).length) gerransMap = gerrans;
+          else {
+            const res = await fetch("/data/gerrans.json");
+            if (!res.ok) throw new Error("Gerrans translation file is missing: public/data/gerrans.json");
+            gerransMap = await res.json() as GerransMap;
+            setGerrans(gerransMap);
+          }
+        } else {
+          if (!englishCorpus.current[edition]) englishCorpus.current[edition] = await getFullCorpus(edition);
+          translationVerses = englishCorpus.current[edition];
+        }
+      }
+      const normalizedQuery = globalLanguage === "arabic" ? normalizeArabic(query) : query.toLocaleLowerCase();
+      const hits: SearchResult[] = [];
+      for (const surah of arabicCorpus.current) {
+        const engSurah = translationVerses?.find(item => item.number === surah.number);
+        for (const verse of surah.ayahs) {
+          const ref = refOf(surah.number, verse.numberInSurah);
+          const english = gerransMap?.[ref] ?? engSurah?.ayahs.find(item => item.numberInSurah === verse.numberInSurah)?.text ?? "";
+          const searchable = globalLanguage === "arabic" ? normalizeArabic(verse.text) : english.toLocaleLowerCase();
+          if (searchable.includes(normalizedQuery)) {
+            hits.push({ chapter: surah.number, verse: verse.numberInSurah, arabic: verse.text, english });
+          }
+        }
+      }
+      setGlobalResults(hits);
+      setGlobalTotal(hits.length);
+    } catch (error) {
+      setGlobalError(error instanceof Error ? error.message : "Unable to complete corpus search.");
+    } finally { setGlobalLoading(false); }
+  }
+
+  function openSearchResult(result: SearchResult) {
+    setJumpError("");
+    setSearch("");
+    scrollTarget.current = refOf(result.chapter, result.verse);
+    if (chapter === result.chapter && ayahs.some(a => a.numberInSurah === result.verse)) {
+      setSelected([result.verse]);
+      requestAnimationFrame(() => {
+        document.getElementById(`ccc-verse-${result.chapter}-${result.verse}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    } else {
+      pendingJump.current = { chapter: result.chapter, verse: result.verse };
+      setChapter(result.chapter);
+    }
+  }
+
   const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
   const currentSurah = surahs.find(s => s.number === chapter);
   function toggleAyah(n: number) { setSelected(old => old.includes(n) ? old.filter(v => v !== n) : [...old, n].sort((a,b) => a-b)); }
@@ -121,6 +273,33 @@ export default function QuranResearchPage() {
         <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
         <span className={styles.beta}>Research prototype</span>
       </div>
+      <form className={styles.jumpBar} onSubmit={jumpToVerse}>
+        <label htmlFor="ccc-verse-jump">Go to verse</label>
+        <input id="ccc-verse-jump" value={verseReference} onChange={e => setVerseReference(e.target.value)} placeholder="e.g. 19:28" inputMode="text" aria-describedby="ccc-jump-help" />
+        <button type="submit">Go to verse</button>
+        <span id="ccc-jump-help" className={styles.jumpHelp}>{jumpError || "Enter surah:verse to open and select it for CCC analysis."}</span>
+      </form>
+      <section className={styles.globalSearch} aria-label="Search the entire Quran">
+        <h2>Search the entire Qurʾān</h2>
+        <p className={styles.hint}>Search all 114 surahs by Arabic text or by your selected English translation. This is a keyword search, not a root search.</p>
+        <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
+          <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "Arabic word or phrase (e.g. مريم)" : "English word or phrase (e.g. mercy)"} />
+          <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
+            <option value="arabic">Arabic</option><option value="english">English (selected translation)</option>
+          </select>
+          <button type="submit" disabled={globalLoading}>{globalLoading ? "Searching…" : "Search all surahs"}</button>
+        </form>
+        {globalError && <p role="alert" className={styles.searchError}>{globalError}</p>}
+        {globalTotal !== null && <p role="status" className={styles.searchCount}>{globalTotal} matching verses{globalLanguage === "english" ? ` · ${editions.find(e => e.id === edition)?.name || edition}` : ""}</p>}
+        {globalTotal === 0 && <p className={styles.hint}>No exact keyword matches. Try a shorter word or another spelling.</p>}
+        {globalResults.length > 0 && <div className={styles.searchResults}>
+          {globalResults.slice(0, globalShown).map(result => <button type="button" className={styles.searchHit} key={`${result.chapter}:${result.verse}`} onClick={() => openSearchResult(result)}>
+            <strong>{refOf(result.chapter, result.verse)}</strong>
+            {globalLanguage === "arabic" ? <span dir="rtl" lang="ar" className={styles.hitArabic}>{result.arabic}</span> : <span className={styles.hitEnglish}>{result.english}</span>}
+          </button>)}
+          {globalTotal !== null && globalShown < globalTotal && <button className={styles.moreResults} type="button" onClick={() => setGlobalShown(n => n + MAX_SEARCH_RESULTS)}>Show 100 more ({globalTotal - globalShown} remaining)</button>}
+        </div>}
+      </section>
       <div className={styles.layout}>
         <section className={styles.panel} aria-label="Quran reader">
           <div className={styles.panelHeader}><h2>Qurʾān reader</h2><span>{ayahs.length} verses</span></div>
@@ -143,7 +322,7 @@ export default function QuranResearchPage() {
           </div>
           <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
           <div className={styles.verses}>
-            {visible.map(a => <button type="button" key={a.numberInSurah} onClick={() => toggleAyah(a.numberInSurah)}
+            {visible.map(a => <button type="button" id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah} onClick={() => toggleAyah(a.numberInSurah)}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`} aria-pressed={selected.includes(a.numberInSurah)}>
               <span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span>
               <span className={styles.arabic} dir="rtl" lang="ar">{a.text}</span>
