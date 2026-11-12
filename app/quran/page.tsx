@@ -546,6 +546,11 @@ export default function QuranResearchPage() {
               <button type="submit" disabled={morphLoading}>{morphLoading ? "Loading…" : "Find root"}</button>
             </form>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
+            {rootTotal !== null && <div className={styles.rootHits}>
+              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
+              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
+            </div>}
+            {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
@@ -581,10 +586,7 @@ export default function QuranResearchPage() {
                 {selectedRoot && <button type="button" className={styles.rootLink} onClick={() => {setRootQuery(selectedRoot); void findRoot(selectedRoot);}}>Find all occurrences of {selectedRoot}</button>}
               </> : <p className={styles.hint}>{morphLoading ? "Loading annotations…" : "No annotation available at this reference."}</p>}
             </div>}
-            {rootTotal !== null && <div className={styles.rootHits}>
-              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
-              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
-            </div>}
+
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
           </div>
           <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
