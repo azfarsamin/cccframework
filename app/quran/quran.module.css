@@ -104,3 +104,14 @@
 .resultsToolbar button,.searchRef{cursor:pointer;border:1px solid #cbd3dd;background:#fff;border-radius:6px;color:#253b58;padding:6px 10px;font:inherit;font-weight:650}
 .resultsToolbar button:hover,.searchRef:hover{background:#f0f4f9}
 .searchRef{font-size:13px}
+
+/* Safe Markdown presentation for CCC research and saved notes. */
+.markdown{font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+.markdown p{margin:9px 0}
+.markdown h2{font-size:16px;margin:19px 0 8px;color:#23344c}
+.markdown h3{font-size:15px;margin:16px 0 7px;color:#23344c}
+.markdown ul,.markdown ol{padding-left:25px;margin:8px 0}
+.markdown li{margin:4px 0}
+.markdown code{font-family:ui-monospace,monospace;background:#f2f5f8;border-radius:4px;padding:1px 4px}
+.markdown blockquote{border-left:3px solid #bdc8d6;padding-left:12px;color:#566375;margin:10px 0}
+.incomplete{font-size:13px;line-height:1.5;color:#7a3f11;background:#fff4e6;border:1px solid #f0d0a5;border-radius:7px;padding:10px}
