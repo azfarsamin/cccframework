@@ -78,35 +78,41 @@ const personLabels: Record<string, string> = {
   "3MP": "Third-person masculine plural (they)",
   "3FP": "Third-person feminine plural (they)"
 };
-function segmentSummary(segment: MorphSegment) {
+type GrammarDetail = { label: string; value: string };
+function describeSegment(segment: MorphSegment): GrammarDetail[] {
   const features = segment[2].split("|");
   const kind = segment[1];
-  const result: string[] = [];
-  const form = features.map(v => /^\((I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\)$/.exec(v)?.[1])
-    .find(Boolean);
-  const person = features.find(v => personLabels[v]);
+  const valueFor = (prefix: string) => features.find(f => f.startsWith(prefix))?.slice(prefix.length);
+  const personCode = valueFor("PRON:") || features.find(f => personLabels[f]);
+  const form = features.map(f => /^\((I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\)$/.exec(f)?.[1]).find(Boolean);
+  const detail: GrammarDetail[] = [];
   if (kind === "V") {
-    result.push(form ? `${verbFormLabels[form]} verb` : "Verb");
-    if (features.includes("PERF")) result.push("Perfect (completed action)");
-    if (features.includes("IMPF")) result.push("Imperfect (ongoing/incomplete action)");
-    if (features.includes("IMPV")) result.push("Imperative (command)");
-    if (features.includes("PASS")) result.push("Passive voice");
-    else if (features.includes("ACT")) result.push("Active voice");
-    if (person) result.push(personLabels[person]);
+    detail.push({ label: "Part of speech", value: "Verb" });
+    detail.push({ label: "Verb form", value: form ? verbFormLabels[form] : "Form I (unmarked basic form)" });
+    const aspect = features.includes("PERF") ? "Perfect" : features.includes("IMPF") ? "Imperfect" : features.includes("IMPV") ? "Imperative" : null;
+    if (aspect) detail.push({ label: "Aspect", value: aspect });
+    const mood = valueFor("MOOD:") || features.find(f => ["IND", "SUBJ", "JUS", "ENG"].includes(f));
+    if (mood) detail.push({ label: "Mood", value: ({ IND:"Indicative", SUBJ:"Subjunctive", JUS:"Jussive", ENG:"Energetic" } as Record<string,string>)[mood] || mood });
+    if (features.includes("PASS")) detail.push({ label: "Voice", value: "Passive" });
+    if (features.includes("ACT")) detail.push({ label: "Voice", value: "Active" });
   } else if (kind === "PRON") {
-    result.push(features.some(v => v.startsWith("SUFFIX")) ? "Attached pronoun" : "Pronoun");
-    if (person) result.push(personLabels[person]);
+    detail.push({ label: "Part of speech", value: features.includes("SUFFIX") ? "Attached pronoun (suffix)" : "Pronoun" });
   } else {
-    result.push(partOfSpeechLabels[kind] || kind);
-    if (features.some(v => v.startsWith("PREFIX"))) result.push("Prefix");
-    if (features.some(v => v.startsWith("SUFFIX"))) result.push("Suffix");
-    for (const feature of features) {
-      if (featureLabels[feature] && !result.includes(featureLabels[feature]))
-        result.push(featureLabels[feature]);
-    }
-    if (person) result.push(personLabels[person]);
+    detail.push({ label: "Part of speech", value: partOfSpeechLabels[kind] || kind });
+    if (features.includes("PREFIX")) detail.push({ label: "Segment", value: "Prefix" });
+    if (features.includes("SUFFIX")) detail.push({ label: "Segment", value: "Suffix" });
+    const grammaticalCase = features.find(f => ["NOM", "ACC", "GEN"].includes(f));
+    if (grammaticalCase) detail.push({ label: "Case", value: featureLabels[grammaticalCase] });
+    const state = features.find(f => ["DEF", "INDEF"].includes(f));
+    if (state) detail.push({ label: "Definiteness", value: featureLabels[state] });
   }
-  return result.join(" · ");
+  if (personCode) {
+    detail.push({ label: "Person / gender / number", value: personLabels[personCode] || personCode });
+  } else {
+    const genderNumber = features.find(f => ["MS", "FS", "MP", "FP", "M", "F", "S", "D", "P"].includes(f));
+    if (genderNumber) detail.push({ label: "Gender / number", value: featureLabels[genderNumber] || genderNumber });
+  }
+  return detail;
 }
 function normalizedRoot(value: string) {
   return normalizeArabic(value).replace(/\s+/g, "").trim();
@@ -463,11 +469,25 @@ export default function QuranResearchPage() {
               {inspectedWord ? <>
                 <div className={styles.morphFacts}>
                   <div><span className={styles.morphLabel}>Root</span><strong dir="rtl" lang="ar" className={styles.morphArabicValue}>{selectedRoot || "Not annotated"}</strong></div>
-                  <div><span className={styles.morphLabel}>Lemma</span><strong dir="rtl" lang="ar" className={styles.morphArabicValue}>{inspectedWord.l ? translitToArabic(inspectedWord.l) : "Not annotated"}</strong></div>
                 </div>
                 <div className={styles.morphSegments}>
                   <span className={styles.morphLabel}>Grammatical analysis</span>
-                  {inspectedWord.s.map((segment, ix) => <div key={ix} className={styles.segment}>{segmentSummary(segment)}</div>)}
+                  {inspectedWord.s.map((segment, ix) => (
+                    <div key={ix} className={styles.grammarGroup}>
+                      <div className={styles.grammarHeading}>
+                        <span>{segment[1] === "V" ? "Verb stem" : segment[1] === "PRON" ? "Pronoun" : partOfSpeechLabels[segment[1]] || "Word segment"}</span>
+                        <span dir="rtl" lang="ar" className={styles.grammarArabic}>{translitToArabic(segment[0])}</span>
+                      </div>
+                      <dl className={styles.grammarGrid}>
+                        {describeSegment(segment).map((detail, j) => (
+                          <div key={j} className={styles.grammarField}>
+                            <dt>{detail.label}</dt><dd>{detail.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ))}
+                  <p className={styles.grammarNote}>These are corpus annotations. Perfect/imperfect describe grammatical aspect, not necessarily the real-world time of an event.</p>
                 </div>
                 <details className={styles.morphTechnical}>
                   <summary>Show original corpus codes</summary>
