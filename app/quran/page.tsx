@@ -35,6 +35,57 @@ type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
 type Morphology = Record<string, MorphWord[]>;
 type WordChoice = { reference: string; index: number; display: string };
 type RootHit = { reference: string; index: number; lemma: string | null };
+
+// Match displayed Arabic words to corpus word positions, never by raw index alone.
+// Orthographic normalization is used for matching only; it never changes the source text.
+function wordKey(value: string): string {
+  return normalizeArabic(value)
+    .replace(/\u0671/g, "ا")
+    .replace(/\u06E5/g, "و")
+    .replace(/\u06E6/g, "ي")
+    .replace(/[^\u0621-\u064A]/g, "");
+}
+
+function corpusWordKey(word: MorphWord): string {
+  return wordKey(word.s.map(segment => translitToArabic(segment[0])).join(""));
+}
+
+// Returns a corpus index per displayed word, or null if it cannot be verified.
+// LCS preserves order across extra orthographic tokens and avoids shifting later words.
+function alignVerseWords(displayed: string[], corpusWords: MorphWord[]): (number | null)[] {
+  const source = displayed.map(wordKey);
+  const target = corpusWords.map(corpusWordKey);
+  const n = source.length, m = target.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = source[i] && source[i] === target[j]
+        ? 1 + dp[i + 1][j + 1]
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const result: (number | null)[] = Array<number | null>(n).fill(null);
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (source[i] && source[i] === target[j] && dp[i][j] === dp[i + 1][j + 1] + 1) {
+      result[i] = j + 1; // corpus positions are 1-based
+      i++; j++;
+    } else if (dp[i + 1][j] > dp[i][j + 1]) i++;
+    else if (dp[i + 1][j] < dp[i][j + 1]) j++;
+    else { // ambiguous skip direction: do not force a mapping at this token
+      i++;
+    }
+  }
+  // A word repeated a different number of times across editions is ambiguous.
+  const aCounts = new Map<string, number>();
+  const bCounts = new Map<string, number>();
+  for (const key of source) aCounts.set(key, (aCounts.get(key) || 0) + 1);
+  for (const key of target) bCounts.set(key, (bCounts.get(key) || 0) + 1);
+  return result.map((index, at) =>
+    index !== null && aCounts.get(source[at]) === bCounts.get(source[at]) ? index : null
+  );
+}
+
 const buckwalterArabic: Record<string, string> = {
   A: "ا", b: "ب", t: "ت", v: "ث", j: "ج", H: "ح", x: "خ", d: "د", '*': "ذ", r: "ر", z: "ز", s: "س", '$': "ش", S: "ص", D: "ض", T: "ط", Z: "ظ", E: "ع", g: "غ", f: "ف", q: "ق", k: "ك", l: "ل", m: "م", n: "ن", h: "ه", w: "و", y: "ي", '<': "إ", '>': "أ", '&': "ؤ", '}': "ئ", p: "ة", Y: "ى", '|': "آ", '{': "ٱ", 'X': "خ"
 };
@@ -349,9 +400,20 @@ export default function QuranResearchPage() {
     } finally { setMorphLoading(false); }
   }
 
-  async function inspectWord(reference: string, index: number, display: string) {
-    setWordChoice({ reference, index, display });
-    try { await loadMorphology(); } catch { /* error shown above inspector */ }
+  async function inspectWord(reference: string, displayIndex: number, display: string, verseText: string) {
+    try {
+      const dataset = await loadMorphology();
+      const corpusWords = dataset[reference];
+      if (!corpusWords) { setMorphError(`No morphology data for ${reference}.`); return; }
+      const mapping = alignVerseWords(verseText.trim().split(/\s+/), corpusWords);
+      const corpusIndex = mapping[displayIndex - 1];
+      if (corpusIndex === null || corpusIndex === undefined) {
+        setMorphError(`Cannot safely align word ${displayIndex} of ${reference}. No grammar was assigned.`);
+        return;
+      }
+      setMorphError("");
+      setWordChoice({ reference, index: corpusIndex, display });
+    } catch { /* loadMorphology displays the error */ }
   }
   async function findRoot(root: string) {
     const requested = normalizedRoot(root);
@@ -530,11 +592,19 @@ export default function QuranResearchPage() {
             {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
               <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
-              <span className={styles.arabic} dir="rtl" lang="ar">{a.text.trim().split(/\s+/).map((token, i) => {
+              <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
                 const reference = refOf(chapter, a.numberInSurah);
-                const alignmentOk = !morph?.[reference] || morph[reference].length === a.text.trim().split(/\s+/).length;
-                return <button key={i} type="button" className={styles.arabicWord} disabled={!alignmentOk} title={alignmentOk ? `Inspect word ${i + 1}` : "Word alignment differs from corpus; manual verification required"} onClick={() => void inspectWord(reference, i + 1, token)}>{token}</button>;
-              })}</span>
+                const tokens = a.text.trim().split(/\s+/);
+                const mapping = morph?.[reference] ? alignVerseWords(tokens, morph[reference]) : null;
+                return tokens.map((token, i) => {
+                  // Before annotations load, clicks trigger loading and a verified recheck.
+                  const safe = !mapping || mapping[i] !== null;
+                  return <button key={i} type="button" className={styles.arabicWord}
+                    disabled={!safe}
+                    title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
+                    onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
+                });
+              })()}</span>
               <span className={styles.english} lang="en">
                 {edition === "gerrans"
                   ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
