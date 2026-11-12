@@ -98,3 +98,9 @@
 .rootOccurrenceWord{font-family:"Traditional Arabic","Noto Naskh Arabic",serif;color:#152238;font-size:23px;line-height:1.6;margin-left:auto;text-align:right}
 .rootContext{display:block;font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:20px;line-height:1.9;color:#38495c;text-align:right;border-top:1px solid #edf0f4;padding-top:5px}
 .rootContext mark{color:#b42318;background:#fff1e8;border-radius:3px;padding:0 2px;font-weight:700}
+
+/* Keyword results are displayed in the same scrollable reader as regular verses. */
+.resultsToolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:13px 0 8px;font-size:13px;color:#4b5563}
+.resultsToolbar button,.searchRef{cursor:pointer;border:1px solid #cbd3dd;background:#fff;border-radius:6px;color:#253b58;padding:6px 10px;font:inherit;font-weight:650}
+.resultsToolbar button:hover,.searchRef:hover{background:#f0f4f9}
+.searchRef{font-size:13px}
