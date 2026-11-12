@@ -88,3 +88,13 @@
 .researchContent .panelHeader{margin-bottom:12px}
 @media(max-width:900px){.researchPanel{position:static;max-height:none}.researchContent{overflow:visible}}
 @media(max-width:580px){.researchTabs button{font-size:12px;padding:10px 2px}}
+
+/* Root concordance — derived word and verified verse excerpt */
+.rootHits .rootOccurrence{display:flex;flex-direction:column;align-items:stretch;gap:7px;text-align:left;padding:11px 12px;border:1px solid #dfe4eb;border-radius:9px;background:#fff;color:#223047}
+.rootHits .rootOccurrence:hover{border-color:#8da8c5;background:#f6f9fd}
+.rootOccurrenceHeader{display:flex;align-items:center;gap:10px;min-width:0;width:100%}
+.rootOccurrenceHeader strong{flex-shrink:0;color:#26364c;font-size:14px}
+.rootOccurrenceType{font-size:12px;color:#586579}
+.rootOccurrenceWord{font-family:"Traditional Arabic","Noto Naskh Arabic",serif;color:#152238;font-size:23px;line-height:1.6;margin-left:auto;text-align:right}
+.rootContext{display:block;font-family:"Traditional Arabic","Noto Naskh Arabic",serif;font-size:20px;line-height:1.9;color:#38495c;text-align:right;border-top:1px solid #edf0f4;padding-top:5px}
+.rootContext mark{color:#b42318;background:#fff1e8;border-radius:3px;padding:0 2px;font-weight:700}
