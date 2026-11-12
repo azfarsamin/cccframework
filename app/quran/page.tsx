@@ -193,6 +193,7 @@ export default function QuranResearchPage() {
   const [wordChoice, setWordChoice] = useState<WordChoice | null>(null);
   const [wordGloss, setWordGloss] = useState("");
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
+  const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "ccc" | "notes">("grammar");
   const [rootQuery, setRootQuery] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
   const [rootTotal, setRootTotal] = useState<number | null>(null);
@@ -413,9 +414,11 @@ export default function QuranResearchPage() {
       }
       setMorphError("");
       setWordChoice({ reference, index: corpusIndex, display });
+      setResearchTab("grammar");
     } catch { /* loadMorphology displays the error */ }
   }
   async function findRoot(root: string) {
+    setResearchTab("roots");
     const requested = normalizedRoot(root);
     setRootMatches([]); setRootTotal(null);
     if (!requested) return;
@@ -493,6 +496,10 @@ export default function QuranResearchPage() {
   }
   return (
     <main className={styles.main}>
+      <div className={styles.header}>
+        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
+        <span className={styles.beta}>Research prototype</span>
+      </div>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
         <p className={styles.hint}>Enter a reference such as 19:28 to jump directly to that verse, or search all 114 surahs by Arabic text or your selected English translation. Keyword searches are not root searches.</p>
@@ -534,19 +541,49 @@ export default function QuranResearchPage() {
             </select>
             {translationError && <p className={styles.translationNotice}>{translationError}</p>}
           </div>
-          <div className={styles.morphTools}>
-            <h3>Arabic word inspector and root concordance</h3>
-            <p className={styles.hint}>Click an Arabic word below to inspect its corpus annotations. Root searches use corpus-assigned roots, not simple string matching.</p>
-            <form className={styles.rootForm} onSubmit={(event) => {event.preventDefault(); void findRoot(rootQuery);}}>
-              <input aria-label="Search Arabic root" value={rootQuery} onChange={e => setRootQuery(e.target.value)} placeholder="Arabic root, e.g. ر ح م" />
-              <button type="submit" disabled={morphLoading}>{morphLoading ? "Loading…" : "Find root"}</button>
-            </form>
+          <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
+          <div className={styles.verses}>
+            {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
+              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
+              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
+              <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
+                const reference = refOf(chapter, a.numberInSurah);
+                const tokens = a.text.trim().split(/\s+/);
+                const mapping = morph?.[reference] ? alignVerseWords(tokens, morph[reference]) : null;
+                return tokens.map((token, i) => {
+                  // Before annotations load, clicks trigger loading and a verified recheck.
+                  const safe = !mapping || mapping[i] !== null;
+                  return <button key={i} type="button" className={styles.arabicWord}
+                    disabled={!safe}
+                    title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
+                    onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
+                });
+              })()}</span>
+              <span className={styles.english} lang="en">
+                {edition === "gerrans"
+                  ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
+                  : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
+              </span>
+            </div>)}
+            {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
+            {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
+          </div>
+          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. English renderings are supplied by their respective translators and are not treated as authoritative Arabic text.</p>
+        </section>
+        <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
+          <section className={`${styles.panel} ${styles.researchPanel}`}>
+            <div className={styles.panelHeader}><h2>Research tools</h2><span>{selectedAyahs.length} selected for CCC</span></div>
+            <div role="tablist" aria-label="Research tools" className={styles.researchTabs}>
+              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'CCC'], ['notes', 'Notes']] as const).map(([id, label]) => (
+                <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
+                  aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
+                  className={researchTab === id ? styles.activeResearchTab : ''}>{label}</button>
+              ))}
+            </div>
+            <div className={styles.researchContent} role="tabpanel" id="ccc-research-content" aria-labelledby={`ccc-tab-${researchTab}`}>
+              {researchTab === 'grammar' && <div className={styles.tabBody}>
+                <h3 className={styles.toolTitle}>Word inspector</h3>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
-            {rootTotal !== null && <div className={styles.rootHits}>
-              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
-              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
-            </div>}
-            {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
@@ -583,39 +620,26 @@ export default function QuranResearchPage() {
               </> : <p className={styles.hint}>{morphLoading ? "Loading annotations…" : "No annotation available at this reference."}</p>}
             </div>}
 
+            {!wordChoice && <p className={styles.emptyTool}>Click any enabled Arabic word in the reader to inspect its root and grammatical details.</p>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
-          </div>
-          <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
-          <div className={styles.verses}>
-            {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
-              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
-              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
-              <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
-                const reference = refOf(chapter, a.numberInSurah);
-                const tokens = a.text.trim().split(/\s+/);
-                const mapping = morph?.[reference] ? alignVerseWords(tokens, morph[reference]) : null;
-                return tokens.map((token, i) => {
-                  // Before annotations load, clicks trigger loading and a verified recheck.
-                  const safe = !mapping || mapping[i] !== null;
-                  return <button key={i} type="button" className={styles.arabicWord}
-                    disabled={!safe}
-                    title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
-                    onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
-                });
-              })()}</span>
-              <span className={styles.english} lang="en">
-                {edition === "gerrans"
-                  ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
-                  : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
-              </span>
-            </div>)}
-            {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
-            {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
-          </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. English renderings are supplied by their respective translators and are not treated as authoritative Arabic text.</p>
-        </section>
-        <aside className={styles.sidebar}>
-          <section className={styles.panel}>
+              </div>}
+              {researchTab === 'roots' && <div className={styles.tabBody}>
+                <h3 className={styles.toolTitle}>Root concordance</h3>
+            <div className={styles.toolIntro}>Corpus-assigned root search. Results remain visible while you navigate to verses.</div>
+            <form className={styles.rootForm} onSubmit={(event) => {event.preventDefault(); void findRoot(rootQuery);}}>
+              <input aria-label="Search Arabic root" value={rootQuery} onChange={e => setRootQuery(e.target.value)} placeholder="Arabic root, e.g. ر ح م" />
+              <button type="submit" disabled={morphLoading}>{morphLoading ? "Loading…" : "Find root"}</button>
+            </form>
+            {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
+            {rootTotal !== null && <div className={styles.rootHits}>
+              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
+              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
+            </div>}
+            {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
+            <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
+              </div>}
+              {researchTab === 'ccc' && <>
+          <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{selectedAyahs.length} selected</span></div>
             <div className={styles.selection}>{selectedAyahs.length ? selectedAyahs.map(a => <span key={a.numberInSurah}>{refOf(chapter, a.numberInSurah)}</span>) : "Choose a verse on the left"}</div>
             <label className={styles.label}>Research question
@@ -629,10 +653,15 @@ export default function QuranResearchPage() {
             {aiResponse && <div className={styles.answer}><h3>Research response</h3><pre>{aiResponse}</pre></div>}
             <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
             <p className={styles.hint}>Research output may be mistaken. Only the selected verses are sent to AI; pan-textual completeness is not yet automated.</p>
-          </section>
-          <section className={styles.panel}>
+          </div>
+              </>}
+              {researchTab === 'notes' && <>
+          <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>Research notebook</h2><button type="button" className={styles.small} onClick={exportNotes} disabled={!notes.length}>Export JSON</button></div>
             {!notes.length ? <p className={styles.hint}>No saved notes yet. Notes stay in this browser until exported.</p> : notes.slice(0, 12).map(n => <details key={n.id} className={styles.note}><summary>{n.reference} · {new Date(n.created).toLocaleDateString()}</summary><p>{n.question}</p><pre>{n.response}</pre></details>)}
+          </div>
+              </>}
+            </div>
           </section>
         </aside>
       </div>
