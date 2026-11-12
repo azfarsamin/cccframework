@@ -68,3 +68,24 @@
 .wordMeaning{display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #e0e5e9;padding:0 0 14px;color:#223047}
 .wordMeaning strong{font-size:18px;line-height:1.45;font-weight:700;color:#182638}
 .wordMeaning small{font-size:12px;line-height:1.5;color:#596579}
+
+/* CCC Qur'an Research Engine — workspace redesign */
+
+.main {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  background: #f5f6f8;
+  padding: 20px 24px 60px;
+  box-sizing: border-box;
+}
+
+.globalSearch {
+  margin-top: 0;
+}
+
+@media (max-width: 580px) {
+  .main {
+    padding: 12px;
+  }
+}
