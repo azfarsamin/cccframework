@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ResearchMarkdown } from "./research-markdown";
 import styles from "./quran.module.css";
 
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
@@ -217,9 +218,10 @@ export default function QuranResearchPage() {
 
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
-  const [question, setQuestion] = useState("Analyze the selected verse(s) through coherence, correspondence, and calibration. Distinguish explicit statements from inference. Do not import hadith or biblical chronology as unquestioned premises.");
+  const [question, setQuestion] = useState("Investigate the research question using the Qurʾān as the calibration reference. Distinguish explicit Qurʾānic statements from inference.");
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
+  const [incomplete, setIncomplete] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -539,8 +541,8 @@ export default function QuranResearchPage() {
     });
   }
   async function analyze() {
-    if (!analysisVerses.length) { setStatus("Select at least one verse first."); return; }
-    setLoading(true); setStatus(""); setAiResponse("");
+    if (!question.trim()) { setStatus("Enter a research question first."); return; }
+    setLoading(true); setStatus(""); setAiResponse(""); setIncomplete(false);
     try {
       const response = await fetch("/api/ccc-ai", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
@@ -549,13 +551,14 @@ export default function QuranResearchPage() {
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Research service unavailable");
       setAiResponse(json.answer || "No response returned.");
+      setIncomplete(Boolean(json.incomplete));
     } catch (e) { setStatus(e instanceof Error ? e.message : "Unexpected problem"); }
     finally { setLoading(false); }
   }
   function saveNote() {
-    if (!analysisVerses.length) { setStatus("Select a verse before saving a note."); return; }
+    if (!question.trim()) { setStatus("Enter a research question before saving a note."); return; }
     const entry: Note = {
-      id: `${Date.now()}`, reference: analysisVerses.map(a => refOf(a.chapter, a.verse)).join(", "),
+      id: `${Date.now()}`, reference: analysisVerses.length ? analysisVerses.map(a => refOf(a.chapter, a.verse)).join(", ") : "Question only",
       question, response: aiResponse || "No AI analysis saved; question only.", created: new Date().toISOString(),
     };
     const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
@@ -741,24 +744,24 @@ export default function QuranResearchPage() {
               {researchTab === 'ccc' && <>
           <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{analysisVerses.length} selected</span></div>
-            <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Choose a verse on the left"}</div>
+            <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Optional — no verses selected"}</div>
             <label className={styles.label}>Research question
               <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
             </label>
             <label className={styles.label}>Private research passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !analysisVerses.length} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Research response</h3><pre>{aiResponse}</pre></div>}
+            {aiResponse && <div className={styles.answer}><h3>Research response</h3>{incomplete && <p role="alert" className={styles.incomplete}>Incomplete response: the model reached its output-token limit. This answer may be truncated; shorten the question or request a narrower analysis.</p>}<ResearchMarkdown source={aiResponse}/></div>}
             <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
-            <p className={styles.hint}>Research output may be mistaken. Only the selected verses are sent to AI; pan-textual completeness is not yet automated.</p>
+            <p className={styles.hint}>Checked verses are optional starting evidence. The server searches its morphology concordance for a recognized term in your question. Lexical coverage does not guarantee complete conceptual coverage.</p>
           </div>
               </>}
               {researchTab === 'notes' && <>
           <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>Research notebook</h2><button type="button" className={styles.small} onClick={exportNotes} disabled={!notes.length}>Export JSON</button></div>
-            {!notes.length ? <p className={styles.hint}>No saved notes yet. Notes stay in this browser until exported.</p> : notes.slice(0, 12).map(n => <details key={n.id} className={styles.note}><summary>{n.reference} · {new Date(n.created).toLocaleDateString()}</summary><p>{n.question}</p><pre>{n.response}</pre></details>)}
+            {!notes.length ? <p className={styles.hint}>No saved notes yet. Notes stay in this browser until exported.</p> : notes.slice(0, 12).map(n => <details key={n.id} className={styles.note}><summary>{n.reference} · {new Date(n.created).toLocaleDateString()}</summary><p>{n.question}</p><ResearchMarkdown source={n.response}/></details>)}
           </div>
               </>}
             </div>
