@@ -192,6 +192,8 @@ export default function QuranResearchPage() {
   const [gerrans, setGerrans] = useState<GerransMap>({});
   const [translationError, setTranslationError] = useState("");
   const [selected, setSelected] = useState<number[]>([28]);
+  const [selectedSearch, setSelectedSearch] = useState<SearchResult[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const [search, setSearch] = useState("");
   const [morph, setMorph] = useState<Morphology | null>(null);
   const [morphLoading, setMorphLoading] = useState(false);
@@ -294,6 +296,7 @@ export default function QuranResearchPage() {
     scrollTarget.current = target;
     setGlobalResults([]);
     setGlobalTotal(null);
+    setShowSearchResults(false);
     if (chapter === targetChapter && ayahs.some(a => a.numberInSurah === targetVerse)) {
       setSelected([targetVerse]);
     } else {
@@ -320,6 +323,8 @@ export default function QuranResearchPage() {
     setGlobalResults([]);
     setGlobalTotal(null);
     setGlobalShown(MAX_SEARCH_RESULTS);
+    setShowSearchResults(false);
+    setSelectedSearch([]);
     if (!query) { setGlobalError("Enter a verse reference or keyword to search."); return; }
     // A surah:verse reference navigates directly, without loading the full corpus.
     const reference = query.match(/^(\d{1,3})\s*:\s*(\d{1,3})$/);
@@ -343,7 +348,8 @@ export default function QuranResearchPage() {
       if (!arabicCorpus.current) arabicCorpus.current = await getFullCorpus("quran-uthmani");
       let translationVerses: FullSurah[] | null = null;
       let gerransMap: GerransMap | null = null;
-      if (globalLanguage === "english") {
+      // Both Arabic and English are displayed for every matching verse.
+      if (true) {
         if (edition === "gerrans") {
           if (Object.keys(gerrans).length) gerransMap = gerrans;
           else {
@@ -372,12 +378,14 @@ export default function QuranResearchPage() {
       }
       setGlobalResults(hits);
       setGlobalTotal(hits.length);
+      setShowSearchResults(true);
     } catch (error) {
       setGlobalError(error instanceof Error ? error.message : "Unable to complete corpus search.");
     } finally { setGlobalLoading(false); }
   }
 
   function openSearchResult(result: SearchResult) {
+    setShowSearchResults(false);
     setSearch("");
     scrollTarget.current = refOf(result.chapter, result.verse);
     if (chapter === result.chapter && ayahs.some(a => a.numberInSurah === result.verse)) {
@@ -516,15 +524,27 @@ export default function QuranResearchPage() {
   const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
 
   const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
+  const analysisVerses = showSearchResults
+    ? selectedSearch.map(r => ({ chapter: r.chapter, verse: r.verse, arabic: r.arabic }))
+    : selectedAyahs.map(a => ({ chapter, verse: a.numberInSurah, arabic: a.text }));
   const currentSurah = surahs.find(s => s.number === chapter);
   function toggleAyah(n: number) { setSelected(old => old.includes(n) ? old.filter(v => v !== n) : [...old, n].sort((a,b) => a-b)); }
+  function toggleSearchVerse(result: SearchResult) {
+    setSelectedSearch(old => {
+      const exists = old.some(r => r.chapter === result.chapter && r.verse === result.verse);
+      if (exists) return old.filter(r => !(r.chapter === result.chapter && r.verse === result.verse));
+      if (old.length >= 12) { setStatus("CCC supports a maximum of 12 selected verses per analysis."); return old; }
+      setStatus("");
+      return [...old, result].sort((a,b) => a.chapter - b.chapter || a.verse - b.verse);
+    });
+  }
   async function analyze() {
-    if (!selectedAyahs.length) { setStatus("Select at least one verse first."); return; }
+    if (!analysisVerses.length) { setStatus("Select at least one verse first."); return; }
     setLoading(true); setStatus(""); setAiResponse("");
     try {
       const response = await fetch("/api/ccc-ai", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
-        body: JSON.stringify({ question, chapter, verses: selectedAyahs.map(a => ({ verse: a.numberInSurah, arabic: a.text })) }),
+        body: JSON.stringify({ question, chapter, verses: analysisVerses }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Research service unavailable");
@@ -533,9 +553,9 @@ export default function QuranResearchPage() {
     finally { setLoading(false); }
   }
   function saveNote() {
-    if (!selectedAyahs.length) { setStatus("Select a verse before saving a note."); return; }
+    if (!analysisVerses.length) { setStatus("Select a verse before saving a note."); return; }
     const entry: Note = {
-      id: `${Date.now()}`, reference: selectedAyahs.map(a => refOf(chapter, a.numberInSurah)).join(", "),
+      id: `${Date.now()}`, reference: analysisVerses.map(a => refOf(a.chapter, a.verse)).join(", "),
       question, response: aiResponse || "No AI analysis saved; question only.", created: new Date().toISOString(),
     };
     const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
@@ -563,38 +583,50 @@ export default function QuranResearchPage() {
           <button type="submit" disabled={globalLoading}>{globalLoading ? "Searching…" : "Go / Search"}</button>
         </form>
         {globalError && <p role="alert" className={styles.searchError}>{globalError}</p>}
-        {globalTotal !== null && <p role="status" className={styles.searchCount}>{globalTotal} matching verses{globalLanguage === "english" ? ` · ${editions.find(e => e.id === edition)?.name || edition}` : ""}</p>}
-        {globalTotal === 0 && <p className={styles.hint}>No exact keyword matches. Try a shorter word or another spelling.</p>}
-        {globalResults.length > 0 && <div className={styles.searchResults}>
-          {globalResults.slice(0, globalShown).map(result => <button type="button" className={styles.searchHit} key={`${result.chapter}:${result.verse}`} onClick={() => openSearchResult(result)}>
-            <strong>{refOf(result.chapter, result.verse)}</strong>
-            {globalLanguage === "arabic" ? <span dir="rtl" lang="ar" className={styles.hitArabic}>{result.arabic}</span> : <span className={styles.hitEnglish}>{result.english}</span>}
-          </button>)}
-          {globalTotal !== null && globalShown < globalTotal && <button className={styles.moreResults} type="button" onClick={() => setGlobalShown(n => n + MAX_SEARCH_RESULTS)}>Show 100 more ({globalTotal - globalShown} remaining)</button>}
-        </div>}
       </section>
       <div className={styles.layout}>
         <section className={styles.panel} aria-label="Quran reader">
-          <div className={styles.panelHeader}><h2>Qurʾān reader</h2><span>{ayahs.length} verses</span></div>
+          <div className={styles.panelHeader}><h2>{showSearchResults ? "Search results" : "Qurʾān reader"}</h2><span>{showSearchResults ? `${globalTotal ?? 0} matching verses` : `${ayahs.length} verses`}</span></div>
           <div className={styles.controls}>
             <label>Surah
-              <select value={chapter} onChange={e => setChapter(Number(e.target.value))}>
+              <select value={chapter} onChange={e => {setShowSearchResults(false); setChapter(Number(e.target.value));}}>
                 {surahs.length ? surahs.map(s => <option value={s.number} key={s.number}>{s.number}. {s.englishName}</option>) : <option value={19}>19. Maryam</option>}
               </select>
             </label>
             <label>Find within surah
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Arabic text or verse number" />
+              <input value={search} onChange={e => {setShowSearchResults(false); setSearch(e.target.value);}} placeholder="Arabic text or verse number" />
             </label>
           </div>
           <div className={styles.translationControl}>
             <label htmlFor="ccc-translation">English translation</label>
-            <select id="ccc-translation" value={edition} onChange={e => setEdition(e.target.value as TranslationEdition)}>
+            <select id="ccc-translation" value={edition} onChange={e => {setEdition(e.target.value as TranslationEdition); setShowSearchResults(false);}}>
               {editions.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
             </select>
             {translationError && <p className={styles.translationNotice}>{translationError}</p>}
           </div>
-          <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>
+          {showSearchResults ? (
+            <div className={styles.resultsToolbar}>
+              <span><strong>{globalTotal ?? 0}</strong> matches · Arabic and {editions.find(e => e.id === edition)?.name} English</span>
+              <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]);}}>Back to surah reader</button>
+            </div>
+          ) : <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>}
           <div className={styles.verses}>
+            {showSearchResults && <>
+              {globalResults.slice(0, globalShown).map(result => {
+                const chosen = selectedSearch.some(r => r.chapter === result.chapter && r.verse === result.verse);
+                return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""}`} key={`${result.chapter}:${result.verse}`}>
+                  <div className={styles.verseToolbar}>
+                    <button type="button" className={styles.searchRef} onClick={() => openSearchResult(result)} title="Open this verse in the surah reader">{refOf(result.chapter, result.verse)} <span aria-hidden="true">↗</span></button>
+                    <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected for CCC ✓" : "Select for CCC"}</button>
+                  </div>
+                  <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
+                  <span className={styles.english} lang="en">{result.english || "English translation unavailable for this verse."}</span>
+                </div>;
+              })}
+              {globalTotal === 0 && <p className={styles.hint}>No exact matches. Try another spelling or a shorter keyword.</p>}
+              {globalTotal !== null && globalShown < globalTotal && <button type="button" className={styles.moreResults} onClick={() => setGlobalShown(n => n + MAX_SEARCH_RESULTS)}>Show next 100 matches</button>}
+            </>}
+            {!showSearchResults && <>
             {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
               <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
@@ -619,12 +651,13 @@ export default function QuranResearchPage() {
             </div>)}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
+            </>}
           </div>
           <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. English renderings are supplied by their respective translators and are not treated as authoritative Arabic text.</p>
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
-            <div className={styles.panelHeader}><h2>Research tools</h2><span>{selectedAyahs.length} selected for CCC</span></div>
+            <div className={styles.panelHeader}><h2>Research tools</h2><span>{analysisVerses.length} selected for CCC</span></div>
             <div role="tablist" aria-label="Research tools" className={styles.researchTabs}>
               {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'CCC'], ['notes', 'Notes']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
@@ -707,15 +740,15 @@ export default function QuranResearchPage() {
               </div>}
               {researchTab === 'ccc' && <>
           <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{selectedAyahs.length} selected</span></div>
-            <div className={styles.selection}>{selectedAyahs.length ? selectedAyahs.map(a => <span key={a.numberInSurah}>{refOf(chapter, a.numberInSurah)}</span>) : "Choose a verse on the left"}</div>
+            <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{analysisVerses.length} selected</span></div>
+            <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Choose a verse on the left"}</div>
             <label className={styles.label}>Research question
               <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
             </label>
             <label className={styles.label}>Private research passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !selectedAyahs.length} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !analysisVerses.length} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
             {status && <p role="status" className={styles.status}>{status}</p>}
             {aiResponse && <div className={styles.answer}><h3>Research response</h3><pre>{aiResponse}</pre></div>}
             <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
