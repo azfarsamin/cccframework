@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } from "../../../lib/ccc-corpus";
 import { discoverQuranCandidates } from "../../../lib/ccc-conceptual";
+import { parseVerifiedThematicList, formatVerifiedThematicList } from "../../../lib/ccc-thematic-list";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
@@ -69,11 +70,13 @@ export async function POST(request: NextRequest) {
       /(?:qur.?an|quranic|verses?|surah|god|allah|life|world|creation|test|trial|scripture)/i.test(q);
     let thematicEvidence = "";
     let thematicListing = false;
+    let verifiedThematic: Awaited<ReturnType<typeof retrieveConceptualContext>> | null = null;
     if (thematic) {
       try {
         const proposed = await discoverQuranCandidates(q, selected, key, process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE");
         const verified = await retrieveConceptualContext(selected, proposed);
         thematicEvidence = verified.text;
+        verifiedThematic = verified;
         thematicListing = wantsListing && !wantsAnalysis;
         console.log("CCC thematic retrieval:", verified.diagnostics);
       } catch (error) {
@@ -97,6 +100,50 @@ export async function POST(request: NextRequest) {
       }
       lines.push("**Scope:** Exhaustive matching of the identified morphological lemma in the locally indexed Qurʾānic corpus; not a complete conceptual/semantic search. Morphological annotations are a linguistic analysis layer.");
       return NextResponse.json({ answer: lines.join("\n"), incomplete: false, finishReason: "verified_concordance" });
+    }
+
+    // For listing-only thematic requests, the model returns classifications
+    // as JSON. The server checks every reference against the exact candidate
+    // verses that were actually supplied, deduplicates it, and renders only
+    // corpus-owned Arabic. This prevents phantom citations, missing-list claims,
+    // and invented Arabic quotations in the final output.
+    if (thematicListing && verifiedThematic) {
+      const verified = verifiedThematic;
+      const allowed = new Set(verified.suppliedVerses.map(v => v.reference));
+      const modelResponse = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(105000),
+        body: JSON.stringify({
+          model: process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE",
+          temperature: 0.1,
+          max_tokens: 3600,
+          messages: [
+            { role: "system", content: `You classify Qur'anic verses strictly for the user's thematic listing request. The Qur'an is the stipulated textual truth reference. Use ONLY the supplied Arabic passages. Return EXACTLY ONE JSON object: {"verses":[{"reference":"67:2","category":"general","explanation":"States that death and life were created to test deeds."}]}. Categories: general = broad statements about the purpose or nature of earthly testing; situational = particular ongoing types of trial, e.g. wealth, fear, belief; historical = a specific past episode or quotation from a character. Include only meaningfully relevant verses. Do not invent references, quotations, translations, totals, or general conclusions. Explanations are brief, plain English (at most 22 words each). If none fit, return {"verses":[]}. No Markdown or text outside JSON.` },
+            { role: "user", content: `Research question: ${q}\n\nVerified candidate Arabic verses (NOT semantically certified):\n${thematicEvidence}` },
+          ],
+        }),
+      });
+      if (!modelResponse.ok) throw new Error(`Thematic classification HTTP ${modelResponse.status}`);
+      const modelJson = await modelResponse.json();
+      const choice = modelJson?.choices?.[0];
+      if (choice?.finish_reason === "length") {
+        return NextResponse.json({ error: "Thematic classification exceeded the output budget; no partial list was presented." }, { status: 502 });
+      }
+      const raw = choice?.message?.content;
+      if (typeof raw !== "string" || !raw.trim()) throw new Error("Empty thematic classification");
+      const items = parseVerifiedThematicList(raw, allowed);
+      console.log("CCC thematic list validation:", {
+        suppliedCandidates: allowed.size,
+        proposedItems: items.length,
+        evidenceExcerptTruncated: verified.diagnostics.truncated,
+      });
+      const arabicByReference = new Map(verified.suppliedVerses.map(v => [v.reference, v.arabic]));
+      return NextResponse.json({
+        answer: formatVerifiedThematicList(items, arabicByReference, allowed.size, verified.diagnostics.truncated),
+        incomplete: false,
+        finishReason: "verified_thematic_list",
+      });
     }
 
     const thematicInstruction = thematicListing
