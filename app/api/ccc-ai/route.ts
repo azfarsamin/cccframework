@@ -52,6 +52,31 @@ export async function POST(request: NextRequest) {
     ]);
     console.log("CCC corpus retrieval:", retrieval.diagnostics);
 
+    // A request for a literal concordance is answered deterministically from
+    // the indexed corpus, rather than asking the language model to reproduce it.
+    // Analysis/interpretation requests retain the regular CCC workflow.
+    const q = input.question!.trim();
+    const wantsListing = /(?:\blist\b|\benumerate\b|\bshow\b|\bcount\b|\bidentify\b|\bhow many\b|\bconcordance\b)/i.test(q)
+      && /(?:\bevery\b|\ball\b|\boccurr?enc|\bverses?\b|\breferences?\b|\bconcordance\b|\btimes\b)/i.test(q);
+    const wantsAnalysis = /(?:\banalys(?:is|es|e|ed|ing)\b|\binterpret(?:ation|ations|ed|ing)?\b|\bexplain\b|\bcompare\b|\bmeaning\b|\bwhy\b|\bcoherence\b|\bcorrespondence\b|\bcalibration\b|\bfalsif)/i.test(q);
+    if (wantsListing && !wantsAnalysis && retrieval.concordance) {
+      const c = retrieval.concordance;
+      const verses = retrieval.concordanceVerses;
+      const lines = [
+        `## Verified Qurʾānic lexical concordance — ${c.term}`,
+        `**${c.totalOccurrences} word occurrences across ${c.references.length} numbered verses.**`,
+        "",
+      ];
+      if (verses.length === c.references.length) {
+        for (const v of verses) lines.push(`### ${v.reference} — ${v.count} occurrence${v.count === 1 ? "" : "s"}`, v.arabic, "");
+      } else {
+        for (const r of c.references) lines.push(`- ${r.reference}: ${r.count} occurrence${r.count === 1 ? "" : "s"}`);
+        lines.push("", "The full reference list is complete; Arabic verse quotations are omitted because the result is too large for this response.");
+      }
+      lines.push("**Scope:** Exhaustive matching of the identified morphological lemma in the locally indexed Qurʾānic corpus; not a complete conceptual/semantic search. Morphological annotations are a linguistic analysis layer.");
+      return NextResponse.json({ answer: lines.join("\n"), incomplete: false, finishReason: "verified_concordance" });
+    }
+
     const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
