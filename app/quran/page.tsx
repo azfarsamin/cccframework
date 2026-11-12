@@ -130,7 +130,6 @@ export default function QuranResearchPage() {
   const [translationError, setTranslationError] = useState("");
   const [selected, setSelected] = useState<number[]>([28]);
   const [search, setSearch] = useState("");
-  const [verseReference, setVerseReference] = useState("");
   const [morph, setMorph] = useState<Morphology | null>(null);
   const [morphLoading, setMorphLoading] = useState(false);
   const [morphError, setMorphError] = useState("");
@@ -148,7 +147,6 @@ export default function QuranResearchPage() {
   const arabicCorpus = useRef<FullSurah[] | null>(null);
   const englishCorpus = useRef<Record<string, FullSurah[]>>({});
 
-  const [jumpError, setJumpError] = useState("");
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
   const [question, setQuestion] = useState("Analyze the selected verse(s) through coherence, correspondence, and calibration. Distinguish explicit statements from inference. Do not import hadith or biblical chronology as unquestioned premises.");
@@ -224,27 +222,12 @@ export default function QuranResearchPage() {
     }
   }, [ayahs, search, selected]);
 
-  function jumpToVerse(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setJumpError("");
-    const match = verseReference.trim().match(/^(\d{1,3})\s*:\s*(\d{1,3})$/);
-    if (!match) {
-      setJumpError("Enter a reference like 19:28 (surah:verse).");
-      return;
-    }
-    const targetChapter = Number(match[1]);
-    const targetVerse = Number(match[2]);
-    if (targetChapter < 1 || targetChapter > 114 || targetVerse < 1) {
-      setJumpError("Enter a valid surah (1–114) and verse number.");
-      return;
-    }
-    const surah = surahs.find(s => s.number === targetChapter);
-    if (surah && targetVerse > surah.numberOfAyahs) {
-      setJumpError(`Surah ${targetChapter} has only ${surah.numberOfAyahs} verses.`);
-      return;
-    }
+  function goToReference(targetChapter: number, targetVerse: number) {
+    const target = refOf(targetChapter, targetVerse);
     setSearch(String(targetVerse));
-    scrollTarget.current = refOf(targetChapter, targetVerse);
+    scrollTarget.current = target;
+    setGlobalResults([]);
+    setGlobalTotal(null);
     if (chapter === targetChapter && ayahs.some(a => a.numberInSurah === targetVerse)) {
       setSelected([targetVerse]);
     } else {
@@ -271,7 +254,24 @@ export default function QuranResearchPage() {
     setGlobalResults([]);
     setGlobalTotal(null);
     setGlobalShown(MAX_SEARCH_RESULTS);
-    if (!query) { setGlobalError("Enter a keyword to search."); return; }
+    if (!query) { setGlobalError("Enter a verse reference or keyword to search."); return; }
+    // A surah:verse reference navigates directly, without loading the full corpus.
+    const reference = query.match(/^(\d{1,3})\s*:\s*(\d{1,3})$/);
+    if (reference) {
+      const targetChapter = Number(reference[1]);
+      const targetVerse = Number(reference[2]);
+      const surah = surahs.find(s => s.number === targetChapter);
+      if (targetChapter < 1 || targetChapter > 114 || targetVerse < 1) {
+        setGlobalError("Enter a valid surah (1–114) and verse number.");
+        return;
+      }
+      if (surah && targetVerse > surah.numberOfAyahs) {
+        setGlobalError(`Surah ${targetChapter} has only ${surah.numberOfAyahs} verses.`);
+        return;
+      }
+      goToReference(targetChapter, targetVerse);
+      return;
+    }
     setGlobalLoading(true);
     try {
       if (!arabicCorpus.current) arabicCorpus.current = await getFullCorpus("quran-uthmani");
@@ -312,7 +312,6 @@ export default function QuranResearchPage() {
   }
 
   function openSearchResult(result: SearchResult) {
-    setJumpError("");
     setSearch("");
     scrollTarget.current = refOf(result.chapter, result.verse);
     if (chapter === result.chapter && ayahs.some(a => a.numberInSurah === result.verse)) {
@@ -409,21 +408,15 @@ export default function QuranResearchPage() {
         <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
         <span className={styles.beta}>Research prototype</span>
       </div>
-      <form className={styles.jumpBar} onSubmit={jumpToVerse}>
-        <label htmlFor="ccc-verse-jump">Go to verse</label>
-        <input id="ccc-verse-jump" value={verseReference} onChange={e => setVerseReference(e.target.value)} placeholder="e.g. 19:28" inputMode="text" aria-describedby="ccc-jump-help" />
-        <button type="submit">Go to verse</button>
-        <span id="ccc-jump-help" className={styles.jumpHelp}>{jumpError || "Enter surah:verse to open and select it for CCC analysis."}</span>
-      </form>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
-        <h2>Search the entire Qurʾān</h2>
-        <p className={styles.hint}>Search all 114 surahs by Arabic text or by your selected English translation. This is a keyword search, not a root search.</p>
+        <h2>Find a verse or search the Qurʾān</h2>
+        <p className={styles.hint}>Enter a reference such as 19:28 to jump directly to that verse, or search all 114 surahs by Arabic text or your selected English translation. Keyword searches are not root searches.</p>
         <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
-          <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "Arabic word or phrase (e.g. مريم)" : "English word or phrase (e.g. mercy)"} />
+          <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "19:28 or Arabic word (e.g. مريم)" : "19:28 or English word (e.g. mercy)"} />
           <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
             <option value="arabic">Arabic</option><option value="english">English (selected translation)</option>
           </select>
-          <button type="submit" disabled={globalLoading}>{globalLoading ? "Searching…" : "Search all surahs"}</button>
+          <button type="submit" disabled={globalLoading}>{globalLoading ? "Searching…" : "Go / Search"}</button>
         </form>
         {globalError && <p role="alert" className={styles.searchError}>{globalError}</p>}
         {globalTotal !== null && <p role="status" className={styles.searchCount}>{globalTotal} matching verses{globalLanguage === "english" ? ` · ${editions.find(e => e.id === edition)?.name || edition}` : ""}</p>}
