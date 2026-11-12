@@ -140,6 +140,8 @@ export default function QuranResearchPage() {
   const [morphLoading, setMorphLoading] = useState(false);
   const [morphError, setMorphError] = useState("");
   const [wordChoice, setWordChoice] = useState<WordChoice | null>(null);
+  const [wordGloss, setWordGloss] = useState("");
+  const [wordGlossLoading, setWordGlossLoading] = useState(false);
   const [rootQuery, setRootQuery] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
   const [rootTotal, setRootTotal] = useState<number | null>(null);
@@ -374,6 +376,25 @@ export default function QuranResearchPage() {
     setWordChoice({ reference: hit.reference, index: hit.index, display: "" });
     openSearchResult({ chapter: targetChapter, verse: targetVerse, arabic: "", english: "" });
   }
+  useEffect(() => {
+    if (!wordChoice) { setWordGloss(""); return; }
+    let cancelled = false;
+    setWordGloss("");
+    setWordGlossLoading(true);
+    const { reference, index } = wordChoice;
+    fetch(`/api/quran-word?verse=${encodeURIComponent(reference)}`)
+      .then(async response => {
+        if (!response.ok) throw new Error("Word meanings unavailable");
+        return response.json() as Promise<{ meanings?: string[] }>;
+      })
+      .then(data => {
+        if (!cancelled) setWordGloss(data.meanings?.[index - 1] || "");
+      })
+      .catch(() => { if (!cancelled) setWordGloss(""); })
+      .finally(() => { if (!cancelled) setWordGlossLoading(false); });
+    return () => { cancelled = true; };
+  }, [wordChoice?.reference, wordChoice?.index]);
+
   const inspectedWord = wordChoice && morph?.[wordChoice.reference]?.[wordChoice.index - 1];
   const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
 
@@ -466,6 +487,11 @@ export default function QuranResearchPage() {
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
+              <div className={styles.wordMeaning} lang="en" aria-live="polite">
+                <span className={styles.morphLabel}>English word meaning</span>
+                <strong>{wordGlossLoading ? "Loading…" : wordGloss || "Unavailable from the word-by-word source"}</strong>
+                <small>Contextual gloss, not an exhaustive lexical definition.</small>
+              </div>
               {inspectedWord ? <>
                 <div className={styles.morphFacts}>
                   <div><span className={styles.morphLabel}>Root</span><strong dir="rtl" lang="ar" className={styles.morphArabicValue}>{selectedRoot || "Not annotated"}</strong></div>
@@ -489,11 +515,7 @@ export default function QuranResearchPage() {
                   ))}
                   <p className={styles.grammarNote}>These are corpus annotations. Perfect/imperfect describe grammatical aspect, not necessarily the real-world time of an event.</p>
                 </div>
-                <details className={styles.morphTechnical}>
-                  <summary>Show original corpus codes</summary>
-                  <p>Root: <code>{inspectedWord.r || "—"}</code> · Lemma: <code>{inspectedWord.l || "—"}</code></p>
-                  {inspectedWord.s.map((segment, ix) => <div key={ix}><code>{segment.join(" · ")}</code></div>)}
-                </details>
+
                 {selectedRoot && <button type="button" className={styles.rootLink} onClick={() => {setRootQuery(selectedRoot); void findRoot(selectedRoot);}}>Find all occurrences of {selectedRoot}</button>}
               </> : <p className={styles.hint}>{morphLoading ? "Loading annotations…" : "No annotation available at this reference."}</p>}
             </div>}
