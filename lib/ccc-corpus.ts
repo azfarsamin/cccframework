@@ -15,6 +15,7 @@ type Concordance = {
 export type RetrievalResult = {
   text: string;
   concordance: Concordance | null;
+  concordanceVerses: { reference: string; count: number; arabic: string }[];
   diagnostics: {
     selectedCount: number;
     queryTerm: string | null;
@@ -159,6 +160,11 @@ export async function retrieveQuranContext(selected: ResearchVerse[], question: 
   return {
     text: `${title}\n\nADDITIONAL ARABIC VERSES:\n${snippets.length ? snippets.join("\n") : "None retrieved."}\n\nScope: complete lexical matching only for the reported target. Not a complete semantic or conceptual search. Morphological annotation is interpretive data. If excerpts are truncated, report that fact.`,
     concordance,
+    // Include verse text only when the complete list fits a reasonable response.
+    // The complete verse reference/count list remains available regardless.
+    concordanceVerses: references.length <= 50 && references.reduce((n, r) => n + (arabic.get(r.reference)?.length ?? 0), 0) <= 18000
+      ? references.map(r => ({ reference: r.reference, count: r.count, arabic: arabic.get(r.reference) ?? "" }))
+      : [],
     diagnostics: {
       selectedCount: selected.length,
       queryTerm: target?.label ?? null,
