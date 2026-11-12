@@ -39,7 +39,32 @@ const buckwalterArabic: Record<string, string> = {
   A: "ا", b: "ب", t: "ت", v: "ث", j: "ج", H: "ح", x: "خ", d: "د", '*': "ذ", r: "ر", z: "ز", s: "س", '$': "ش", S: "ص", D: "ض", T: "ط", Z: "ظ", E: "ع", g: "غ", f: "ف", q: "ق", k: "ك", l: "ل", m: "م", n: "ن", h: "ه", w: "و", y: "ي", '<': "إ", '>': "أ", '&': "ؤ", '}': "ئ", p: "ة", Y: "ى", '|': "آ", '{': "ٱ", 'X': "خ"
 };
 function translitToArabic(value: string) {
-  return Array.from(value).map(character => buckwalterArabic[character] || character).join("");
+  // Buckwalter vowels/diacritics are not independent Arabic letters.
+  const marks = new Set(["a", "i", "u", "o", "~", "F", "N", "K", "`", "^"]);
+  return Array.from(value).filter(c => !marks.has(c)).map(c => buckwalterArabic[c] || c).join("");
+}
+const partOfSpeechLabels: Record<string,string> = {
+  DET: "Definite article", N: "Noun", PN: "Proper noun", V: "Verb",
+  ADJ: "Adjective", PRON: "Pronoun", P: "Preposition", CONJ: "Conjunction",
+  REL: "Relative pronoun", DEM: "Demonstrative", NEG: "Negation particle",
+  ACC: "Accusative particle", VOC: "Vocative particle", INTG: "Interrogative",
+  ADV: "Adverb", INL: "Initial letters", NUM: "Number", T: "Time adverb"
+};
+const featureLabels: Record<string,string> = {
+  NOM: "Nominative", ACC: "Accusative", GEN: "Genitive",
+  M: "Masculine", F: "Feminine", S: "Singular", D: "Dual", P: "Plural",
+  DEF: "Definite", INDEF: "Indefinite", PERF: "Perfect", IMPF: "Imperfect",
+  IMPV: "Imperative", ACT: "Active", PASS: "Passive", IND: "Indicative",
+  SUBJ: "Subjunctive", JUS: "Jussive", MS: "Masculine singular",
+  FS: "Feminine singular", MP: "Masculine plural", FP: "Feminine plural"
+};
+function segmentSummary(segment: MorphSegment) {
+  const features = segment[2].split("|");
+  const readable = features.filter(v => featureLabels[v]).map(v => featureLabels[v]);
+  if (features.some(v => v.startsWith("PREFIX"))) readable.unshift("Prefix");
+  if (features.some(v => v.startsWith("SUFFIX"))) readable.unshift("Suffix");
+  if (features.includes("STEM")) readable.unshift("Stem");
+  return [partOfSpeechLabels[segment[1]] || segment[1], ...Array.from(new Set(readable))].join(" · ");
 }
 function normalizedRoot(value: string) {
   return normalizeArabic(value).replace(/\s+/g, "").trim();
@@ -401,15 +426,25 @@ export default function QuranResearchPage() {
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
               {inspectedWord ? <>
-                <p>Root: <strong dir="rtl" lang="ar">{selectedRoot || "Not annotated"}</strong> {inspectedWord.r ? `(${inspectedWord.r})` : ""}</p>
-                <p>Lemma (Buckwalter): <code>{inspectedWord.l || "Not annotated"}</code></p>
-                {inspectedWord.s.map((segment, ix) => <div key={ix} className={styles.segment}><code>{segment[0] || "—"}</code> · <strong>{segment[1]}</strong> · <span>{segment[2]}</span></div>)}
+                <div className={styles.morphFacts}>
+                  <div><span className={styles.morphLabel}>Root</span><strong dir="rtl" lang="ar" className={styles.morphArabicValue}>{selectedRoot || "Not annotated"}</strong></div>
+                  <div><span className={styles.morphLabel}>Lemma</span><strong dir="rtl" lang="ar" className={styles.morphArabicValue}>{inspectedWord.l ? translitToArabic(inspectedWord.l) : "Not annotated"}</strong></div>
+                </div>
+                <div className={styles.morphSegments}>
+                  <span className={styles.morphLabel}>Grammatical analysis</span>
+                  {inspectedWord.s.map((segment, ix) => <div key={ix} className={styles.segment}>{segmentSummary(segment)}</div>)}
+                </div>
+                <details className={styles.morphTechnical}>
+                  <summary>Show original corpus codes</summary>
+                  <p>Root: <code>{inspectedWord.r || "—"}</code> · Lemma: <code>{inspectedWord.l || "—"}</code></p>
+                  {inspectedWord.s.map((segment, ix) => <div key={ix}><code>{segment.join(" · ")}</code></div>)}
+                </details>
                 {selectedRoot && <button type="button" className={styles.rootLink} onClick={() => {setRootQuery(selectedRoot); void findRoot(selectedRoot);}}>Find all occurrences of {selectedRoot}</button>}
               </> : <p className={styles.hint}>{morphLoading ? "Loading annotations…" : "No annotation available at this reference."}</p>}
             </div>}
             {rootTotal !== null && <div className={styles.rootHits}>
               <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
-              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}>{hit.reference} · word {hit.index} · {hit.lemma || "—"}</button>)}
+              {rootMatches.map(hit => <button type="button" key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}><strong>{hit.reference}</strong><span>Word {hit.index}</span><span dir="rtl" lang="ar" className={styles.hitLemma}>{hit.lemma ? translitToArabic(hit.lemma) : "—"}</span></button>)}
             </div>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
           </div>
