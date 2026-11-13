@@ -11,6 +11,7 @@ type ArabicSurah = { number: number; ayahs: { numberInSurah: number; text: strin
 
 type Concordance = {
   term: string;
+  unit: "word" | "phrase";
   totalOccurrences: number;
   references: { reference: string; count: number }[];
 };
@@ -85,6 +86,30 @@ const auditedTerms = [
     lemmas: new Set([">um~iY~"]), nominalOnly: false },
 ];
 
+// Audited multi-word expressions are matched by ADJACENT corpus lemmas,
+// not by broad roots (which would produce unrelated thematic candidates).
+// Keep this map deliberately explicit; unrecognized transliterations must
+// not be represented as verified lexical matches.
+const auditedPhrases = [
+  {
+    label: "uswatan ḥasanatan (أُسْوَةٌ حَسَنَةٌ)",
+    match: /(?:\buswat(?:an|un|in)?\s+hasanat(?:an|un|in)?\b|\buswah?\s+hasanah?\b|\buswat(?:an|un|in)?\s+ḥasanat(?:an|un|in)?\b|أسوة\s+حسنة|أُسْوَةٌ\s+حَسَنَةٌ)/iu,
+    lemmas: [">usowap", "Hasanap"],
+  },
+];
+function inferPhraseTarget(question: string) {
+  const normalizedQuestion = norm(question);
+  return auditedPhrases.find(p => p.match.test(question) ||
+    (normalizedQuestion.includes("اسوةحسنة") && p.lemmas[0] === ">usowap")) ?? null;
+}
+function countAdjacentLemmas(words: MorphWord[], lemmas: string[]) {
+  let count = 0;
+  for (let i = 0; i <= words.length - lemmas.length; i++) {
+    if (lemmas.every((lemma, j) => words[i + j].l === lemma)) count++;
+  }
+  return count;
+}
+
 type Target = { label: string; test: (w: MorphWord) => boolean };
 function inferTarget(question: string, selected: ResearchVerse[], morph: Morphology): Target | null {
   for (const candidate of auditedTerms) {
@@ -127,23 +152,25 @@ function sortRefs(a: string, b: string) {
 export async function retrieveQuranContext(selected: ResearchVerse[], question: string): Promise<RetrievalResult> {
   // The complete indexed morphology is local. Fetch Arabic excerpts only if needed.
   const morphology = await getMorphology();
-  const target = inferTarget(question, selected, morphology);
+  const phrase = inferPhraseTarget(question);
+  const target = phrase ? null : inferTarget(question, selected, morphology);
   const selectedRefs = new Set(selected.map(v => `${v.chapter}:${v.verse}`));
   const references: { reference: string; count: number }[] = [];
-  if (target) {
+  if (target || phrase) {
     for (const [reference, words] of Object.entries(morphology)) {
-      const count = words.filter(target.test).length;
+      const count = phrase ? countAdjacentLemmas(words, phrase.lemmas) : words.filter(target!.test).length;
       if (count) references.push({ reference, count });
     }
     references.sort((a,b) => sortRefs(a.reference, b.reference));
   }
-  const concordance: Concordance | null = target ? {
-    term: target.label,
+  const concordance: Concordance | null = target || phrase ? {
+    term: phrase?.label ?? target!.label,
+    unit: phrase ? "phrase" : "word",
     totalOccurrences: references.reduce((sum, v) => sum + v.count, 0),
     references,
   } : null;
   // Pure methodological questions require no Arabic API call.
-  const arabic = target || selected.length ? await getArabicCorpus() : new Map<string, string>();
+  const arabic = target || phrase || selected.length ? await getArabicCorpus() : new Map<string, string>();
   const ordered = new Set<string>();
   // Include ALL matching references when possible; if too many, retain complete
   // reference list above and bound the verse excerpt length for the model.
@@ -160,9 +187,9 @@ export async function retrieveQuranContext(selected: ResearchVerse[], question: 
     snippets.push(`${ref} ${text}`); length += text.length;
   }
   const title = concordance ?
-    `COMPLETE LEXICAL CONCORDANCE (morphology index; all 6236 numbered verses): ${concordance.term}: ${concordance.totalOccurrences} WORD OCCURRENCES across ${references.length} verses.\n` +
+    `COMPLETE LEXICAL CONCORDANCE (morphology index; all 6236 numbered verses): ${concordance.term}: ${concordance.totalOccurrences} ${concordance.unit.toUpperCase()} OCCURRENCES across ${references.length} verses.\n` +
     `Verified counts per verse: ${references.map(r => `${r.reference} (${r.count})`).join(", ")}.` :
-    "NO QUERY TERM RESOLVED: This system has not conducted an exhaustive lexical concordance for the research question. Do not imply otherwise. Question-driven term resolution currently supports audited transliterations (including ribā, ummī) and unambiguous Arabic-script lemma forms; unrelated conceptual retrieval is not yet implemented.";
+    "NO QUERY TERM RESOLVED: This system has not conducted an exhaustive lexical concordance for the research question. Do not imply otherwise. Question-driven term resolution supports audited transliterations and phrases (including ribā, ummī, uswatan hasanatan) and unambiguous Arabic-script lemma forms; thematic discovery is separate.";
   return {
     text: `${title}\n\nADDITIONAL ARABIC VERSES:\n${snippets.length ? snippets.join("\n") : "None retrieved."}\n\nScope: complete lexical matching only for the reported target. Not a complete semantic or conceptual search. Morphological annotation is interpretive data. If excerpts are truncated, report that fact.`,
     concordance,
@@ -173,11 +200,11 @@ export async function retrieveQuranContext(selected: ResearchVerse[], question: 
       : [],
     diagnostics: {
       selectedCount: selected.length,
-      queryTerm: target?.label ?? null,
+      queryTerm: phrase?.label ?? target?.label ?? null,
       totalWordOccurrences: concordance?.totalOccurrences ?? 0,
       matchingVerses: references.length,
       retrievedAdditionalVerses: snippets.length,
-      exhaustiveLexicalIndex: !!target,
+      exhaustiveLexicalIndex: !!(target || phrase),
       source: "Qur'anic Arabic Corpus v0.4 morphology + Al Quran Cloud quran-uthmani",
     },
   };
