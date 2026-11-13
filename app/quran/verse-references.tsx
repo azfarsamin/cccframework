@@ -74,7 +74,13 @@ const verseReferences: Record<string, VerseReference[]> = {
   "6:19": [akbarArticle],
   "9:3": [akbarArticle],
   "40:12": [akbarArticle],
-  "4:34": [akbarArticle],
+  "4:34": [
+    akbarArticle,
+    {
+      label: "For a treatment of the word ḍaraba, see this three-part article series",
+      url: "https://forthefew1.substack.com/p/the-calibration-problem-the-misuse-b3b",
+    },
+  ],
   "13:9": [akbarArticle],
   "22:62": [akbarArticle],
   "31:30": [akbarArticle],
