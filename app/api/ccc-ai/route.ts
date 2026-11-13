@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       const verses = retrieval.concordanceVerses;
       const lines = [
         `## Verified Qurʾānic lexical concordance — ${c.term}`,
-        `**${c.totalOccurrences} word occurrences across ${c.references.length} numbered verses.**`,
+        `**${c.totalOccurrences} ${c.unit} occurrences across ${c.references.length} numbered verses.**`,
         "",
       ];
       if (verses.length === c.references.length) {
@@ -235,7 +235,7 @@ export async function POST(request: NextRequest) {
     // Lexical concordances come from the corpus index, not the model's recollection.
     // Show them deterministically even if the model fails to enumerate all references.
     const verifiedConcordance = retrieval.concordance
-      ? `Verified Qurʾānic morphology concordance — ${retrieval.concordance.term}: ${retrieval.concordance.totalOccurrences} word occurrences in ${retrieval.concordance.references.length} verses.\n${retrieval.concordance.references.map(r => `${r.reference} (${r.count})`).join(", ")}\n\n---\n\n`
+      ? `Verified Qurʾānic morphology concordance — ${retrieval.concordance.term}: ${retrieval.concordance.totalOccurrences} ${retrieval.concordance.unit} occurrences in ${retrieval.concordance.references.length} verses.\n${retrieval.concordance.references.map(r => `${r.reference} (${r.count})`).join(", ")}\n\n---\n\n`
       : "";
     const thematicNotice = thematicEvidence
       ? "**Thematic retrieval:** Candidate verses were checked against the Qurʾānic corpus, but conceptual completeness cannot be guaranteed.\n\n"
