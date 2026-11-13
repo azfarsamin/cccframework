@@ -25,6 +25,12 @@ const shamsArticle: VerseReference = {
 };
 
 const verseReferences: Record<string, VerseReference[]> = {
+  "15:9": [
+    {
+      label: "See Chapter 3 for discussion on the preservation of the Qur'an",
+      url: "https://www.cccframework.ca/pdfs/ReasonRevelationTruth_FreePdf_v2.0.pdf",
+    },
+  ],
   "2:275": [ribaBook],
   "2:276": [ribaBook],
   "2:278": [ribaBook],

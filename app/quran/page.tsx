@@ -718,12 +718,26 @@ export default function QuranResearchPage() {
           <div className={styles.panelHeader}><h2>{showSearchResults ? "Search results" : "Qurʾān reader"}</h2><span>{showSearchResults ? `${globalTotal ?? 0} matching verses` : `${ayahs.length} verses`}</span></div>
           <div className={styles.controls}>
             <label>Surah
-              <select value={chapter} onChange={e => {setShowSearchResults(false); setChapter(Number(e.target.value));}}>
+              <select value={chapter} onChange={e => {setShowSearchResults(false); setSearch(""); setChapter(Number(e.target.value));}}>
                 {surahs.length ? surahs.map(s => <option value={s.number} key={s.number}>{s.number}. {s.englishName}</option>) : <option value={19}>19. Maryam</option>}
               </select>
             </label>
-            <label>Find within surah
-              <input value={search} onChange={e => {setShowSearchResults(false); setSearch(e.target.value);}} placeholder="Arabic text or verse number" />
+            <label>Verse
+              <select
+                aria-label="Choose verse within surah"
+                value={search}
+                onChange={e => {
+                  setShowSearchResults(false);
+                  setSearch(e.target.value);
+                }}
+              >
+                <option value="">All verses</option>
+                {ayahs.map(a => (
+                  <option key={a.numberInSurah} value={String(a.numberInSurah)}>
+                    {a.numberInSurah}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           <div className={styles.translationControl}>
