@@ -171,18 +171,61 @@ const verseReferences: Record<string, VerseReference[]> = {
   "33:40": [fallibilityArticle],
 };
 
+// Verse-linked qirāʾāt comparisons. These are kept distinct from research references.
+// A separate record allows other variants to be added without changing verse data.
+type VariantReading = {
+  hafsArabic: string;
+  hafsMeaning: string;
+  warshArabic: string;
+  warshMeaning: string;
+  source: string;
+};
+
+const variantReadings: Record<string, VariantReading> = {
+  "43:19": {
+    hafsArabic: "عِبَٰدُ ٱلرَّحْمَٰنِ",
+    hafsMeaning: "servants of the Most Merciful",
+    warshArabic: "عِندَ ٱلرَّحْمَٰنِ",
+    warshMeaning: "with the Most Merciful",
+    source: "https://quran.com/43:19/qiraat",
+  },
+  "2:259": {
+    hafsArabic: "نُنْشِزُهَا",
+    hafsMeaning: "We raise/reassemble the bones",
+    warshArabic: "نُنْشِرُهَا",
+    warshMeaning: "We revive the bones",
+    source: "https://quran.com/2:259/qiraat",
+  },
+};
+
 export function VerseReferences({ chapter, verse }: { chapter: number; verse: number }) {
-  const references = verseReferences[`${chapter}:${verse}`];
-  if (!references?.length) return null;
+  const key = `${chapter}:${verse}`;
+  const references = verseReferences[key] ?? [];
+  const variant = variantReadings[key];
+  if (references.length === 0 && !variant) return null;
 
   return (
-    <aside className={styles.verseReferences} aria-label={`Research references for ${chapter}:${verse}`}>
-      <strong className={styles.verseReferencesHeading}>Research references</strong>
-      {references.map((item) => (
-        <div className={styles.verseReferenceItem} key={item.url}>
-          <span>{item.label} <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</span>
+    <aside className={styles.verseReferences} aria-label={`References and variant readings for ${key}`}>
+      {variant && (
+        <div className={styles.verseReferenceItem}>
+          <strong className={styles.verseReferencesHeading}>Variant readings</strong>{" "}
+          <span>
+            Ḥafṣ: <b lang="ar" dir="rtl">{variant.hafsArabic}</b> ({variant.hafsMeaning});{" "}
+            Warsh: <b lang="ar" dir="rtl">{variant.warshArabic}</b> ({variant.warshMeaning}).{" "}
+            <a href={variant.source} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>Source</a>.
+          </span>
         </div>
-      ))}
+      )}
+      {references.length > 0 && (
+        <>
+          <strong className={styles.verseReferencesHeading}>Research references</strong>
+          {references.map((item) => (
+            <div className={styles.verseReferenceItem} key={item.url}>
+              <span>{item.label} <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</span>
+            </div>
+          ))}
+        </>
+      )}
     </aside>
   );
 }
