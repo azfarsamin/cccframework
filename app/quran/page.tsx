@@ -31,6 +31,15 @@ function normalizeArabic(value: string) {
 }
 
 
+// Some Arabic providers prefix the basmalah to verse 1 outside al-Fatihah.
+// Separate it only for display; preserve the original verse text for searches,
+// selected research evidence and grammatical word alignment.
+function verseBasmalahOffset(chapter: number, verse: number, tokens: string[]): number {
+  if (chapter === 1 || chapter === 9 || verse !== 1 || tokens.length <= 4) return 0;
+  const expected = ["بسم", "الله", "الرحمن", "الرحيم"];
+  return expected.every((word, index) => normalizeArabic(tokens[index]) === word) ? 4 : 0;
+}
+
 type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
 type Morphology = Record<string, MorphWord[]>;
@@ -752,15 +761,20 @@ export default function QuranResearchPage() {
               <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
                 const reference = refOf(chapter, a.numberInSurah);
                 const tokens = a.text.trim().split(/\s+/);
+                const basmalahOffset = verseBasmalahOffset(chapter, a.numberInSurah, tokens);
                 const mapping = morph?.[reference] ? alignVerseWords(tokens, morph[reference]) : null;
-                return tokens.map((token, i) => {
-                  // Before annotations load, clicks trigger loading and a verified recheck.
-                  const safe = !mapping || mapping[i] !== null;
-                  return <button key={i} type="button" className={styles.arabicWord}
-                    disabled={!safe}
-                    title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
-                    onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
-                });
+                return <>
+                  {basmalahOffset > 0 && <span className={styles.verseBasmalah}>{tokens.slice(0, basmalahOffset).join(" ")}</span>}
+                  <span className={styles.verseArabicWords}>{tokens.slice(basmalahOffset).map((token, position) => {
+                    const i = position + basmalahOffset;
+                    // Preserve original token positions for corpus alignment and inspection.
+                    const safe = !mapping || mapping[i] !== null;
+                    return <button key={i} type="button" className={styles.arabicWord}
+                      disabled={!safe}
+                      title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
+                      onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
+                  })}</span>
+                </>;
               })()}</span>
               <span className={styles.english} lang="en">
                 {edition === "gerrans"
