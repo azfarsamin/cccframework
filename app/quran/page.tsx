@@ -223,6 +223,7 @@ export default function QuranResearchPage() {
 
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
+  const [analysisMode, setAnalysisMode] = useState<"research" | "ccc">("research");
   const [question, setQuestion] = useState("Investigate the research question using the Qurʾān as the calibration reference. Distinguish explicit Qurʾānic statements from inference.");
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
@@ -551,7 +552,7 @@ export default function QuranResearchPage() {
     try {
       const response = await fetch("/api/ccc-ai", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
-        body: JSON.stringify({ question, chapter, verses: analysisVerses }),
+        body: JSON.stringify({ question, chapter, verses: analysisVerses, mode: analysisMode }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Research service unavailable");
@@ -748,15 +749,27 @@ export default function QuranResearchPage() {
               </div>}
               {researchTab === 'ccc' && <>
           <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>CCC research assistant</h2><span>{analysisVerses.length} selected</span></div>
+            <div className={styles.panelHeader}><h2>Qurʾān research assistant</h2><span>{analysisVerses.length} selected</span></div>
             <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Optional — no verses selected"}</div>
+            <label className={styles.label}>Analysis mode
+              <select value={analysisMode} onChange={e => setAnalysisMode(e.target.value as "research" | "ccc")}
+                style={{ padding: "10px 12px", border: "1px solid #cdd2d7", borderRadius: 8, color: "#222831", background: "#fff", font: "inherit" }}>
+                <option value="research">Research — Direct answer</option>
+                <option value="ccc">CCC — Full methodology</option>
+              </select>
+            </label>
+            <p className={styles.hint}>
+              {analysisMode === "research"
+                ? "Direct answers from verified Qurʾānic evidence, without mandatory CCC headings. Chapter 1 is loaded only when explicitly requested."
+                : "Apply the full Chapter 1 CCC methodology to the retrieved evidence. The Qurʾān remains the calibration reference."}
+            </p>
             <label className={styles.label}>Research question
               <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
             </label>
             <label className={styles.label}>Private research passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : "Analyze with CCC"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : analysisMode === "ccc" ? "Analyze with CCC" : "Research question"}</button>
             {status && <p role="status" className={styles.status}>{status}</p>}
             {aiResponse && <div className={styles.answer}><h3>Research response</h3>{incomplete && <p role="alert" className={styles.incomplete}>Incomplete response: the model reached its output-token limit. This answer may be truncated; shorten the question or request a narrower analysis.</p>}<ResearchMarkdown source={aiResponse}/></div>}
             <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
