@@ -262,14 +262,14 @@ function storageRead(): Note[] {
 
 export default function QuranResearchPage() {
   const [surahs, setSurahs] = useState<Surah[]>([]);
-  const [chapter, setChapter] = useState(19);
+  const [chapter, setChapter] = useState(1);
   const [ayahs, setAyahs] = useState<Ayah[]>([]);
-  const [edition, setEdition] = useState<TranslationEdition>("en.asad");
+  const [edition, setEdition] = useState<TranslationEdition>("gerrans");
   const [translations, setTranslations] = useState<Ayah[]>([]);
   const [gerrans, setGerrans] = useState<GerransMap>({});
   const [islahi, setIslahi] = useState<GerransMap>({});
   const [translationError, setTranslationError] = useState("");
-  const [selected, setSelected] = useState<number[]>([28]);
+  const [selected, setSelected] = useState<number[]>([]);
   const [selectedSearch, setSelectedSearch] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [search, setSearch] = useState("");
@@ -801,7 +801,7 @@ export default function QuranResearchPage() {
           <div className={styles.controls}>
             <label>Surah
               <select value={chapter} onChange={e => {setShowSearchResults(false); setSearch(""); setChapter(Number(e.target.value));}}>
-                {surahs.length ? surahs.map(s => <option value={s.number} key={s.number}>{s.number}. {s.englishName}</option>) : <option value={19}>19. Maryam</option>}
+                {surahs.length ? surahs.map(s => <option value={s.number} key={s.number}>{s.number}. {s.englishName}</option>) : <option value={1}>1. Al-Faatiha</option>}
               </select>
             </label>
             <label>Verse
