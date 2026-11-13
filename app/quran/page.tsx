@@ -841,7 +841,7 @@ export default function QuranResearchPage() {
               <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`}
                 lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>
                 {edition === "ur.islahi"
-                  ? (chapter === 1 || chapter === 2 || chapter === 3
+                  ? (chapter >= 1 && chapter <= 5
                     ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
                     : "Islahi Urdu text is available for Surahs 1–5 only.")
                   : edition === "gerrans"
