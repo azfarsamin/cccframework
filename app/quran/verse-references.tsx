@@ -25,7 +25,7 @@ const shamsArticle: VerseReference = {
 };
 
 const akbarArticle: VerseReference = {
-  label: "On Allāhu Akbar and Qurʾānic usage, see article",
+  label: "On Kabir, Allāhu Akbar and Qurʾānic usage, see article",
   url: "https://forthefew1.substack.com/p/a-quranic-pan-textual-analysis-of",
 };
 
@@ -122,7 +122,7 @@ const verseReferences: Record<string, VerseReference[]> = {
   "18:18": [halalHaramArticle],
   "18:22": [halalHaramArticle],
   "39:18": [halalHaramArticle],
-  // Pan-textual study of Allāhu Akbar: direct lexical examples and divine names.
+  // Pan-textual study of Kabir, Allāhu Akbar, and Qurʾānic usage.
   "9:72": [akbarArticle],
   "29:45": [akbarArticle],
   "40:10": [akbarArticle],
