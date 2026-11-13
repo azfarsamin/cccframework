@@ -27,6 +27,54 @@ const verseReferences: Record<string, VerseReference[]> = {
       url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6748782",
     },
   ],
+  "65:4": [
+    {
+      label: "For the Prophet's marriage controversy with Ayeshah, see",
+      url: "https://al-aasar.com/index.php/Journal/article/view/816/691",
+    },
+  ],
+  "28:10": [
+    {
+      label: "See article on moral reasoning in the Qur'an",
+      url: "https://forthefew1.substack.com/p/moral-reasoning-in-the-quran",
+    },
+  ],
+  "22:46": [
+    {
+      label: "See article on moral reasoning in the Qur'an",
+      url: "https://forthefew1.substack.com/p/moral-reasoning-in-the-quran",
+    },
+  ],
+  "7:179": [
+    {
+      label: "See article on moral reasoning in the Qur'an",
+      url: "https://forthefew1.substack.com/p/moral-reasoning-in-the-quran",
+    },
+  ],
+  "22:52": [
+    {
+      label: "See article on the satanic verses",
+      url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
+    },
+  ],
+  "17:73": [
+    {
+      label: "See article on the satanic verses",
+      url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
+    },
+  ],
+  "53:2": [
+    {
+      label: "See article on the satanic verses",
+      url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
+    },
+  ],
+  "53:3": [
+    {
+      label: "See article on the satanic verses",
+      url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
+    },
+  ],
 };
 
 export function VerseReferences({ chapter, verse }: { chapter: number; verse: number }) {
