@@ -55,17 +55,18 @@ export function formatVerifiedThematicList(
   arabicByReference: ReadonlyMap<string, string>,
   evidenceCount: number,
   excerptTruncated: boolean,
+  theme = "the research question",
 ): string {
   const groups: { category: ThematicCategory; heading: string }[] = [
-    { category: "general", heading: "General principles about the test of life" },
-    { category: "situational", heading: "Particular tests and circumstances" },
+    { category: "general", heading: "General statements relevant to the question" },
+    { category: "situational", heading: "Specific contexts and applications" },
     { category: "historical", heading: "Historical examples and reported statements" },
   ];
   const lines = [
     "## Verified thematic Qurʾānic references",
     `**${items.length} relevant passages selected from ${evidenceCount} corpus-verified candidate verses.**`,
     "",
-    "These references and Arabic quotations were checked against the corpus. Their thematic classification and brief descriptions are model interpretations, not independently proven semantic labels.",
+    `Thematic relevance to ${theme} is a model classification; the references and any Arabic quotations were checked against the Qurʾānic corpus.`,
     "",
   ];
   for (const group of groups) {
