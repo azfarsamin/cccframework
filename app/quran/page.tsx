@@ -459,6 +459,38 @@ export default function QuranResearchPage() {
     }
   }
 
+  // Deep link from Corpus Search: /quran?verse=25:5&word=4.
+  // Verse jumps use the Reader's existing navigation; the optional corpus word
+  // position opens the same Grammar inspector without guessing word alignment.
+  const initialCorpusJumpHandled = useRef(false);
+  useEffect(() => {
+    if (initialCorpusJumpHandled.current) return;
+    initialCorpusJumpHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get("verse")?.match(/^(\d{1,3}):(\d{1,3})$/);
+    if (!reference) return;
+    const targetChapter = Number(reference[1]);
+    const targetVerse = Number(reference[2]);
+    if (targetChapter < 1 || targetChapter > 114 || targetVerse < 1 || targetVerse > 286) return;
+    goToReference(targetChapter, targetVerse);
+    const corpusWord = Number(params.get("word"));
+    if (Number.isInteger(corpusWord) && corpusWord > 0 && corpusWord <= 300) {
+      setResearchTab("grammar");
+      void loadMorphology()
+        .then(data => {
+          const reference = `${targetChapter}:${targetVerse}`;
+          const token = data[reference]?.[corpusWord - 1];
+          if (token) setWordChoice({
+            reference, index: corpusWord,
+            display: token.s.map(segment => translitToArabic(segment[0])).join("")
+          });
+        })
+        .catch(() => { /* error is displayed in the inspector */ });
+    }
+    // URL parameters represent a one-time external navigation, not reactive state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function getFullCorpus(editionId: string): Promise<FullSurah[]> {
     const endpoint = `https://api.alquran.cloud/v1/quran/${editionId}`;
     const res = await fetch(endpoint);
@@ -747,6 +779,10 @@ export default function QuranResearchPage() {
         <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · research questions · notes</p></div>
         <span className={styles.beta}>Research prototype</span>
       </div>
+      <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
+        <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
+        <a href="/quran/corpus" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search</a>
+      </nav>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
         <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches currently cover Surahs 1–5; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
@@ -969,6 +1005,15 @@ export default function QuranResearchPage() {
               <button type="submit" disabled={!rootQuery.trim() || morphLoading}>Find root</button>
             </form>
             <p className={styles.hint}>Select a first letter, then a root. Choosing a root fills the search box and searches automatically. You can also paste an Arabic root into the box and press Find root.</p>
+            <div style={{ marginTop: 12, marginBottom: 12, border: "1px solid #d9dfe8", borderRadius: 10, padding: 12, background: "#f8f9fb" }}>
+              <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>Advanced corpus analysis</div>
+              <p className={styles.hint} style={{ marginTop: 0 }}>Explore this root across grammatical forms, or find all verbs of a form across the Qurʾān.</p>
+              <a style={{ color: "#234469", fontSize: 13, fontWeight: 650 }} href={rootOptions.some(option => option.root === normalizedRoot(rootQuery))
+                ? `/quran/corpus?mode=root&letter=${encodeURIComponent(normalizedRoot(rootQuery)[0])}&root=${encodeURIComponent(normalizedRoot(rootQuery))}&form=any`
+                : "/quran/corpus"}>
+                Open in Corpus Search ↗
+              </a>
+            </div>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
             {rootTotal !== null && <div className={styles.rootConcordance}>
               <p className={styles.searchCount}>{rootTotal.toLocaleString("en")} annotated word occurrences across {rootGroups.length} grammatical {rootGroups.length === 1 ? "group" : "groups"}.</p>
