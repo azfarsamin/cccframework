@@ -280,6 +280,7 @@ export default function QuranResearchPage() {
   const [wordGloss, setWordGloss] = useState("");
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
   const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "ccc" | "notes">("grammar");
+  const [researchExpanded, setResearchExpanded] = useState(false);
   const [rootQuery, setRootQuery] = useState("");
   const [rootInitial, setRootInitial] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
@@ -777,7 +778,7 @@ export default function QuranResearchPage() {
     <main className={styles.main}>
       <div className={styles.header}>
         <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · research questions · notes</p></div>
-        <span className={styles.beta}>Research prototype</span>
+        <span className={styles.beta}>Qurʾān-only research</span>
       </div>
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
         <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
@@ -795,7 +796,7 @@ export default function QuranResearchPage() {
         </form>
         {globalError && <p role="alert" className={styles.searchError}>{globalError}</p>}
       </section>
-      <div className={styles.layout}>
+      <div className={`${styles.layout} ${researchExpanded ? styles.researchExpandedLayout : ""}`}>
         <section className={styles.panel} aria-label="Quran reader">
           <div className={styles.panelHeader}><h2>{showSearchResults ? "Search results" : "Qurʾān reader"}</h2><span>{showSearchResults ? `${globalTotal ?? 0} matching verses` : `${ayahs.length} verses`}</span></div>
           <div className={styles.controls}>
@@ -894,7 +895,21 @@ export default function QuranResearchPage() {
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
-            <div className={styles.panelHeader}><h2>Research tools</h2><span>{analysisVerses.length} selected</span></div>
+            <div className={styles.panelHeader}>
+              <h2>Research tools</h2>
+              <div className={styles.researchActions}>
+                <span>{analysisVerses.length} selected</span>
+                <button
+                  type="button"
+                  className={styles.researchExpandButton}
+                  aria-pressed={researchExpanded}
+                  title={researchExpanded ? "Restore the standard two-column layout" : "Give research tools more horizontal space"}
+                  onClick={() => setResearchExpanded(previous => !previous)}
+                >
+                  {researchExpanded ? "Standard width" : "Wider panel"}
+                </button>
+              </div>
+            </div>
             <div role="tablist" aria-label="Research tools" className={styles.researchTabs}>
               {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'Research'], ['notes', 'Notes']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}

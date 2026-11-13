@@ -195,3 +195,43 @@
 
 /* Urdu exposition: independently right-to-left, in a readable Nastaliq-capable stack. */
 .urduTranslation{direction:rtl;text-align:right;font-family:"Noto Nastaliq Urdu","Jameel Noori Nastaleeq","Noto Naskh Arabic",serif;font-size:17px;line-height:2.25;unicode-bidi:plaintext}
+
+
+/* Release 5.0c — focused visual refinement; keep 9px verse references unchanged. */
+.header h1 { color:#f8fafc; text-shadow:none; }
+.header p { color:#cbd5e1; line-height:1.55; }
+.header .back { color:#cbd5e1; }
+.header .back:hover, .header .back:focus-visible { color:#fff; text-decoration:underline; }
+.header .beta { background:rgba(255,255,255,.09); border-color:rgba(226,232,240,.28); color:#e2e8f0; font-weight:600; }
+/* Improve readability without enlarging the deliberately compact research citations. */
+.hint { font-size:14px; line-height:1.6; color:#526071; }
+.toolIntro { font-size:14px; line-height:1.6; color:#526071; }
+.emptyTool { font-size:14px; line-height:1.65; }
+.controls label, .label, .translationControl label { font-size:14px; }
+.controls select, .controls input, .translationControl select { min-height:44px; font-size:14px; }
+.panelHeader h2 { color:#1f2937; }
+.researchTabs button { font-size:14px; }
+.researchContent { flex:1 1 auto; min-height:0; padding-right:5px; scrollbar-gutter:stable; }
+.researchPanel { min-height:min(70vh,680px); }
+.morphCredit { font-size:12px; line-height:1.65; }
+.rootTable { font-size:14px; }
+.rootTable th { font-size:13px; }
+.rootLocation em { font-size:13px; }
+/* Wider research mode is optional and does not change the underlying tools. */
+.researchExpandedLayout { grid-template-columns:minmax(0,.95fr) minmax(480px,1.35fr); }
+.researchActions { display:flex; gap:9px; align-items:center; justify-content:flex-end; min-width:0; flex-wrap:wrap; }
+.researchActions > span { white-space:nowrap; }
+.researchExpandButton { font:inherit; font-size:12px; font-weight:650; line-height:1.2; color:#273e59; background:#f4f7fb; border:1px solid #c8d2df; border-radius:7px; padding:7px 9px; cursor:pointer; white-space:nowrap; }
+.researchExpandButton:hover { background:#e6eef8; border-color:#9bb0ca; }
+.researchExpandButton:focus-visible { outline:2px solid #345d91; outline-offset:2px; }
+.researchExpandButton[aria-pressed="true"] { background:#e7edf5; border-color:#8ba1bd; }
+@media (max-width:900px) {
+  .researchExpandedLayout { grid-template-columns:1fr; }
+  .researchPanel { min-height:0; }
+  .researchContent { flex:initial; overflow:visible; scrollbar-gutter:auto; }
+}
+@media (max-width:580px) {
+  .header h1 { font-size:clamp(26px,7.4vw,36px); }
+  .researchExpandButton { padding:7px; }
+  .researchTabs button { font-size:12px; }
+}
