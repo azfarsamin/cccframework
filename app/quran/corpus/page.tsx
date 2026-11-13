@@ -267,7 +267,7 @@ export default function QuranCorpusSearchPage() {
               <td className={styles.arabic} dir="rtl" lang="ar">{t.word}</td>
               <td><span className={styles.arabicRoot} dir="rtl" lang="ar">{t.root || "—"}</span><small dir="rtl" lang="ar">{t.lemma}</small></td>
               <td><strong>{t.form ? `Verb · Form ${t.form}` : t.pos}</strong><small>{[t.aspect, t.voice].filter(Boolean).join(" · ")}</small></td>
-              <td><a className={styles.openLink} href={readerHref(t)}>Open in Reader ↗</a><a className={styles.sourceLink} href={`https://corpus.quran.com/wordmorphology.jsp?location=(${t.reference}:${t.position})`} target="_blank" rel="noreferrer">Word morphology ↗</a></td>
+              <td><a className={styles.openLink} href={readerHref(t)} target="_blank" rel="noopener noreferrer" title="Open this verse and word in a new Reader tab">Open in Reader ↗</a><a className={styles.sourceLink} href={`https://corpus.quran.com/wordmorphology.jsp?location=(${t.reference}:${t.position})`} target="_blank" rel="noreferrer">Word morphology ↗</a></td>
             </tr>)}</tbody>
           </table>
         </div> : <p className={styles.empty}>No matching annotations for this combination. Try “Any” in one or more tiers.</p>}
