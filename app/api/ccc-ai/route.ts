@@ -9,6 +9,11 @@ import { resolveDeterministicListing, isReferenceOnlyQuestion, isListingQuestion
 export const runtime = "nodejs";
 export const maxDuration = 150;
 
+// Model duties are independent. A slow reasoning model should not be used
+// to discover and classify references for a Qur'an corpus search.
+const DISCOVERY_MODEL = process.env.CCC_DISCOVERY_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
+const ANALYSIS_MODEL = process.env.CCC_AI_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
+
 type InputVerse = { chapter?: number; verse: number; arabic: string };
 type Input = { chapter?: number; verses?: InputVerse[]; question?: string };
 
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
     let verifiedThematic: Awaited<ReturnType<typeof retrieveConceptualContext>> | null = null;
     if (thematic) {
       try {
-        const proposed = await discoverQuranCandidates(q, selected, key, process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE");
+        const proposed = await discoverQuranCandidates(q, selected, key, DISCOVERY_MODEL);
         const verified = await retrieveConceptualContext(selected, proposed);
         thematicEvidence = verified.text;
         verifiedThematic = verified;
@@ -168,7 +173,7 @@ export async function POST(request: NextRequest) {
       console.log("CCC thematic bounded classification:", {
         totalCandidates: candidates.length, classifiedCount, bounded, batches: batches.length,
       });
-      const model = process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE";
+      const model = DISCOVERY_MODEL; // small JSON-only thematic classification batches
       const classifyBatch = async (items: typeof candidates, index: number) => {
         const allowed = new Set(items.map(v => v.reference));
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
@@ -239,7 +244,7 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE",
+        model: ANALYSIS_MODEL,
         temperature: 0.7,
         max_tokens: thematicListing ? 3800 : outputTokenBudget,
         messages: [
@@ -250,7 +255,7 @@ ${referencesOnly ? "The user explicitly requests REFERENCES ONLY. Output ONLY nu
           { role: "user", content: `Optional user-selected Qur'anic starting verses:\n${excerpt || "None selected."}\n\nSERVER-RETRIEVED CORPUS EVIDENCE:\n${thematicEvidence ? "Lexical query target is not resolved; thematic discovery was used instead." : retrieval.text}\n\n${thematicEvidence ? `ADDITIONAL THEMATIC CANDIDATES FROM MODEL DISCOVERY, VERIFIED AGAINST LOCAL QUR'AN CORPUS:\n${thematicEvidence}\n\n` : ""}Research question: ${input.question}` },
         ],
       }),
-      signal: AbortSignal.timeout(105000),
+      signal: AbortSignal.timeout(90000),
     });
     const json = await response.json();
     if (!response.ok) {
