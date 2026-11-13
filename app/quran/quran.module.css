@@ -169,3 +169,9 @@
 /* Separate the provider-prefixed basmalah from verse 1 without altering Arabic data. */
 .verseBasmalah{display:block;text-align:center;direction:rtl;font-family:inherit;font-size:.86em;line-height:1.9;margin:0 0 12px;color:inherit}
 .verseArabicWords{display:block;text-align:right;direction:rtl}
+
+/* Release 2.2b — stronger Arabic reader strokes, with original text untouched. */
+.arabic { color:#171717; font-weight:700; }
+.arabicWord { color:inherit; font-weight:inherit; }
+.verseBasmalah { color:inherit; font-weight:700; }
+.verseArabicWords { color:inherit; font-weight:inherit; }
