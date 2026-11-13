@@ -209,8 +209,10 @@ export default function QuranResearchPage() {
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
   const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "ccc" | "notes">("grammar");
   const [rootQuery, setRootQuery] = useState("");
+  const [rootInitial, setRootInitial] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
   const [rootTotal, setRootTotal] = useState<number | null>(null);
+  const [rootShown, setRootShown] = useState(100);
   const [globalQuery, setGlobalQuery] = useState("");
   const [globalLanguage, setGlobalLanguage] = useState<"arabic" | "english">("arabic");
   const [globalResults, setGlobalResults] = useState<SearchResult[]>([]);
@@ -220,6 +222,42 @@ export default function QuranResearchPage() {
   const [globalError, setGlobalError] = useState("");
   const arabicCorpus = useRef<FullSurah[] | null>(null);
   const englishCorpus = useRef<Record<string, FullSurah[]>>({});
+
+  // The dropdown is generated from the corpus itself, not a hand-maintained list.
+  const rootOptions = useMemo(() => {
+    if (!morph) return [] as { root: string; count: number }[];
+    const counts = new Map<string, number>();
+    for (const words of Object.values(morph)) {
+      for (const word of words) {
+        if (!word.r) continue;
+        const root = normalizedRoot(translitToArabic(word.r));
+        if (root) counts.set(root, (counts.get(root) || 0) + 1);
+      }
+    }
+    const collator = new Intl.Collator("ar");
+    return Array.from(counts, ([root, count]) => ({ root, count }))
+      .sort((a, b) => collator.compare(a.root, b.root));
+  }, [morph]);
+
+  // First-letter categories are generated from the same morphology index.
+  // This keeps the two selectors in sync with the actual corpus roots.
+  const rootInitials = useMemo(() => {
+    const collator = new Intl.Collator("ar");
+    return Array.from(new Set(rootOptions.map(option => option.root[0]).filter(Boolean)))
+      .sort((a, b) => collator.compare(a, b));
+  }, [rootOptions]);
+
+  const rootsForInitial = useMemo(() =>
+    rootInitial ? rootOptions.filter(option => option.root.startsWith(rootInitial)) : [],
+  [rootOptions, rootInitial]);
+
+  // Load the morphology database when the Roots tab first opens.
+  useEffect(() => {
+    if (researchTab !== "roots" || morph || morphLoading) return;
+    void loadMorphology().catch(() => { /* loadMorphology reports the error */ });
+    // loadMorphology uses the existing loading/error state and caches the corpus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [researchTab, morph]);
 
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
@@ -441,7 +479,7 @@ export default function QuranResearchPage() {
   async function findRoot(root: string) {
     setResearchTab("roots");
     const requested = normalizedRoot(root);
-    setRootMatches([]); setRootTotal(null);
+    setRootMatches([]); setRootTotal(null); setRootShown(100);
     if (!requested) return;
     try {
       const dataset = await loadMorphology();
@@ -461,8 +499,7 @@ export default function QuranResearchPage() {
         });
       }
       setRootTotal(results.length);
-      const firstResults = results.slice(0, 200);
-      setRootMatches(firstResults);
+      setRootMatches(results);
       // The corpus word form is immediately available. Enrich it with a verse
       // excerpt only when an exact Arabic word alignment can be verified.
       try {
@@ -475,7 +512,7 @@ export default function QuranResearchPage() {
           }
         }
         const alignmentCache = new Map<string, { tokens: string[]; mapping: (number | null)[] }>();
-        const enriched = firstResults.map(hit => {
+        const enriched = results.map(hit => {
           const arabic = verses.get(hit.reference);
           const words = dataset[hit.reference];
           if (!arabic || !words) return hit;
@@ -719,14 +756,67 @@ export default function QuranResearchPage() {
               {researchTab === 'roots' && <div className={styles.tabBody}>
                 <h3 className={styles.toolTitle}>Root concordance</h3>
             <div className={styles.toolIntro}>Corpus-assigned root search. Results remain visible while you navigate to verses.</div>
-            <form className={styles.rootForm} onSubmit={(event) => {event.preventDefault(); void findRoot(rootQuery);}}>
-              <input aria-label="Search Arabic root" value={rootQuery} onChange={e => setRootQuery(e.target.value)} placeholder="Arabic root, e.g. ر ح م" />
-              <button type="submit" disabled={morphLoading}>{morphLoading ? "Loading…" : "Find root"}</button>
+            <label className={styles.label} htmlFor="quran-root-initial">1. Choose the first Arabic letter
+              <select
+                id="quran-root-initial"
+                aria-label="Choose first Arabic root letter"
+                style={{ width: "100%", boxSizing: "border-box", padding: "12px", border: "1px solid #cbd3dd", borderRadius: "8px", background: "#fff", color: "#1f2937", fontSize: "16px", cursor: "pointer" }}
+                value={rootInitial}
+                disabled={morphLoading || rootOptions.length === 0}
+                onChange={event => {
+                  setRootInitial(event.target.value);
+                  // The text box is retained, including manually typed/pasted roots.
+                  // Changing the initial letter does not erase its contents.
+                }}
+              >
+                <option value="">{morphLoading ? "Loading Arabic roots…" : "Select an Arabic letter"}</option>
+                {rootInitials.map(letter => (
+                  <option key={letter} value={letter}>{letter}</option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.label} htmlFor="quran-root-select">2. Choose a root
+              <select
+                id="quran-root-select"
+                aria-label="Choose Qurʾānic Arabic root"
+                style={{ width: "100%", boxSizing: "border-box", padding: "12px", border: "1px solid #cbd3dd", borderRadius: "8px", background: "#fff", color: "#1f2937", fontSize: "16px", cursor: "pointer" }}
+                value={rootsForInitial.some(option => option.root === normalizedRoot(rootQuery)) ? normalizedRoot(rootQuery) : ""}
+                disabled={morphLoading || !rootInitial}
+                onChange={event => {
+                  const root = event.target.value;
+                  setRootQuery(root); // Populate the editable search box.
+                  void findRoot(root); // Run the concordance immediately.
+                }}
+              >
+                <option value="">{rootInitial ? `Select root (${rootsForInitial.length.toLocaleString("en")} available)` : "Choose a letter first"}</option>
+                {rootsForInitial.map(({ root, count }) => (
+                  <option key={root} value={root}>
+                    {`${root} — ${count.toLocaleString("en")} occurrence${count === 1 ? "" : "s"}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <form className={styles.rootForm} onSubmit={event => {
+              event.preventDefault();
+              const normalized = normalizedRoot(rootQuery);
+              if (normalized) setRootInitial(normalized[0]);
+              void findRoot(rootQuery);
+            }}>
+              <input
+                aria-label="Arabic root search box"
+                dir="rtl"
+                lang="ar"
+                placeholder="Paste or type an Arabic root, e.g. ر ح م"
+                value={rootQuery}
+                onChange={event => setRootQuery(event.target.value)}
+              />
+              <button type="submit" disabled={!rootQuery.trim() || morphLoading}>Find root</button>
             </form>
+            <p className={styles.hint}>Select a first letter, then a root. Choosing a root fills the search box and searches automatically. You can also paste an Arabic root into the box and press Find root.</p>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
             {rootTotal !== null && <div className={styles.rootHits}>
-              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > 200 ? "(first 200 listed)" : ""}</p>
-              {rootMatches.map(hit => (
+              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > rootShown ? `(showing ${Math.min(rootShown, rootTotal)})` : ""}</p>
+              {rootMatches.slice(0, rootShown).map(hit => (
                 <button type="button" className={styles.rootOccurrence} key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}>
                   <span className={styles.rootOccurrenceHeader}>
                     <strong>{hit.reference}</strong>
@@ -742,6 +832,11 @@ export default function QuranResearchPage() {
                   )}
                 </button>
               ))}
+              {rootMatches.length > rootShown && (
+                <button type="button" className={styles.moreResults} onClick={() => setRootShown(n => n + 100)}>
+                  Show next {Math.min(100, rootMatches.length - rootShown)} occurrences ({rootMatches.length - rootShown} remaining)
+                </button>
+              )}
             </div>}
             {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
