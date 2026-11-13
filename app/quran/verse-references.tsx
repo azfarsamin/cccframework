@@ -39,9 +39,8 @@ const halalHaramArticle: VerseReference = {
   url: "https://forthefew1.substack.com/p/halal-and-haram-a-quranic-perspective",
 };
 
-// The article URL was not present in the supplied article text. Set this to the
-// verified Substack post URL when available; until then notes remain non-clickable.
-const ummiArticleUrl = "";
+// Source for the ummī, prophetic literacy, and written-revelation references.
+const ummiArticleUrl = "https://forthefew1.substack.com/p/when-ummi-doesnt-mean-illiterate";
 const ummiMeaning: VerseReference = {
   label: "On ummī as unscriptured rather than illiterate, see article",
   url: ummiArticleUrl,
