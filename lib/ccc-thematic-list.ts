@@ -79,6 +79,6 @@ export function formatVerifiedThematicList(
     }
   }
   if (!items.length) lines.push("No confidently classified passages were returned from the verified candidates.", "");
-  lines.push(`**Coverage:** This is a thematic search, NOT an exhaustive list of all conceptually related Qurʾānic verses.${excerptTruncated ? " The candidate evidence excerpt was also truncated before classification." : ""} No independently verified claim of conceptual completeness is made.`);
+  lines.push(`**Coverage:** This is a thematic search, NOT an exhaustive list of all conceptually related Qurʾānic verses.${excerptTruncated ? " Only a prioritized subset of candidate verses was classified; unexamined candidates may include further relevant passages." : ""} No independently verified claim of conceptual completeness is made.`);
   return lines.join("\n");
 }
