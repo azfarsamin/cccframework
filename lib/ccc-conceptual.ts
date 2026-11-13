@@ -42,11 +42,11 @@ export async function discoverQuranCandidates(
   const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(90000),
+    signal: AbortSignal.timeout(40000),
     body: JSON.stringify({
       model,
       temperature: 0.1,
-      max_tokens: 4096,
+      max_tokens: 1400,
       messages: [
         { role: "system", content: `You assist retrieval from a fixed Qur'anic Arabic corpus. Discover candidate VERSE REFERENCES and ARABIC ROOTS potentially relevant to the user's research question, including conceptual parallels without shared keywords. Do not answer the question and do not compose an analysis. Return ONE JSON object ONLY of this exact shape: {"queryConcept":"short theme","references":["67:2","18:7"],"roots":["بلو","فتن"]}. Return up to 30 distinct references and up to 6 Arabic triliteral roots. Root entries should be Arabic consonantal roots, not inflected words. Candidate references need not be certain: the server will verify them. Favor directly relevant statements, but include different expressions of the concept. Do not claim exhaustiveness. Do not invent a required root when uncertain.` },
         { role: "user", content: `Research question: ${question}\nSelected starting verses (if any):\n${selection || "None"}` },
