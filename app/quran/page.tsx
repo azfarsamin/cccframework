@@ -40,6 +40,9 @@ type RootHit = {
   index: number;
   surface: string;
   morphology: string;
+  group: string;
+  lemma: string;
+  romanized: string;
   context?: { before: string[]; match: string; after: string[] };
 };
 
@@ -177,6 +180,57 @@ function describeSegment(segment: MorphSegment): GrammarDetail[] {
   }
   return detail;
 }
+// Retain the corpus's classification: participles are noun stems tagged PCPL.
+function rootGrammaticalGroup(word: MorphWord): string {
+  const stem = word.s.find(segment => segment[2].split("|").includes("STEM")) || word.s.find(segment => !["DET", "CONJ", "P"].includes(segment[1])) || word.s[0];
+  if (!stem) return "Other annotated forms";
+  const tags = stem[2].split("|");
+  if (tags.includes("PCPL")) {
+    if (tags.includes("PASS")) return "Passive participle";
+    if (tags.includes("ACT")) return "Active participle";
+    return "Participle (voice unspecified)";
+  }
+  if (stem[1] === "V") {
+    const form = stem[2].match(/\((I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\)/)?.[1] || "I";
+    return `Verb — Form ${form}`;
+  }
+  if (stem[1] === "N") return "Noun";
+  if (stem[1] === "ADJ") return "Adjective";
+  if (stem[1] === "PN") return "Proper noun";
+  return partOfSpeechLabels[stem[1]] || "Other annotated forms";
+}
+
+// Transliteration is display assistance, not a translation or grammatical source.
+function corpusRomanization(value: string): string {
+  const letters: Record<string, string> = {
+    A:"ā", b:"b", t:"t", v:"th", j:"j", H:"ḥ", x:"kh", d:"d", '*':"dh",
+    r:"r", z:"z", s:"s", '$':"sh", S:"ṣ", D:"ḍ", T:"ṭ", Z:"ẓ", E:"ʿ",
+    g:"gh", f:"f", q:"q", k:"k", l:"l", m:"m", n:"n", h:"h", w:"w",
+    y:"y", '<':"ʾi", '>':"ʾa", '&':"ʾ", '}':"ʾ", p:"h", Y:"ā",
+    '|':"ʾā", '{':"a", X:"kh", a:"a", i:"i", u:"u", F:"an", N:"un", K:"in",
+    '`':"ā", '^':"", o:""
+  };
+  let output = "";
+  for (const character of value) {
+    if (character === "~") {
+      // Display shadda by doubling the preceding Latin segment where practical.
+      const last = Array.from(output).pop();
+      if (last) output += last;
+      continue;
+    }
+    output += letters[character] ?? character;
+  }
+  return output;
+}
+
+const ROOT_GROUP_ORDER = [
+  "Verb — Form I", "Verb — Form II", "Verb — Form III", "Verb — Form IV",
+  "Verb — Form V", "Verb — Form VI", "Verb — Form VII", "Verb — Form VIII",
+  "Verb — Form IX", "Verb — Form X", "Verb — Form XI", "Verb — Form XII",
+  "Noun", "Active participle", "Passive participle", "Participle (voice unspecified)",
+  "Adjective", "Proper noun", "Other annotated forms"
+];
+
 function normalizedRoot(value: string) {
   return normalizeArabic(value).replace(/\s+/g, "").trim();
 }
@@ -212,7 +266,7 @@ export default function QuranResearchPage() {
   const [rootInitial, setRootInitial] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
   const [rootTotal, setRootTotal] = useState<number | null>(null);
-  const [rootShown, setRootShown] = useState(100);
+  const [rootGroupShown, setRootGroupShown] = useState<Record<string, number>>({});
   const [globalQuery, setGlobalQuery] = useState("");
   const [globalLanguage, setGlobalLanguage] = useState<"arabic" | "english">("arabic");
   const [globalResults, setGlobalResults] = useState<SearchResult[]>([]);
@@ -238,6 +292,23 @@ export default function QuranResearchPage() {
     return Array.from(counts, ([root, count]) => ({ root, count }))
       .sort((a, b) => collator.compare(a.root, b.root));
   }, [morph]);
+
+  // Group exactly the retrieved occurrences; no word is duplicated across headings.
+  const rootGroups = useMemo(() => {
+    const grouped = new Map<string, RootHit[]>();
+    for (const hit of rootMatches) {
+      const entries = grouped.get(hit.group) || [];
+      entries.push(hit);
+      grouped.set(hit.group, entries);
+    }
+    return Array.from(grouped, ([name, hits]) => ({ name, hits }))
+      .sort((a, b) => {
+        const aRank = ROOT_GROUP_ORDER.indexOf(a.name);
+        const bRank = ROOT_GROUP_ORDER.indexOf(b.name);
+        if (aRank !== bRank) return (aRank < 0 ? 999 : aRank) - (bRank < 0 ? 999 : bRank);
+        return a.name.localeCompare(b.name);
+      });
+  }, [rootMatches]);
 
   // First-letter categories are generated from the same morphology index.
   // This keeps the two selectors in sync with the actual corpus roots.
@@ -479,7 +550,7 @@ export default function QuranResearchPage() {
   async function findRoot(root: string) {
     setResearchTab("roots");
     const requested = normalizedRoot(root);
-    setRootMatches([]); setRootTotal(null); setRootShown(100);
+    setRootMatches([]); setRootTotal(null); setRootGroupShown({});
     if (!requested) return;
     try {
       const dataset = await loadMorphology();
@@ -494,7 +565,10 @@ export default function QuranResearchPage() {
               ? `Verb · ${formTag ? `Form ${formTag}` : "Form I"}`
               : noun ? (partOfSpeechLabels[noun[1]] || "Noun") : "Other form";
             const surface = w.s.map(segment => translitToArabic(segment[0])).join("");
-            results.push({ reference, index: index + 1, surface, morphology });
+            const group = rootGrammaticalGroup(w);
+            const lemma = w.l ? translitToArabic(w.l) : "Unspecified lemma";
+            const romanized = corpusRomanization(w.s.map(segment => segment[0]).join(""));
+            results.push({ reference, index: index + 1, surface, morphology, group, lemma, romanized });
           }
         });
       }
@@ -814,29 +888,48 @@ export default function QuranResearchPage() {
             </form>
             <p className={styles.hint}>Select a first letter, then a root. Choosing a root fills the search box and searches automatically. You can also paste an Arabic root into the box and press Find root.</p>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
-            {rootTotal !== null && <div className={styles.rootHits}>
-              <p className={styles.searchCount}>{rootTotal} annotated word occurrences {rootTotal > rootShown ? `(showing ${Math.min(rootShown, rootTotal)})` : ""}</p>
-              {rootMatches.slice(0, rootShown).map(hit => (
-                <button type="button" className={styles.rootOccurrence} key={`${hit.reference}:${hit.index}`} onClick={() => openRootHit(hit)}>
-                  <span className={styles.rootOccurrenceHeader}>
-                    <strong>{hit.reference}</strong>
-                    <span className={styles.rootOccurrenceType}>{hit.morphology}</span>
-                    <span className={styles.rootOccurrenceWord} dir="rtl" lang="ar">{hit.surface}</span>
-                  </span>
-                  {hit.context && (
-                    <span className={styles.rootContext} dir="rtl" lang="ar">
-                      {hit.context.before.join(" ")}{hit.context.before.length ? " " : ""}
-                      <mark>{hit.context.match}</mark>
-                      {hit.context.after.length ? " " : ""}{hit.context.after.join(" ")}
-                    </span>
-                  )}
-                </button>
-              ))}
-              {rootMatches.length > rootShown && (
-                <button type="button" className={styles.moreResults} onClick={() => setRootShown(n => n + 100)}>
-                  Show next {Math.min(100, rootMatches.length - rootShown)} occurrences ({rootMatches.length - rootShown} remaining)
-                </button>
-              )}
+            {rootTotal !== null && <div className={styles.rootConcordance}>
+              <p className={styles.searchCount}>{rootTotal.toLocaleString("en")} annotated word occurrences across {rootGroups.length} grammatical {rootGroups.length === 1 ? "group" : "groups"}.</p>
+              {rootGroups.map(group => {
+                const visibleCount = rootGroupShown[group.name] ?? 50;
+                return <section key={group.name} className={styles.rootGroupSection} aria-label={group.name}>
+                  <h4 className={styles.rootGroupHeading}>{group.name} <span>{group.hits.length.toLocaleString("en")} occurrences</span></h4>
+                  <div className={styles.rootTableScroll}>
+                    <table className={styles.rootTable}>
+                      <thead><tr><th scope="col">Location / word</th><th scope="col">English gloss</th><th scope="col">Arabic verse context</th></tr></thead>
+                      <tbody>
+                        {group.hits.slice(0, visibleCount).map(hit => {
+                          const location = `${hit.reference}:${hit.index}`;
+                          const morphologyUrl = `https://corpus.quran.com/wordmorphology.jsp?location=(${location})`;
+                          return <tr key={location}>
+                            <td className={styles.rootLocation}>
+                              <a href={morphologyUrl} target="_blank" rel="noreferrer" title="Open corpus word morphology">({location}) ↗</a>
+                              <em>{hit.romanized}</em>
+                              <span dir="rtl" lang="ar">{hit.surface}</span>
+                            </td>
+                            <td className={styles.rootMeaning}>
+                              <a href={morphologyUrl} target="_blank" rel="noreferrer" title="View word analysis and translation at Qurʾānic Arabic Corpus">View word gloss ↗</a>
+                            </td>
+                            <td>
+                              <button type="button" className={styles.rootVerseAction} onClick={() => openRootHit(hit)} aria-label={`Open Qur'an ${hit.reference}, word ${hit.index}`}>
+                                {hit.context ? <span dir="rtl" lang="ar" className={styles.rootTableArabic}>
+                                  {hit.context.before.join(" ")}{hit.context.before.length ? " " : ""}
+                                  <mark>{hit.context.match}</mark>
+                                  {hit.context.after.length ? " " : ""}{hit.context.after.join(" ")}
+                                </span> : <span dir="rtl" lang="ar" className={styles.rootTableArabic}><mark>{hit.surface}</mark></span>}
+                              </button>
+                            </td>
+                          </tr>;
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {visibleCount < group.hits.length && <button type="button" className={styles.moreResults} onClick={() => setRootGroupShown(previous => ({...previous, [group.name]: visibleCount + 50}))}>
+                    Show next {Math.min(50, group.hits.length - visibleCount)} in {group.name} ({group.hits.length - visibleCount} remaining)
+                  </button>}
+                </section>;
+              })}
+              <p className={styles.hint}>Word forms and grammatical groups come from the Qurʾānic Arabic Corpus. English word glosses are linked to the source rather than inferred from a root meaning. Arabic context is shown only when word alignment is verified.</p>
             </div>}
             {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>

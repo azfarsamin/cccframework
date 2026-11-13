@@ -106,13 +106,7 @@
 .searchRef{font-size:13px}
 
 /* Safe Markdown presentation for CCC research and saved notes. */
-.markdown {
-  font-size: 14px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-  color: #1f2937 !important;
-  background-color: #ffffff;
-  opacity: 1;}
+.markdown{font-size:14px;line-height:1.65;overflow-wrap:anywhere}
 .markdown p{margin:9px 0}
 .markdown h2{font-size:16px;margin:19px 0 8px;color:#23344c}
 .markdown h3{font-size:15px;margin:16px 0 7px;color:#23344c}
@@ -148,3 +142,26 @@
 .note .markdown blockquote { border-left-color: #71849a; }
 .answer .markdown a,
 .note .markdown a { color: #174b89 !important; text-decoration: underline; }
+/* Release 2.2 — grammatical root concordance tables */
+.rootConcordance { display:flex; flex-direction:column; gap:16px; margin-top:14px; color:#263444; }
+.rootGroupSection { border:1px solid #dce2e9; border-radius:10px; background:#fff; padding:12px; min-width:0; }
+.rootGroupHeading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:15px; margin:0 0 12px; color:#203047; }
+.rootGroupHeading span { font-size:12px; font-weight:500; color:#536273; }
+.rootTableScroll { width:100%; overflow-x:auto; }
+.rootTable { border-collapse:collapse; width:100%; min-width:480px; font-size:13px; line-height:1.55; }
+.rootTable th { text-align:left; color:#334258; font-size:12px; background:#f3f6fa; padding:9px; border-bottom:1px solid #dfe5ed; }
+.rootTable th:last-child { text-align:right; }
+.rootTable td { padding:10px 9px; border-bottom:1px solid #ebeff3; vertical-align:top; color:#263444; }
+.rootTable tbody tr:last-child td { border-bottom:none; }
+.rootLocation { width:28%; }
+.rootLocation a, .rootMeaning a { color:#23558b; text-decoration:underline; }
+.rootLocation em, .rootLocation span { display:block; font-size:12px; }
+.rootLocation span { font-family:'Traditional Arabic','Noto Naskh Arabic',serif; font-size:18px; }
+.rootMeaning { width:24%; }
+.rootVerseAction { display:block; background:transparent; border:0; width:100%; padding:0; text-align:right; cursor:pointer; color:#263444; }
+.rootVerseAction:hover { background:#f4f7fb; }
+.rootVerseAction:focus-visible { outline:2px solid #6486bd; outline-offset:2px; }
+.rootTableArabic { font-family:'Traditional Arabic','Noto Naskh Arabic',serif; font-size:20px; line-height:1.85; color:#263444; }
+.rootTableArabic mark { background:#fff0da; color:#a1261d; font-weight:700; padding:0 2px; border-radius:3px; }
+.rootGroupSection .moreResults { width:100%; margin-top:10px; }
+@media(max-width:580px) { .rootGroupSection { padding:9px; } .rootTable { min-width:410px; } .rootTable th,.rootTable td { padding:8px 6px; } .rootTableArabic { font-size:18px; } }
