@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ResearchMarkdown } from "./research-markdown";
+import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
@@ -749,6 +750,7 @@ export default function QuranResearchPage() {
                   </div>
                   <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
                   <span className={styles.english} lang="en">{result.english || "English translation unavailable for this verse."}</span>
+                  <VerseReferences chapter={result.chapter} verse={result.verse} />
                 </div>;
               })}
               {globalTotal === 0 && <p className={styles.hint}>No exact matches. Try another spelling or a shorter keyword.</p>}
@@ -781,6 +783,7 @@ export default function QuranResearchPage() {
                   ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
                   : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
               </span>
+              <VerseReferences chapter={chapter} verse={a.numberInSurah} />
             </div>)}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}

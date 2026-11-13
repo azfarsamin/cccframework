@@ -175,3 +175,13 @@
 .arabicWord { color:inherit; font-weight:inherit; }
 .verseBasmalah { color:inherit; font-weight:700; }
 .verseArabicWords { color:inherit; font-weight:inherit; }
+
+/* Release 2.3 — curated scholarly references below the relevant verse. */
+.verseReferences { margin-top:14px; padding:12px 14px; border-top:1px solid #dfe4eb; background:#f7f9fc; border-radius:7px; color:#253449; text-align:left; direction:ltr; }
+.verseReferencesHeading { display:block; font-size:12px; text-transform:uppercase; letter-spacing:.035em; color:#46546a; margin-bottom:6px; }
+.verseReferenceItem { display:flex; flex-direction:column; gap:3px; }
+.verseReferenceItem + .verseReferenceItem { border-top:1px solid #e0e5eb; padding-top:10px; margin-top:10px; }
+.verseReferenceLink { color:#154b88; text-decoration:underline; text-underline-offset:2px; font-weight:650; font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
+.verseReferenceLink:focus-visible { outline:2px solid #6486bd; outline-offset:3px; }
+.verseReferenceMeta { font-size:12px; color:#536174; }
+.verseReferenceDescription { font-size:13px; color:#334155; margin:2px 0 0; line-height:1.55; }
