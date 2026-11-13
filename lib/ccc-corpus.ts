@@ -217,40 +217,41 @@ export async function retrieveConceptualContext(
     .filter(r => morphology[r] && arabic.has(r));
   const directSet = new Set(direct);
   const extra = rootHits.filter(r => !directSet.has(r));
-  // The model's references are prioritized, then lexical family results.
-  // Bounded output avoids swallowing the Chutes model context.
+  // Preserve every verified candidate. Only the legacy single-prompt excerpt
+  // is bounded; thematic listing consumes suppliedVerses in verified batches.
   const ordered = [...direct, ...extra];
-  const verses: string[] = [];
-  const suppliedVerses: { reference: string; arabic: string }[] = [];
+  const suppliedVerses = ordered.flatMap(reference => {
+    const verse = arabic.get(reference);
+    return verse ? [{ reference, arabic: verse }] : [];
+  });
+  const excerpt: string[] = [];
   let chars = 0;
-  for (const ref of ordered) {
-    const verse = arabic.get(ref);
-    if (!verse) continue;
-    const addition = `${ref} ${verse}`;
-    if (verses.length >= 65 || chars + addition.length > 23000) break;
-    verses.push(addition);
-    suppliedVerses.push({ reference: ref, arabic: verse });
+  for (const v of suppliedVerses) {
+    const addition = `${v.reference} ${v.arabic}`;
+    if (excerpt.length >= 65 || chars + addition.length > 23000) break;
+    excerpt.push(addition);
     chars += addition.length;
   }
-  const omitted = ordered.length - verses.length;
+  const omitted = suppliedVerses.length - excerpt.length;
   const rootNames = [...roots].map(r => asArabic(r));
   const header = [
-    'THEMATIC RETRIEVAL — CANDIDATE DISCOVERY AND CORPUS VERIFICATION',
-    `Research theme: ${candidates.queryConcept || 'User question'}`,
+    "THEMATIC RETRIEVAL — CANDIDATE DISCOVERY AND CORPUS VERIFICATION",
+    `Research theme: ${candidates.queryConcept || "User question"}`,
     `Model-proposed references: ${candidates.references.length}; valid Qur'anic references: ${direct.filter(r => candidates.references.includes(r)).length}.`,
-    `Corpus-confirmed Arabic roots: ${rootNames.join(', ') || 'none'}.`,
+    `Corpus-confirmed Arabic roots: ${rootNames.join(", ") || "none"}.`,
     `Verses containing these roots (lexically exhaustive for each accepted root): ${rootHits.length}.`,
-    `Verified Arabic passages supplied below: ${verses.length}; omitted because of excerpt budget: ${Math.max(0, omitted)}.`,
-    'CAUTION: This is NOT an exhaustive conceptual concordance. A proposed reference has been checked to exist and its Arabic text retrieved, but its semantic relevance has NOT been independently certified. Root matches may include unrelated meanings. Assess each passage and exclude false positives. Do not say "only these verses" or "all relevant verses".',
+    `Total verified candidates available for batch classification: ${suppliedVerses.length}.`,
+    `Single-prompt excerpt: ${excerpt.length} verses; ${Math.max(0, omitted)} not in that excerpt.`,
+    "CAUTION: This is NOT an exhaustive conceptual concordance. Candidate relevance requires interpretation; root matches can be unrelated.",
   ];
   return {
-    text: `${header.join('\n')}\n\nVERIFIED ARABIC VERSES (candidate relevance to be evaluated):\n${verses.join('\n') || 'None.'}`,
+    text: `${header.join("\n")}\n\nVERIFIED ARABIC VERSES (single-prompt excerpt only):\n${excerpt.join("\n") || "None."}`,
     suppliedVerses,
     diagnostics: {
       candidateReferences: candidates.references.length,
       validReferences: direct.filter(r => candidates.references.includes(r)).length,
       matchingRootVerses: rootHits.length,
-      sentVerses: verses.length,
+      sentVerses: excerpt.length,
       roots: rootNames,
       truncated: omitted > 0,
     },
