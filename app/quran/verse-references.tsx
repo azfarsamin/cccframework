@@ -34,7 +34,38 @@ const takbirArticle: VerseReference = {
   url: "https://forthefew1.substack.com/p/a-quranic-pan-textual-analysis-of",
 };
 
+const halalHaramArticle: VerseReference = {
+  label: "On Qurʾānic ḥalāl and ḥarām, see article",
+  url: "https://forthefew1.substack.com/p/halal-and-haram-a-quranic-perspective",
+};
+
 const verseReferences: Record<string, VerseReference[]> = {
+  // Halāl and harām: divine authority, dietary limits, and messenger scope.
+  "16:116": [halalHaramArticle],
+  "10:59": [halalHaramArticle],
+  "69:44": [halalHaramArticle],
+  "5:87": [halalHaramArticle],
+  "6:150": [halalHaramArticle],
+  "16:114": [halalHaramArticle],
+  "16:115": [halalHaramArticle],
+  "6:145": [halalHaramArticle],
+  "5:3": [halalHaramArticle],
+  "6:118": [halalHaramArticle],
+  "6:119": [halalHaramArticle],
+  "6:121": [halalHaramArticle],
+  "2:168": [halalHaramArticle],
+  "3:93": [halalHaramArticle],
+  "4:160": [halalHaramArticle],
+  "6:146": [halalHaramArticle],
+  "6:138": [halalHaramArticle],
+  "6:143": [halalHaramArticle],
+  "10:15": [halalHaramArticle],
+  "46:9": [halalHaramArticle],
+  "7:32": [halalHaramArticle],
+  "5:4": [halalHaramArticle],
+  "18:18": [halalHaramArticle],
+  "18:22": [halalHaramArticle],
+  "39:18": [halalHaramArticle],
   // Pan-textual study of Allāhu Akbar: direct lexical examples and divine names.
   "9:72": [akbarArticle],
   "29:45": [akbarArticle],
@@ -129,7 +160,7 @@ const verseReferences: Record<string, VerseReference[]> = {
   "8:67": [fallibilityArticle],
   "9:43": [fallibilityArticle],
   "9:83": [fallibilityArticle],
-  "66:1": [fallibilityArticle],
+  "66:1": [fallibilityArticle, halalHaramArticle],
   "48:2": [fallibilityArticle],
   "80:1": [fallibilityArticle],
   "68:9": [fallibilityArticle],
