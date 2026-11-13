@@ -223,8 +223,7 @@ export default function QuranResearchPage() {
 
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
-  const [analysisMode, setAnalysisMode] = useState<"research" | "ccc">("research");
-  const [question, setQuestion] = useState("Investigate the research question using the Qurʾān as the calibration reference. Distinguish explicit Qurʾānic statements from inference.");
+  const [question, setQuestion] = useState("");
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [incomplete, setIncomplete] = useState(false);
@@ -541,7 +540,7 @@ export default function QuranResearchPage() {
     setSelectedSearch(old => {
       const exists = old.some(r => r.chapter === result.chapter && r.verse === result.verse);
       if (exists) return old.filter(r => !(r.chapter === result.chapter && r.verse === result.verse));
-      if (old.length >= 12) { setStatus("CCC supports a maximum of 12 selected verses per analysis."); return old; }
+      if (old.length >= 12) { setStatus("You can select up to 12 verses per question."); return old; }
       setStatus("");
       return [...old, result].sort((a,b) => a.chapter - b.chapter || a.verse - b.verse);
     });
@@ -552,7 +551,7 @@ export default function QuranResearchPage() {
     try {
       const response = await fetch("/api/ccc-ai", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
-        body: JSON.stringify({ question, chapter, verses: analysisVerses, mode: analysisMode }),
+        body: JSON.stringify({ question, chapter, verses: analysisVerses }),
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || "Research service unavailable");
@@ -578,7 +577,7 @@ export default function QuranResearchPage() {
   return (
     <main className={styles.main}>
       <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · CCC analysis · research notes</p></div>
+        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · research questions · notes</p></div>
         <span className={styles.beta}>Research prototype</span>
       </div>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
@@ -618,7 +617,7 @@ export default function QuranResearchPage() {
               <span><strong>{globalTotal ?? 0}</strong> matches · Arabic and {editions.find(e => e.id === edition)?.name} English</span>
               <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]);}}>Back to surah reader</button>
             </div>
-          ) : <p className={styles.hint}>Select one or more verses to send their exact Arabic text to the CCC panel. {currentSurah?.englishName || ""}</p>}
+          ) : <p className={styles.hint}>Optionally select verses as starting evidence for your research question. {currentSurah?.englishName || ""}</p>}
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
@@ -626,7 +625,7 @@ export default function QuranResearchPage() {
                 return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""}`} key={`${result.chapter}:${result.verse}`}>
                   <div className={styles.verseToolbar}>
                     <button type="button" className={styles.searchRef} onClick={() => openSearchResult(result)} title="Open this verse in the surah reader">{refOf(result.chapter, result.verse)} <span aria-hidden="true">↗</span></button>
-                    <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected for CCC ✓" : "Select for CCC"}</button>
+                    <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected ✓" : "Select verse"}</button>
                   </div>
                   <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
                   <span className={styles.english} lang="en">{result.english || "English translation unavailable for this verse."}</span>
@@ -638,7 +637,7 @@ export default function QuranResearchPage() {
             {!showSearchResults && <>
             {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
-              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected for CCC ✓" : "Select for CCC"}</button></div>
+              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected ✓" : "Select verse"}</button></div>
               <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
                 const reference = refOf(chapter, a.numberInSurah);
                 const tokens = a.text.trim().split(/\s+/);
@@ -666,9 +665,9 @@ export default function QuranResearchPage() {
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
-            <div className={styles.panelHeader}><h2>Research tools</h2><span>{analysisVerses.length} selected for CCC</span></div>
+            <div className={styles.panelHeader}><h2>Research tools</h2><span>{analysisVerses.length} selected</span></div>
             <div role="tablist" aria-label="Research tools" className={styles.researchTabs}>
-              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'CCC'], ['notes', 'Notes']] as const).map(([id, label]) => (
+              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'Research'], ['notes', 'Notes']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
                   aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
                   className={researchTab === id ? styles.activeResearchTab : ''}>{label}</button>
@@ -751,25 +750,13 @@ export default function QuranResearchPage() {
           <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>Qurʾān research assistant</h2><span>{analysisVerses.length} selected</span></div>
             <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Optional — no verses selected"}</div>
-            <label className={styles.label}>Analysis mode
-              <select value={analysisMode} onChange={e => setAnalysisMode(e.target.value as "research" | "ccc")}
-                style={{ padding: "10px 12px", border: "1px solid #cdd2d7", borderRadius: 8, color: "#222831", background: "#fff", font: "inherit" }}>
-                <option value="research">Research — Direct answer</option>
-                <option value="ccc">CCC — Full methodology</option>
-              </select>
-            </label>
-            <p className={styles.hint}>
-              {analysisMode === "research"
-                ? "Direct answers from verified Qurʾānic evidence, without mandatory CCC headings. Chapter 1 is loaded only when explicitly requested."
-                : "Apply the full Chapter 1 CCC methodology to the retrieved evidence. The Qurʾān remains the calibration reference."}
-            </p>
             <label className={styles.label}>Research question
               <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
             </label>
             <label className={styles.label}>Private research passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : analysisMode === "ccc" ? "Analyze with CCC" : "Research question"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : "Research question"}</button>
             {status && <p role="status" className={styles.status}>{status}</p>}
             {aiResponse && <div className={styles.answer}><h3>Research response</h3>{incomplete && <p role="alert" className={styles.incomplete}>Incomplete response: the model reached its output-token limit. This answer may be truncated; shorten the question or request a narrower analysis.</p>}<ResearchMarkdown source={aiResponse}/></div>}
             <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
