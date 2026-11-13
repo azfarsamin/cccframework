@@ -46,7 +46,7 @@ export async function discoverQuranCandidates(
     body: JSON.stringify({
       model,
       temperature: 0.1,
-      max_tokens: 1200,
+      max_tokens: 4096,
       messages: [
         { role: "system", content: `You assist retrieval from a fixed Qur'anic Arabic corpus. Discover candidate VERSE REFERENCES and ARABIC ROOTS potentially relevant to the user's research question, including conceptual parallels without shared keywords. Do not answer the question and do not compose an analysis. Return ONE JSON object ONLY of this exact shape: {"queryConcept":"short theme","references":["67:2","18:7"],"roots":["بلو","فتن"]}. Return up to 30 distinct references and up to 6 Arabic triliteral roots. Root entries should be Arabic consonantal roots, not inflected words. Candidate references need not be certain: the server will verify them. Favor directly relevant statements, but include different expressions of the concept. Do not claim exhaustiveness. Do not invent a required root when uncertain.` },
         { role: "user", content: `Research question: ${question}\nSelected starting verses (if any):\n${selection || "None"}` },
@@ -54,8 +54,41 @@ export async function discoverQuranCandidates(
     }),
   });
   if (!response.ok) throw new Error(`Candidate discovery HTTP ${response.status}`);
-  const json = await response.json() as { choices?: { message?: { content?: string } }[] };
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Candidate discovery returned no content");
+  type DiscoveryResponse = {
+    model?: string;
+    choices?: Array<{
+      finish_reason?: string | null;
+      message?: {
+        content?: string | null;
+        reasoning_content?: string | null;
+      };
+    }>;
+    usage?: {
+      completion_tokens?: number;
+      prompt_tokens?: number;
+    };
+  };
+  const json = await response.json() as DiscoveryResponse;
+  const choice = json.choices?.[0];
+  const content = choice?.message?.content;
+
+  // Log metadata only. Never log user questions, returned verse text,
+  // model reasoning, private passcodes, or credentials.
+  console.info("CCC candidate discovery response:", {
+    model: json.model ?? model,
+    finish_reason: choice?.finish_reason ?? null,
+    content_length: typeof content === "string" ? content.length : 0,
+    has_reasoning: Boolean(choice?.message?.reasoning_content),
+    completion_tokens: json.usage?.completion_tokens ?? null,
+    prompt_tokens: json.usage?.prompt_tokens ?? null,
+  });
+
+  if (typeof content !== "string" || !content.trim()) {
+    const reason = choice?.finish_reason ?? "unknown";
+    if (reason === "length") {
+      throw new Error("Candidate discovery exhausted its output-token budget before producing final content (finish_reason=length)");
+    }
+    throw new Error(`Candidate discovery returned no final content (finish_reason=${reason})`);
+  }
   return parseConceptCandidates(content);
 }
