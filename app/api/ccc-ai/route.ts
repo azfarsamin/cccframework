@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } from "../../../lib/ccc-corpus";
 import { discoverQuranCandidates } from "../../../lib/ccc-conceptual";
 import { parseVerifiedThematicList, formatVerifiedThematicList } from "../../../lib/ccc-thematic-list";
+import { curatedThemeForQuestion } from "../../../lib/ccc-theme-packs";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
@@ -56,6 +57,27 @@ export async function POST(request: NextRequest) {
     const wantsListing = /(?:\blist\b|\benumerate\b|\bshow\b|\bcount\b|\bidentify\b|\bhow many\b|\bconcordance\b)/i.test(q)
       && /(?:\bevery\b|\ball\b|\boccurr?enc|\bverses?\b|\breferences?\b|\bconcordance\b|\btimes\b)/i.test(q);
     const wantsAnalysis = /(?:\banalys(?:is|es|e|ed|ing)\b|\binterpret(?:ation|ations|ed|ing)?\b|\bexplain\b|\bcompare\b|\bmeaning\b|\bwhy\b|\bcoherence\b|\bcorrespondence\b|\bcalibration\b|\bfalsif)/i.test(q);
+    // Curated, narrow thematic listing: verify references against the local
+    // indexed corpus before returning corpus-owned Arabic. This avoids a
+    // 597-verse expansion for questions such as "life is a test". The thematic
+    // categories are editorial labels, never an exhaustive semantic claim.
+    if (wantsListing && !wantsAnalysis && !retrieval.concordance) {
+      const pack = curatedThemeForQuestion(q);
+      if (pack) {
+        const verified = await retrieveConceptualContext(selected, {
+          references: pack.verses.map(v => v.reference), roots: [], queryConcept: pack.title,
+        });
+        const arabicByReference = new Map(verified.suppliedVerses.map(v => [v.reference, v.arabic]));
+        const items = pack.verses.filter(v => arabicByReference.has(v.reference));
+        const introduction = `**Research theme: ${pack.title}.** This is a curated Qur'ān-only set of directly relevant verses, not proof that every conceptual parallel has been found. Arabic quotations and references are corpus-verified; the explanatory categories are editorial interpretations.\n\n`;
+        return NextResponse.json({
+          answer: introduction + formatVerifiedThematicList(items, arabicByReference, items.length, false),
+          incomplete: false,
+          finishReason: "verified_curated_thematic_list",
+        });
+      }
+    }
+
     // Natural-language thematic questions need a discovery -> local verification
     // pass. Never trigger it for methodology-only questions, or where a
     // deterministic lemma concordance already answers the question.
@@ -108,33 +130,32 @@ export async function POST(request: NextRequest) {
       if (!candidates.length) {
         return NextResponse.json({ answer: "No valid Qurʾānic candidate verses were retrieved. Thematic coverage could not be assessed.", incomplete: false, finishReason: "no_thematic_candidates" });
       }
-      // Guard against unexpectedly broad root searches. Never silently lose
-      // evidence or present a partial classification as complete.
-      if (candidates.length > 240) {
-        console.warn("CCC thematic candidates exceed safe batch budget:", candidates.length);
-        return NextResponse.json({ error: `The thematic query produced ${candidates.length} verified candidate verses, exceeding the 240-verse classification budget. Narrow the research question or its roots; no partial list was published.` }, { status: 422 });
-      }
-      // Cap BOTH count and text size per batch so very long verses cannot
-      // crowd out later candidates. Each candidate appears in exactly one batch.
+      // Prefer the direct candidate references proposed by the discovery model;
+      // root-expanded references follow them. Classify only as much evidence as
+      // the runtime can safely examine. Never represent bounded evidence as an
+      // exhaustive thematic search, and never fail solely on candidate count.
+      const MAX_BATCHES = 8;
       const batches: typeof candidates[] = [];
       let batch: typeof candidates = [];
       let chars = 0;
+      let classifiedCount = 0;
       for (const candidate of candidates) {
         const size = candidate.reference.length + candidate.arabic.length + 2;
-        if (batch.length && (batch.length >= 12 || chars + size > 5200)) {
+        if (batch.length && (batch.length >= 10 || chars + size > 4800)) {
           batches.push(batch);
           batch = [];
           chars = 0;
         }
+        if (batches.length >= MAX_BATCHES) break;
         batch.push(candidate);
         chars += size;
+        classifiedCount++;
       }
-      if (batch.length) batches.push(batch);
-      // Bounded work prevents an unbounded number of model calls from silently
-      // exceeding Vercel's 150-second execution limit.
-      if (batches.length > 12) {
-        return NextResponse.json({ error: `The thematic query requires ${batches.length} classification batches, beyond the 12-batch execution budget. Narrow the query; all ${candidates.length} verified candidates were retained, and no partial list was published.` }, { status: 422 });
-      }
+      if (batch.length && batches.length < MAX_BATCHES) batches.push(batch);
+      const bounded = classifiedCount < candidates.length;
+      console.log("CCC thematic bounded classification:", {
+        totalCandidates: candidates.length, classifiedCount, bounded, batches: batches.length,
+      });
       const model = process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE";
       const classifyBatch = async (items: typeof candidates, index: number) => {
         const allowed = new Set(items.map(v => v.reference));
@@ -178,13 +199,15 @@ export async function POST(request: NextRequest) {
       console.log("CCC thematic batch coverage:", {
         verifiedCandidates: candidates.length,
         batchCount: batches.length,
-        classifiedCandidates: batches.reduce((sum, b) => sum + b.length, 0),
+        classifiedCandidates: classifiedCount,
         relevantUnique: items.length,
         excerptTruncated: verified.diagnostics.truncated,
       });
       return NextResponse.json({
-        answer: formatVerifiedThematicList(items, arabicByReference, candidates.length, false),
-        incomplete: false,
+        answer: (bounded
+          ? `**Coverage limit:** ${classifiedCount} of ${candidates.length} verified candidate verses were classified, prioritized by directly suggested references. This is a partial thematic result; unexamined passages may contain relevant verses.\n\n`
+          : "") + formatVerifiedThematicList(items, arabicByReference, candidates.length, bounded),
+        incomplete: bounded,
         finishReason: "verified_thematic_list_batched",
       });
     }
