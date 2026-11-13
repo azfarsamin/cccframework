@@ -198,11 +198,20 @@ const variantReadings: Record<string, VariantReading> = {
   },
 };
 
+// An alternative vocalization, not a claim of a Ḥafṣ–Warsh variant.
+// Unvowelled rasm is the same in both readings of 30:2.
+const alternativeVocalizations: Record<string, { note: string }> = {
+  "30:2": {
+    note: "Sam Gerrans reads غَلَبَتِ (ghalabat, active: ‘the Romans prevailed’) rather than غُلِبَتِ (ghulibat, passive: ‘the Romans were defeated’). The consonantal rasm is unchanged.",
+  },
+};
+
 export function VerseReferences({ chapter, verse }: { chapter: number; verse: number }) {
   const key = `${chapter}:${verse}`;
   const references = verseReferences[key] ?? [];
   const variant = variantReadings[key];
-  if (references.length === 0 && !variant) return null;
+  const vocalization = alternativeVocalizations[key];
+  if (references.length === 0 && !variant && !vocalization) return null;
 
   return (
     <aside className={styles.verseReferences} aria-label={`References and variant readings for ${key}`}>
@@ -214,6 +223,12 @@ export function VerseReferences({ chapter, verse }: { chapter: number; verse: nu
             Warsh: <b lang="ar" dir="rtl">{variant.warshArabic}</b> ({variant.warshMeaning}).{" "}
             <a href={variant.source} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>Source</a>.
           </span>
+        </div>
+      )}
+      {vocalization && (
+        <div className={styles.verseReferenceItem}>
+          <strong className={styles.verseReferencesHeading}>Alternative vocalization</strong>{" "}
+          <span>{vocalization.note}</span>
         </div>
       )}
       {references.length > 0 && (
