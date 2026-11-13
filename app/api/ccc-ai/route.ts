@@ -109,40 +109,88 @@ export async function POST(request: NextRequest) {
     // and invented Arabic quotations in the final output.
     if (thematicListing && verifiedThematic) {
       const verified = verifiedThematic;
-      const allowed = new Set(verified.suppliedVerses.map(v => v.reference));
-      const modelResponse = await fetch("https://llm.chutes.ai/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(105000),
-        body: JSON.stringify({
-          model: process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE",
-          temperature: 0.1,
-          max_tokens: 3600,
-          messages: [
-            { role: "system", content: `You classify Qur'anic verses strictly for the user's thematic listing request. The Qur'an is the stipulated textual truth reference. Use ONLY the supplied Arabic passages. Return EXACTLY ONE JSON object: {"verses":[{"reference":"67:2","category":"general","explanation":"States that death and life were created to test deeds."}]}. Categories: general = broad statements about the purpose or nature of earthly testing; situational = particular ongoing types of trial, e.g. wealth, fear, belief; historical = a specific past episode or quotation from a character. Include only meaningfully relevant verses. Do not invent references, quotations, translations, totals, or general conclusions. Explanations are brief, plain English (at most 22 words each). If none fit, return {"verses":[]}. No Markdown or text outside JSON.` },
-            { role: "user", content: `Research question: ${q}\n\nVerified candidate Arabic verses (NOT semantically certified):\n${thematicEvidence}` },
-          ],
-        }),
-      });
-      if (!modelResponse.ok) throw new Error(`Thematic classification HTTP ${modelResponse.status}`);
-      const modelJson = await modelResponse.json();
-      const choice = modelJson?.choices?.[0];
-      if (choice?.finish_reason === "length") {
-        return NextResponse.json({ error: "Thematic classification exceeded the output budget; no partial list was presented." }, { status: 502 });
+      const candidates = verified.suppliedVerses;
+      if (!candidates.length) {
+        return NextResponse.json({ answer: "No valid Qurʾānic candidate verses were retrieved. Thematic coverage could not be assessed.", incomplete: false, finishReason: "no_thematic_candidates" });
       }
-      const raw = choice?.message?.content;
-      if (typeof raw !== "string" || !raw.trim()) throw new Error("Empty thematic classification");
-      const items = parseVerifiedThematicList(raw, allowed);
-      console.log("CCC thematic list validation:", {
-        suppliedCandidates: allowed.size,
-        proposedItems: items.length,
-        evidenceExcerptTruncated: verified.diagnostics.truncated,
+      // Guard against unexpectedly broad root searches. Never silently lose
+      // evidence or present a partial classification as complete.
+      if (candidates.length > 240) {
+        console.warn("CCC thematic candidates exceed safe batch budget:", candidates.length);
+        return NextResponse.json({ error: `The thematic query produced ${candidates.length} verified candidate verses, exceeding the 240-verse classification budget. Narrow the research question or its roots; no partial list was published.` }, { status: 422 });
+      }
+      // Cap BOTH count and text size per batch so very long verses cannot
+      // crowd out later candidates. Each candidate appears in exactly one batch.
+      const batches: typeof candidates[] = [];
+      let batch: typeof candidates = [];
+      let chars = 0;
+      for (const candidate of candidates) {
+        const size = candidate.reference.length + candidate.arabic.length + 2;
+        if (batch.length && (batch.length >= 12 || chars + size > 5200)) {
+          batches.push(batch);
+          batch = [];
+          chars = 0;
+        }
+        batch.push(candidate);
+        chars += size;
+      }
+      if (batch.length) batches.push(batch);
+      // Bounded work prevents an unbounded number of model calls from silently
+      // exceeding Vercel's 150-second execution limit.
+      if (batches.length > 12) {
+        return NextResponse.json({ error: `The thematic query requires ${batches.length} classification batches, beyond the 12-batch execution budget. Narrow the query; all ${candidates.length} verified candidates were retained, and no partial list was published.` }, { status: 422 });
+      }
+      const model = process.env.CCC_AI_MODEL || "Qwen/Qwen3.8-27B-TEE";
+      const classifyBatch = async (items: typeof candidates, index: number) => {
+        const allowed = new Set(items.map(v => v.reference));
+        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(45000),
+          body: JSON.stringify({
+            model,
+            temperature: 0.1,
+            max_tokens: 2000,
+            messages: [
+              { role: "system", content: `Classify Qur'anic passages for the user's thematic list, under the Qur'an as stipulated reference standard. Return EXACTLY ONE JSON object: {"verses":[{"reference":"67:2","category":"general","explanation":"Death and life were created to test deeds."}]}. Categories: general = broad statements about the purpose or nature of earthly testing; situational = a particular type of trial; historical = a specific past event or reported speech. For other research topics, apply the same general/situational/historical distinction sensibly. Judge EACH supplied verse independently; omit those not relevant to the question. For each relevant verse give a concise (maximum 22-word) explanation. Use ONLY references in the supplied batch. Do not invent quotations, references or assertions of exhaustiveness. No Markdown or prose outside JSON.` },
+              { role: "user", content: `Research question: ${q}\nBatch ${index + 1} of ${batches.length} — classify only the verses below:\n${items.map(v => `${v.reference} ${v.arabic}`).join("\n")}` },
+            ],
+          }),
+        });
+        if (!response.ok) throw new Error(`Thematic batch ${index + 1} HTTP ${response.status}`);
+        const json = await response.json();
+        const choice = json?.choices?.[0];
+        if (choice?.finish_reason === "length") throw new Error(`Thematic batch ${index + 1} reached the output-token limit`);
+        const raw = choice?.message?.content;
+        if (typeof raw !== "string" || !raw.trim()) throw new Error(`Empty thematic batch ${index + 1}`);
+        return parseVerifiedThematicList(raw, allowed);
+      };
+      // Use bounded concurrency: requests are independent but Vercel has a
+      // finite execution window. Any failed batch fails the WHOLE listing.
+      const allResults: Awaited<ReturnType<typeof classifyBatch>>[] = [];
+      for (let i = 0; i < batches.length; i += 6) {
+        const wave = await Promise.all(batches.slice(i, i + 6).map((items, offset) => classifyBatch(items, i + offset)));
+        allResults.push(...wave);
+      }
+      const merged = new Map<string, (typeof allResults)[number][number]>();
+      for (const item of allResults.flat()) if (!merged.has(item.reference)) merged.set(item.reference, item);
+      const rank = { general: 0, situational: 1, historical: 2 };
+      const items = [...merged.values()].sort((a, b) =>
+        rank[a.category] - rank[b.category] ||
+        Number(a.reference.split(":")[0]) - Number(b.reference.split(":")[0]) ||
+        Number(a.reference.split(":")[1]) - Number(b.reference.split(":")[1]));
+      const arabicByReference = new Map(candidates.map(v => [v.reference, v.arabic]));
+      console.log("CCC thematic batch coverage:", {
+        verifiedCandidates: candidates.length,
+        batchCount: batches.length,
+        classifiedCandidates: batches.reduce((sum, b) => sum + b.length, 0),
+        relevantUnique: items.length,
+        excerptTruncated: verified.diagnostics.truncated,
       });
-      const arabicByReference = new Map(verified.suppliedVerses.map(v => [v.reference, v.arabic]));
       return NextResponse.json({
-        answer: formatVerifiedThematicList(items, arabicByReference, allowed.size, verified.diagnostics.truncated),
+        answer: formatVerifiedThematicList(items, arabicByReference, candidates.length, false),
         incomplete: false,
-        finishReason: "verified_thematic_list",
+        finishReason: "verified_thematic_list_batched",
       });
     }
 
