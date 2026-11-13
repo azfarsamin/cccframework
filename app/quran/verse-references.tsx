@@ -24,7 +24,35 @@ const shamsArticle: VerseReference = {
   url: "https://forthefew1.substack.com/p/surah-al-shams-the-sun-the-soul-and",
 };
 
+const akbarArticle: VerseReference = {
+  label: "On Allāhu Akbar and Qurʾānic usage, see article",
+  url: "https://forthefew1.substack.com/p/a-quranic-pan-textual-analysis-of",
+};
+
+const takbirArticle: VerseReference = {
+  label: "On Qurʾānic takbīr and divine greatness, see article",
+  url: "https://forthefew1.substack.com/p/a-quranic-pan-textual-analysis-of",
+};
+
 const verseReferences: Record<string, VerseReference[]> = {
+  // Pan-textual study of Allāhu Akbar: direct lexical examples and divine names.
+  "9:72": [akbarArticle],
+  "29:45": [akbarArticle],
+  "40:10": [akbarArticle],
+  "6:78": [akbarArticle],
+  "6:19": [akbarArticle],
+  "9:3": [akbarArticle],
+  "40:12": [akbarArticle],
+  "4:34": [akbarArticle],
+  "13:9": [akbarArticle],
+  "22:62": [akbarArticle],
+  "31:30": [akbarArticle],
+  "34:23": [akbarArticle],
+  // Commands to magnify God, rather than prescribing a fixed ritual phrase.
+  "17:111": [takbirArticle],
+  "74:3": [takbirArticle],
+  "2:185": [takbirArticle],
+  "22:37": [takbirArticle],
   "15:9": [
     {
       label: "See Chapter 3 for discussion on the preservation of the Qur'an",
