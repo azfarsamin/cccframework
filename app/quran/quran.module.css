@@ -192,3 +192,6 @@
 .verseReferenceItem { display:block; font-size:9px; line-height:1.35; }
 .verseReferenceItem + .verseReferenceItem { padding-top:4px; margin-top:4px; }
 .verseReferenceLink { font-size:inherit; font-weight:600; line-height:inherit; }
+
+/* Urdu exposition: independently right-to-left, in a readable Nastaliq-capable stack. */
+.urduTranslation{direction:rtl;text-align:right;font-family:"Noto Nastaliq Urdu","Jameel Noori Nastaleeq","Noto Naskh Arabic",serif;font-size:17px;line-height:2.25;unicode-bidi:plaintext}
