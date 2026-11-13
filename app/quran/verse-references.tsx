@@ -39,7 +39,63 @@ const halalHaramArticle: VerseReference = {
   url: "https://forthefew1.substack.com/p/halal-and-haram-a-quranic-perspective",
 };
 
+// The article URL was not present in the supplied article text. Set this to the
+// verified Substack post URL when available; until then notes remain non-clickable.
+const ummiArticleUrl = "";
+const ummiMeaning: VerseReference = {
+  label: "On ummī as unscriptured rather than illiterate, see article",
+  url: ummiArticleUrl,
+};
+const ummiLiteracy: VerseReference = {
+  label: "On prophetic literacy and written revelation, see article",
+  url: ummiArticleUrl,
+};
+const ummiWriting: VerseReference = {
+  label: "On ṣuḥuf, kitāb and written revelation, see article",
+  url: ummiArticleUrl,
+};
+
 const verseReferences: Record<string, VerseReference[]> = {
+  "3:3": [ummiWriting],
+
+  "6:7": [ummiWriting],
+
+  "87:19": [ummiWriting],
+
+  "87:18": [ummiWriting],
+
+  "74:52": [ummiWriting],
+
+  "53:36": [ummiWriting],
+
+  "20:133": [ummiWriting],
+
+  "2:2": [ummiLiteracy],
+
+  "98:2": [ummiLiteracy],
+
+  "80:15": [ummiLiteracy],
+
+  "80:13": [ummiLiteracy],
+
+  "52:2": [ummiLiteracy],
+
+  "29:48": [ummiLiteracy],
+
+  "25:4": [ummiLiteracy],
+
+  "62:2": [ummiMeaning],
+
+  "7:158": [ummiMeaning],
+
+  "7:157": [ummiMeaning],
+
+  "3:75": [ummiMeaning],
+
+  "3:20": [ummiMeaning],
+
+  "2:78": [ummiMeaning],
+
   // Halāl and harām: divine authority, dietary limits, and messenger scope.
   "16:116": [halalHaramArticle],
   "10:59": [halalHaramArticle],
@@ -103,6 +159,7 @@ const verseReferences: Record<string, VerseReference[]> = {
   "4:161": [ribaBook],
   "30:39": [ribaBook],
   "25:5": [
+    ummiLiteracy,
     {
       label: "See article on prophetic literacy",
       url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6748782",
@@ -240,9 +297,9 @@ export function VerseReferences({ chapter, verse }: { chapter: number; verse: nu
       {references.length > 0 && (
         <>
           <strong className={styles.verseReferencesHeading}>Research references</strong>
-          {references.map((item) => (
-            <div className={styles.verseReferenceItem} key={item.url}>
-              <span>{item.label} <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</span>
+          {references.map((item, index) => (
+            <div className={styles.verseReferenceItem} key={`${key}-${index}-${item.url}`}>
+              <span>{item.label}{item.url ? <> <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</> : <> (link pending).</>}</span>
             </div>
           ))}
         </>
