@@ -42,7 +42,7 @@ export async function discoverQuranCandidates(
   const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(90000),
     body: JSON.stringify({
       model,
       temperature: 0.1,
