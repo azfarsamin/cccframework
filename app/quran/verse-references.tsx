@@ -14,6 +14,16 @@ const ribaBook: VerseReference = {
 
 // The Qurʾān contains eight occurrences of ribā across these six verses.
 // One book reference per verse, even where the word occurs multiple times.
+const fallibilityArticle: VerseReference = {
+  label: "On Muhammad's fallibility, see article",
+  url: "https://forthefew1.substack.com/p/was-muhammad-infallible",
+};
+
+const shamsArticle: VerseReference = {
+  label: "For an analysis of Surah Al-Shams, see article",
+  url: "https://forthefew1.substack.com/p/surah-al-shams-the-sun-the-soul-and",
+};
+
 const verseReferences: Record<string, VerseReference[]> = {
   "2:275": [ribaBook],
   "2:276": [ribaBook],
@@ -62,12 +72,14 @@ const verseReferences: Record<string, VerseReference[]> = {
       label: "See article on the satanic verses",
       url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
     },
+    fallibilityArticle,
   ],
   "53:2": [
     {
       label: "See article on the satanic verses",
       url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
     },
+    fallibilityArticle,
   ],
   "53:3": [
     {
@@ -75,6 +87,23 @@ const verseReferences: Record<string, VerseReference[]> = {
       url: "https://forthefew1.substack.com/p/the-satanic-verses-a-quranic-diagnosis",
     },
   ],
+  // Surah-wide article displayed at 91:1 using the existing verse-reference layout.
+  "91:1": [shamsArticle],
+  // Muhammad's fallibility: opening verses are used for multi-verse passages.
+  "93:7": [fallibilityArticle],
+  "6:35": [fallibilityArticle],
+  "8:67": [fallibilityArticle],
+  "9:43": [fallibilityArticle],
+  "9:83": [fallibilityArticle],
+  "66:1": [fallibilityArticle],
+  "48:2": [fallibilityArticle],
+  "80:1": [fallibilityArticle],
+  "68:9": [fallibilityArticle],
+  "33:37": [fallibilityArticle],
+  "58:1": [fallibilityArticle],
+  "33:53": [fallibilityArticle],
+  "9:128": [fallibilityArticle],
+  "33:40": [fallibilityArticle],
 };
 
 export function VerseReferences({ chapter, verse }: { chapter: number; verse: number }) {
