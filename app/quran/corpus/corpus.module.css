@@ -56,3 +56,15 @@
 .error{padding:12px;border:1px solid #c65e5e;background:#fff4f4;border-radius:9px;color:#862b2b}
 .footer{font-size:12px;line-height:1.7;color:#6f7680;margin-top:17px}.footer a{color:#355b85}
 @media(max-width:760px){.main{padding:22px 12px 65px}.header{margin-bottom:16px}.intro{align-items:flex-start;flex-direction:column;gap:10px}.dataset{text-align:left}.threeTiers{grid-template-columns:1fr}.modeButtons{max-width:none}.filterPanel,.results{padding:14px}.stats{gap:7px}.stats strong{font-size:20px}.stats div{padding:12px 8px}.resultsHeader{align-items:start}.toolbar{flex-direction:column;align-items:stretch}.toolbar label{justify-content:space-between}.tag{display:none}}
+
+
+/* Release 5.0c — shared header contrast and legibility with Qurʾān Reader. */
+.header h1 { color:#f8fafc; }
+.header p, .header .back { color:#cbd5e1; }
+.header .back:hover, .header .back:focus-visible { color:#fff; text-decoration:underline; }
+.header .tag { background:rgba(255,255,255,.09); border-color:rgba(226,232,240,.28); color:#e2e8f0; font-weight:600; }
+.intro p { line-height:1.6; }
+.explanation { font-size:14px; line-height:1.6; color:#526071; }
+.threeTiers label { font-size:14px; }
+.resultsHeader p, .toolbar, .dataset { font-size:13px; line-height:1.6; }
+.footer { font-size:12px; line-height:1.7; }
