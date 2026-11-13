@@ -16,7 +16,7 @@ const editions: { id: TranslationEdition; name: string }[] = [
   { id: "en.pickthall", name: "Marmaduke Pickthall" },
   { id: "en.itani", name: "Talal Itani" },
   { id: "gerrans", name: "Sam Gerrans" },
-  { id: "ur.islahi", name: "Amin Ahsan Islahi — Urdu (Surahs 1–2)" },
+  { id: "ur.islahi", name: "Amin Ahsan Islahi — Urdu (Surahs 1–3)" },
 ];
 type GerransMap = Record<string, string>;
 type IslahiSurah = {
@@ -392,10 +392,10 @@ export default function QuranResearchPage() {
     setTranslations([]);
     setTranslationError("");
     if (edition === "ur.islahi") {
-      if (chapter !== 1 && chapter !== 2) {
-        setTranslationError("Islahi Urdu text is currently available for Surahs 1 and 2 only.");
+      if (chapter !== 1 && chapter !== 2 && chapter !== 3) {
+        setTranslationError("Islahi Urdu text is currently available for Surahs 1–3 only.");
       } else {
-        const expected = chapter === 1 ? 7 : 286;
+        const expected = chapter === 1 ? 7 : chapter === 2 ? 286 : 200;
         fetch(`/data/islahi-urdu-surah-${chapter}.json`)
           .then(r => { if (!r.ok) throw new Error("Islahi Urdu data unavailable"); return r.json(); })
           .then((data: IslahiSurah) => {
@@ -506,11 +506,11 @@ export default function QuranResearchPage() {
       if (true) {
         if (edition === "ur.islahi") {
           // Search the full installed Urdu dataset, not just the surah currently open.
-          const pairs = await Promise.all(([1, 2] as const).map(async surahNumber => {
+          const pairs = await Promise.all(([1, 2, 3] as const).map(async surahNumber => {
             const res = await fetch(`/data/islahi-urdu-surah-${surahNumber}.json`);
             if (!res.ok) throw new Error(`Islahi Urdu Surah ${surahNumber} data unavailable.`);
             const data: IslahiSurah = await res.json();
-            const expected = surahNumber === 1 ? 7 : 286;
+            const expected = surahNumber === 1 ? 7 : surahNumber === 2 ? 286 : 200;
             if (data.surah_number !== surahNumber || !Array.isArray(data.verses) ||
                 data.verses.length !== expected ||
                 data.verses.some(v => v.surah !== surahNumber || !Number.isInteger(v.ayah) || v.ayah < 1 || v.ayah > expected || typeof v.translation_ur !== "string") ||
@@ -537,7 +537,7 @@ export default function QuranResearchPage() {
       const normalizedQuery = globalLanguage === "arabic" ? normalizeArabic(query) : query.toLocaleLowerCase();
       const hits: SearchResult[] = [];
       for (const surah of arabicCorpus.current) {
-        if (edition === "ur.islahi" && globalLanguage === "english" && surah.number !== 1 && surah.number !== 2) continue;
+        if (edition === "ur.islahi" && globalLanguage === "english" && surah.number !== 1 && surah.number !== 2 && surah.number !== 3) continue;
         const engSurah = translationVerses?.find(item => item.number === surah.number);
         for (const verse of surah.ayahs) {
           const ref = refOf(surah.number, verse.numberInSurah);
@@ -749,7 +749,7 @@ export default function QuranResearchPage() {
       </div>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
-        <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches currently cover Surahs 1 and 2; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
+        <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches currently cover Surahs 1–3; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
         <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
           <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "19:28 or Arabic word (e.g. مريم)" : edition === "ur.islahi" ? "2:255 or Urdu word" : "19:28 or English word (e.g. mercy)"} />
           <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
@@ -809,7 +809,7 @@ export default function QuranResearchPage() {
                     <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected ✓" : "Select verse"}</button>
                   </div>
                   <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
-                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu text currently available for Surahs 1 and 2 only." : "Translation unavailable for this verse.")}</span>
+                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu text currently available for Surahs 1–3 only." : "Translation unavailable for this verse.")}</span>
                   <VerseReferences chapter={result.chapter} verse={result.verse} />
                 </div>;
               })}
@@ -841,9 +841,9 @@ export default function QuranResearchPage() {
               <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`}
                 lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>
                 {edition === "ur.islahi"
-                  ? (chapter === 1 || chapter === 2
-                    ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || (chapter === 2 && a.numberInSurah === 286 ? "Urdu translation not supplied for 2:286." : "Loading Urdu text…")))
-                    : "Islahi Urdu text is available for Surahs 1 and 2 only.")
+                  ? (chapter === 1 || chapter === 2 || chapter === 3
+                    ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
+                    : "Islahi Urdu text is available for Surahs 1–3 only.")
                   : edition === "gerrans"
                     ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
                     : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
@@ -854,7 +854,7 @@ export default function QuranResearchPage() {
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
             </>}
           </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the Surah 1–2 Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
+          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the Surah 1–3 Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
