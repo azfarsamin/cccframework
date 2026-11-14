@@ -18375,3 +18375,74 @@ export function formatResearchContext(hits: ResearchHit[], maxCharacters = 5000)
   }
   return lines.join("\n\n");
 }
+
+
+/**
+ * v7.9: Expand retrieved research hits to their ENTIRE indexed sections.
+ * A table and its argument can span multiple chunks; returning individual hits
+ * strips premises and misleads the model into claiming that evidence was absent.
+ * No subject, verse, school, or article conclusion receives a special rule.
+ */
+export type ResearchEvidenceUnit = {
+  key: string; articleId: string; title: string; section: string; text: string;
+  verseRefs: string[]; citationFrequency: Record<string, number>; chunkIds: string[]; complete: boolean; score: number;
+};
+export async function expandResearchEvidence(
+  hits: ResearchHit[], maxUnits = 7, maxCharacters = 15500,
+): Promise<ResearchEvidenceUnit[]> {
+  const data = await index();
+  const chosen = new Map<string, { hit: ResearchHit; score: number }>();
+  for (const hit of hits) {
+    const key = `${hit.articleId}::${hit.section}`;
+    const previous = chosen.get(key);
+    if (!previous || hit.score > previous.score) chosen.set(key, { hit, score:hit.score });
+  }
+  const candidates = [...chosen.entries()].sort((a,b) => b[1].score-a[1].score || a[0].localeCompare(b[0]));
+  const output: ResearchEvidenceUnit[] = [];
+  let remaining = maxCharacters;
+  for (const [key, {hit,score}] of candidates) {
+    if (output.length >= maxUnits || remaining < 450) break;
+    const pieces = data.chunks.filter(c => c.article_id === hit.articleId && c.section === hit.section);
+    if (!pieces.length) continue;
+    const full = pieces.map(c => c.text).join("\n\n");
+    // Keep as many entire sections as the budget permits. Trim only an
+    // exceptionally long section, and expose truncation explicitly.
+    const allowance = Math.min(5000, remaining);
+    const complete = full.length <= allowance;
+    const selected = complete ? full : full.slice(0, allowance);
+    const citationFrequency:Record<string,number> = {};
+    for(const c of pieces) for(const ref of new Set(c.verse_refs)) {
+      citationFrequency[ref] = (citationFrequency[ref] || 0) + 1;
+    }
+    output.push({key,articleId:hit.articleId,title:hit.title,section:hit.section,
+      text:selected,verseRefs:[...new Set(pieces.flatMap(c=>c.verse_refs))],citationFrequency,
+      chunkIds:pieces.map(c=>c.id),complete,score});
+    remaining -= selected.length;
+  }
+  return output;
+}
+
+
+/** Reference leads from nearby sections in the SAME indexed work. The section
+ * ordering is metadata, not a doctrine-specific cross-reference rule.
+ * These leads fetch Qurʾānic text; they do not import the neighboring article's
+ * claims into the argument reconstruction unless that section is selected.
+ */
+export async function neighboringResearchReferences(units:ResearchEvidenceUnit[], radius = 2, limit = 20):Promise<string[]> {
+  const data = await index();
+  const leadScores = new Map<string, number>();
+  for (const unit of units.slice(0, 7)) {
+    const m = /:s(\d+):c\d+$/.exec(unit.chunkIds[0] || "");
+    if (!m) continue;
+    const origin = Number(m[1]);
+    for (const c of data.chunks) {
+      if (c.article_id !== unit.articleId) continue;
+      const part = /:s(\d+):c\d+$/.exec(c.id);
+      if (!part) continue;
+      const distance = Math.abs(Number(part[1]) - origin);
+      if (distance === 0 || distance > radius) continue;
+      for (const ref of c.verse_refs) leadScores.set(ref,(leadScores.get(ref)||0) + (radius+1-distance));
+    }
+  }
+  return [...leadScores.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0])).slice(0,limit).map(([ref])=>ref);
+}
