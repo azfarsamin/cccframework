@@ -10,9 +10,11 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 // A shorter response and leaner evidence payload should normally finish well before this.
 const UPSTREAM_LIMIT_MS = 132000;
 const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
-const AUDIT_OUTPUT_TOKENS = 1200; // Short, targeted proofing pass; never rewrites the full answer.
-const DISCOVERY_OUTPUT_TOKENS = 1300;
+const AUDIT_OUTPUT_TOKENS = 1600; // Short, targeted proofing pass; never rewrites the full answer.
+
 const HEARTBEAT_MS = 12000;
+const EVIDENCE_LIMIT = 24;
+const EVIDENCE_TEXT_BUDGET = 18000;
 // User-authored research excerpts enrich discovery but never override Qur'anic wording.
 
 type MorphSegment = [string, string, string];
@@ -158,32 +160,131 @@ function discoveryCandidates(ref: string, corpus: Corpus, morph: Morphology): Ev
   }
   return [...candidates.values()].sort((a,b) => Number(b.required)-Number(a.required) || b.score-a.score || a.ref.localeCompare(b.ref));
 }
-function chooseDiscoveryPool(candidates: EvidenceCandidate[], corpus: Corpus): EvidenceCandidate[] {
-  // Bound prompts, not the corpus scan. Ensure primary concept matches survive
-  // even when a verse is long or ranks poorly on incidental other roots.
-  const pool: EvidenceCandidate[] = [];
-  let size = 0;
-  const required = candidates.filter(c => c.required).slice(0, 22);
-  const rest = candidates.filter(c => !c.required);
-  for (const candidate of [...required, ...rest]) {
-    const chars = corpus[candidate.ref]?.length || 0;
-    if (pool.length >= 66 || size + Math.min(chars, 420) > 13000) continue;
-    pool.push(candidate); size += Math.min(chars, 420);
-  }
-  return pool;
-}
 function evidenceText(refs: string[], corpus: Corpus): string {
   return refs.filter(ref => corpus[ref]).map(ref => `${ref} ${corpus[ref]}`).join("\n");
 }
-const DISCOVERY_SYSTEM = `You are selecting evidence for Qurʾān-only, pan-textual research. The supplied candidates were retrieved from a full-corpus scan plus candidate citations from the indexed research library; roots alone do not establish relevance. First prioritize verses addressing the same concrete subject, command, object, and consequences; next clauses that qualify or challenge those claims; then relevant contextual and grammatical parallels. Never prioritize incidental shared roots over direct subject matter. Do not invent references. Return ONLY JSON {"references":["2:275",...],"coverage_gaps":["short specific issue"]}. Choose 8–16 unique references from the supplied list. Preserve direct subject occurrences and important adjacent passages; include possible tension, not only corroboration. Report any critical unresolved evidence limitations without inventing sources.`;
-
-const AUDIT_SYSTEM = `You are an evidence-grounded Qurʾān-only reviewer, not an autonomous editor. Audit the FIVE-section analysis against the supplied full Arabic focal verse, corpus morphology and verified Arabic evidence. Check conditional syntax, operative-clause coverage, invented grammatical discrepancies, misquotation, and unsupported inference. Distinguish morphology tags from syntactic conclusions. Do not manufacture ambiguity, infer absent verses, or invent corrections.
+// v7.8: evidence selection is deterministic, corpus-backed, and independent of GLM.
+// Indexed authorship is used to DISCOVER references, never as textual authority.
+type LexicalCoverage = { lemma: string; total: number; references: string[]; supplied: number };
+type EvidencePlan = {
+  references: string[];
+  lexical: LexicalCoverage[];
+  researchSources: { id: string; title: string; section: string }[];
+  researchContext: string;
+  researchReferences: string[];
+  sources: Record<string, string[]>;
+  candidateCount: number;
+};
+let lemmaReverseCache: Map<string, Set<string>> | null = null;
+function lemmaReverse(morph: Morphology): Map<string, Set<string>> {
+  if (lemmaReverseCache) return lemmaReverseCache;
+  const lookup = new Map<string, Set<string>>();
+  for (const [ref, words] of Object.entries(morph)) {
+    for (const lemma of new Set(words.map(w => w.l).filter((v): v is string => Boolean(v)))) {
+      if (!lookup.has(lemma)) lookup.set(lemma, new Set());
+      lookup.get(lemma)!.add(ref);
+    }
+  }
+  lemmaReverseCache = lookup;
+  return lookup;
+}
+function isContentWord(word: MorphWord): boolean {
+  return word.s.some(([, pos]) => pos === "N" || pos === "PN" || pos === "V" || pos === "ADJ");
+}
+async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology): Promise<EvidencePlan> {
+  const candidates = discoveryCandidates(ref, corpus, morph);
+  const scored = new Map<string, { score: number; sources: string[] }>();
+  const offer = (target: string, score: number, source: string) => {
+    if (!corpus[target] || target === ref) return;
+    const old = scored.get(target) || { score: 0, sources: [] };
+    old.score += score;
+    if (!old.sources.includes(source)) old.sources.push(source);
+    scored.set(target, old);
+  };
+  // Root matches are leads, not automatic proof; downweight them below a
+  // corroborated direct citation or an exact content-lemma occurrence.
+  for (const c of candidates.slice(0, 125)) offer(c.ref, Math.min(c.score, 25) / 5, c.reasons[0] || "corpus-root lead");
+  const lemmaLookup = lemmaReverse(morph);
+  const focalLemmas = [...new Set((morph[ref] || []).filter(isContentWord)
+    .map(w => w.l).filter((v): v is string => Boolean(v)))];
+  const lexical: LexicalCoverage[] = [];
+  for (const lemma of focalLemmas) {
+    const occurrences = [...(lemmaLookup.get(lemma) || [])].filter(r => corpus[r]).sort(compareRefs);
+    if (occurrences.length < 2) continue;
+    lexical.push({ lemma, total: occurrences.length, references: occurrences, supplied: 0 });
+    // Exhaustive for rare lemmas. For common terms keep the *full inventory*
+    // visible, but do not swamp the interpretation prompt with dozens of verses.
+    const n = occurrences.length <= 16 ? occurrences.length : Math.min(12, occurrences.length);
+    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 16 ? 38 : 11, `same lemma ${lemma}`));
+  }
+  lexical.sort((a,b) => a.total-b.total || a.lemma.localeCompare(b.lemma));
+  // Search 12 rather than 4 passages. Only a subset of high-relevance
+  // non-external excerpts is included as prose; references from all 12 count.
+  // This makes cited evidence discoverable even when the excerpt is too long.
+  let researchContext = "No directly relevant indexed research excerpts were found.";
+  let researchSources: EvidencePlan["researchSources"] = [];
+  const researchCounts = new Map<string, { count: number; sections: Set<string> }>();
+  try {
+    const hits = await searchResearch("", ref, 12);
+    const onTopic = hits.filter(h => !h.externalDiscussion);
+    const proseHits = (onTopic.length ? onTopic : hits).slice(0, 7);
+    researchContext = formatResearchContext(proseHits, 5800);
+    researchSources = proseHits.map(h => ({ id: h.id, title: h.title, section: h.section }));
+    hits.forEach(h => {
+      for (const r of new Set(h.verseRefs)) {
+        if (r === ref || !corpus[r]) continue;
+        const old = researchCounts.get(r) || { count: 0, sections: new Set<string>() };
+        old.count++;
+        old.sections.add(`${h.articleId}/${h.section}`);
+        researchCounts.set(r, old);
+      }
+    });
+    // High recurrence across independently indexed passages/sections carries
+    // ranking weight, but not epistemic authority. The Arabic is fetched below.
+    for (const [r, v] of researchCounts) {
+      offer(r, 12 + Math.min(v.count, 8) * 8 + Math.min(v.sections.size, 5) * 3,
+        `research co-citation (${v.count} excerpts)`);
+    }
+  } catch (error) {
+    console.warn("Research index unavailable; using Qur'an-only corpus", error instanceof Error ? error.message : error);
+  }
+  const researchReferences = [...researchCounts.keys()].sort((a,b) =>
+    (researchCounts.get(b)!.count-researchCounts.get(a)!.count) || compareRefs(a,b));
+  const highResearch = researchReferences.filter(r => (researchCounts.get(r)?.count || 0) >= 2).slice(0, 13);
+  const rareLemma = lexical.filter(l => l.total <= 16).flatMap(l => l.references).filter(r => r !== ref).slice(0, 10);
+  const majorRoot = candidates.filter(c => c.required).slice(0, 8).map(c => c.ref);
+  const ranked = [...scored.entries()].sort((a,b) => b[1].score-a[1].score || compareRefs(a[0],b[0])).map(([r]) => r);
+  const order = [...new Set([...rareLemma, ...highResearch, ...ranked, ...researchReferences, ...majorRoot])];
+  const references: string[] = [];
+  let characters = 0;
+  for (const r of order) {
+    const len = corpus[r]?.length || 0;
+    if (!len || r === ref || references.length >= EVIDENCE_LIMIT || characters + len > EVIDENCE_TEXT_BUDGET) continue;
+    references.push(r); characters += len;
+  }
+  for (const entry of lexical) entry.supplied = entry.references.filter(r => references.includes(r) || r === ref).length;
+  const sources = Object.fromEntries(references.map(r => [r, scored.get(r)?.sources || []]));
+  return { references, lexical, researchSources, researchContext,
+    researchReferences, sources, candidateCount: candidates.length };
+}
+function compareRefs(a: string, b: string): number {
+  const [ca, va] = a.split(":").map(Number); const [cb, vb] = b.split(":").map(Number);
+  return ca-cb || va-vb;
+}
+function lexicalManifest(items: LexicalCoverage[]): string {
+  return items.slice(0, 14).map(l => {
+    const refs = l.references.length <= 70 ? l.references.join(", ") : l.references.slice(0, 70).join(", ") + ", ...";
+    return `${l.lemma}: ${l.total} verse occurrences; ${l.supplied} supplied as full Arabic; complete/previewed refs: ${refs}`;
+  }).join("\n") || "No recurring content lemmas found in the local annotations.";
+}
+const AUDIT_SYSTEM = `You are an evidence-grounded Qurʾān-only reviewer, not an autonomous editor. Audit the FIVE-section analysis against the supplied full Arabic focal verse, corpus morphology and verified Arabic evidence. Check conditional syntax, operative-clause coverage, invented grammatical discrepancies, misquotation, unsupported inference, and whether central supplied Qurʾānic references were ignored. Avoid claiming certainty where the lexical manifest shows incomplete full-text coverage. Distinguish morphology tags from syntactic conclusions. Do not manufacture ambiguity, infer absent verses, or invent corrections.
 Return ONLY JSON {"findings":[{"quote":"exact unique substring from analysis","issue":"specific material error","evidence_ref":"chapter:verse","evidence_quote":"exact contiguous Arabic quote from the SUPPLIED verse text","suggestion":"proposed correction"}],"unresolved":[]}. Maximum 4 findings and 2 unresolved. Evidence reference and Arabic quotation are mandatory for any finding. A lexical match does not prove a semantic claim. If no verified material error, use empty arrays. This review is advisory; the original text is not automatically overwritten.`;
 
 const SYSTEM = `Analyze ONE Qurʾānic verse using the complete Arabic, numbered morphology, local context and PRE-DISCOVERED PAN-TEXTUAL EVIDENCE. Qurʾān-only: no hadith, tafsir, inherited reconstruction or presupposed geography.
 SOURCE RULE: Indexed research is authored interpretation, NOT Qurʾānic authority. Extract its testable claims and verse citations, test each against actual Qurʾānic wording, reject unsupported premises. Do not automatically adopt the article's conclusions or external hadith/tafsir materials. Label any argument drawn from the article as an attributed hypothesis.\nEVIDENCE ORDER: The primary verse first; relevant Qurʾānic passages next; grammatical/morphological annotations as fallible analytical data. Prioritize directly related concepts over common roots or superficial phrase similarities. Your conclusions must follow the cumulative evidence, not merely the focal verse.
-GRAMMAR: Conditional protasis includes all prerequisites before its consequence. Separate conditional in (إِنْ) from emphatic inna (إِنَّ); subjunctive after purpose lām from jussive after command lām; ordinary negation lā from prohibition lā. Do not fabricate textual variants from annotation disagreements, case endings, or romanization. Distinguish active from passive participles. Cite word numbers sparingly and accurately.
+GRAMMAR: The provided morphology is tag-level evidence, not a license to invent a form; explain morphology only where supported. For an unmarked claim, qualify it. Conditional protasis includes all prerequisites before its consequence. Separate conditional in (إِنْ) from emphatic inna (إِنَّ); subjunctive after purpose lām from jussive after command lām; ordinary negation lā from prohibition lā. Do not fabricate textual variants from annotation disagreements, case endings, or romanization. Distinguish active from passive participles. Cite word numbers sparingly and accurately.
 CALIBRATION: Separate (A) explicit wording of selected verse, (B) conclusions warranted by cumulative Qurʾānic evidence, (C) possible but not established. Never turn uncertainty into certainty or declare a question unresolved before checking supplied evidence. Do not import external narratives. Avoid unsupported legal generalizations.
+EVIDENCE COVERAGE: The lexical manifest lists corpus-wide occurrences, but only marked verses have full text. Do not claim a universal lexical rule unless all relevant contexts have actually been evaluated. Assess high-priority article-cited verses, including evidence that challenges the article. Explicitly say why a directly relevant supplied reference is not probative.
 OUTPUT: Only the exact requested headings; no separate Arabic verse or translation section (already displayed in Reader). Use clean Unicode Arabic and readable prose, NEVER HTML entities or raw corpus notation. Section 3 MUST distinguish direct subject evidence from structural parallels and explain each passage's contribution and tensions. No arbitrary four-reference cap. Never say Qurʾānic evidence outside the verse is extraneous.`;
 
 export async function POST(req: NextRequest) {
@@ -222,33 +323,16 @@ export async function POST(req: NextRequest) {
   if (!focalMorph?.length)
     return NextResponse.json({ error: `Morphological evidence for ${ref} is unavailable. Analysis was not attempted.` }, { status: 503 });
 
-  // Retrieve authored research BEFORE discovery and interpretation. Fail open if
-  // index has not been deployed; the existing Qur'an pipeline remains usable.
-  let researchContext = "No indexed research available.";
-  let researchRefs: string[] = [];
-  try {
-    const articleHits = await searchResearch("", ref, 4);
-    researchContext = formatResearchContext(articleHits, 4200);
-    researchRefs = [...new Set(articleHits.flatMap(hit => hit.verseRefs))];
-  } catch (err) {
-    console.warn("Research index unavailable; continuing Qur'an-only", err instanceof Error ? err.message : err);
-  }
   const grammar = focalMorph.map(extractWordFacts).join("\n");
-  const candidatePool = chooseDiscoveryPool(discoveryCandidates(ref, corpus, morph), corpus);
-  // Article verse references are candidate leads only, never injected as authoritative
-  // evidence; only actual corpus verses may be added. This avoids losing concept
-  // references that share no morphological root with the focal verse.
-  for (const linkedRef of researchRefs) {
-    if (linkedRef !== ref && corpus[linkedRef] && !candidatePool.some(c => c.ref === linkedRef)) {
-      candidatePool.push({ ref: linkedRef, score: 12, reasons: ["indexed article citation; verify against Qur'an"], required: false });
-    }
-  }
-  const requestedRefs = Array.isArray(data.evidence) ? data.evidence.filter((x): x is string => typeof x === "string" && /^\d{1,3}:\d{1,3}$/.test(x)).slice(0, 22) : [];
-  const validCandidates = new Set(candidatePool.map(x => x.ref));
-  const evidenceRefs = [...new Set(requestedRefs)].filter(r => validCandidates.has(r) && Boolean(corpus[r]));
-  if (stage !== "discovery" && !evidenceRefs.length)
-    return NextResponse.json({ error: "Verified evidence discovery is missing. Start a new v7.7 analysis." }, { status: 400 });
+  const plan = await buildEvidencePlan(ref, corpus, morph);
+  // Never let the browser or a generative selector erase critical references.
+  // Every stage recomputes the same corpus-verified, ordered reference list.
+  const evidenceRefs = plan.references;
+  if (!evidenceRefs.length)
+    return NextResponse.json({ error: "Insufficient verified Qur'anic evidence for analysis." }, { status: 503 });
   const evidence = evidenceText(evidenceRefs, corpus);
+  const researchContext = plan.researchContext;
+  const occurrenceInventory = lexicalManifest(plan.lexical);
   const requiredSections = stage === "foundation" ? [1, 2] : stage === "synthesis" ? [3, 4, 5] : [];
   const stageInstructions = stage === "foundation"
     ? `Write ONLY these headings: \n## 1. Grammar and morphology\n## 2. Immediate context\nCover 3–9 consequential grammatical constructions, especially conditionals, prohibitions, and exceptions. Describe the immediate logical context without reproducing the verse or translation. Aim for 250–450 words. Finish section 2.`
@@ -260,6 +344,23 @@ export async function POST(req: NextRequest) {
   const model = (stage === "discovery" ? process.env.VERSE_ANALYSIS_DISCOVERY_MODEL : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
     : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
     : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
+  // Evidence discovery is now a deterministic local operation: zero Chutes
+  // tokens, no JSON parsing/truncation failure, stable across repeated runs.
+  if (stage === "discovery") {
+    const payload = { references: evidenceRefs, candidateCount: plan.candidateCount,
+      coverageGaps: plan.lexical.filter(x => x.supplied < x.total && x.total <= 16)
+        .map(x => `Not every ${x.lemma} occurrence fits the evidence budget.`),
+      researchSources: plan.researchSources, researchReferences: plan.researchReferences,
+      lexical: plan.lexical.map(x => ({ lemma:x.lemma, total:x.total, supplied:x.supplied })),
+      sources: plan.sources };
+    const frames = [
+      `event: evidence\ndata: ${JSON.stringify(payload)}\n\n`,
+      `event: done\ndata: ${JSON.stringify({reference:ref, stage, finishReason:"deterministic", incomplete:false})}\n\n`
+    ].join("");
+    return new Response(frames, { status:200, headers: {
+      "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control":"no-cache, no-transform",
+      "X-Verse-Analysis-Protocol":"sse-v1" } });
+  }
   // Stream immediately: this removes the 45-second all-at-once response constraint.
   // Every event is JSON inside a Server-Sent Events frame (not arbitrary text).
   const encoder = new TextEncoder();
@@ -312,13 +413,13 @@ export async function POST(req: NextRequest) {
         catch { /* Client disconnected. */ }
       };
       try {
-        emit(controller, "status", { message: `${stage === "discovery" ? "Selecting pan-textual evidence" : stage === "foundation" ? "Analyzing grammar and context" : stage === "synthesis" ? "Synthesizing Qurʾānic evidence" : "Checking material claims"} for ${ref}…`, reference: ref, stage });
+        emit(controller, "status", { message: `${stage === "foundation" ? "Analyzing grammar and context" : stage === "synthesis" ? "Synthesizing Qurʾānic evidence" : "Checking material claims"} for ${ref}…`, reference: ref, stage });
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
           signal: abort.signal,
           body: JSON.stringify({
-            model, temperature: 0.1, max_tokens: stage === "discovery" ? DISCOVERY_OUTPUT_TOKENS : stage === "audit" ? AUDIT_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
+            model, temperature: 0, max_tokens: stage === "audit" ? AUDIT_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
             // Both model families can default to extended reasoning, which uses
             // completion tokens before final-answer text is produced. Apply the
             // template option appropriate to the exact selected model family.
@@ -328,12 +429,11 @@ export async function POST(req: NextRequest) {
                 ? { chat_template_kwargs: { enable_thinking: false } }
                 : {}),
             messages: [
-              { role: "system", content: stage === "discovery" ? DISCOVERY_SYSTEM : stage === "audit" ? AUDIT_SYSTEM : SYSTEM },
-              { role: "user", content: stage === "discovery"
-                ? `FOCAL VERSE ${ref} (full Arabic):\n${corpus[ref]}\n\nCORPUS-WIDE CANDIDATES, SCORED AS DISCOVERY LEADS ONLY (preview text can be truncated, complete selected text will be retrieved later):\n${candidatePool.map(c => `${c.ref} [${c.required ? "DIRECT ROOT" : "CONTEXT"}; ${c.reasons.slice(0,2).join("; ")}] ${corpus[c.ref].slice(0,420)}`).join("\n")}\n\nINDEXED RESEARCH EXCERPTS (authored argument, not scripture):\n${researchContext}\n\nChoose references on SUBSTANTIVE grounds, not coincidental roots. Do not omit direct topic occurrences in favor of generic lexical parallels.`
-                : stage === "audit"
-                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nINDEXED RESEARCH (not primary evidence):\n${researchContext}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
-                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nINDEXED RESEARCH (attributed arguments, not Qur'anic authority):\n${researchContext}\n\n${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
+              { role: "system", content: stage === "audit" ? AUDIT_SYSTEM : SYSTEM },
+              { role: "user", content: stage === "audit"
+
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nINDEXED RESEARCH (not primary evidence):\n${researchContext}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nINDEXED RESEARCH (attributed arguments, not Qur'anic authority):\n${researchContext}\n\n${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
             ],
           }),
         });
@@ -402,23 +502,6 @@ export async function POST(req: NextRequest) {
           finish("error", { message: reasoningCharactersObserved
             ? `Chutes generated reasoning but no final answer (model: ${model}; finish: ${finishReason || "unknown"}; reasoning characters: ${reasoningCharactersObserved}). Check whether this Chutes deployment honors its non-thinking setting.`
             : `Chutes returned no final-answer text (model: ${model}; finish: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
-          return;
-        }
-        if (stage === "discovery") {
-          let parsed: { references?: string[]; coverage_gaps?: string[] };
-          try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
-          catch { parsed = {}; }
-          // Deterministically preserve high-value direct concept matches;
-          // the model may rank but cannot erase all instances of the subject.
-          const required = candidatePool.filter(c => c.required).slice(0, 10).map(c => c.ref);
-          const picked = Array.isArray(parsed.references) ? parsed.references.filter((r): r is string => typeof r === "string" && validCandidates.has(r)) : [];
-          const selected = [...new Set([...required, ...picked])].slice(0, 18);
-          if (finishReason === "length" || !providerDone || !selected.length) {
-            finish("error", { message: "Evidence discovery was incomplete. No speculative synthesis attempted.", partial: false }); return;
-          }
-          emit(controller, "evidence", { references: selected, candidateCount: candidatePool.length,
-            coverageGaps: Array.isArray(parsed.coverage_gaps) ? parsed.coverage_gaps.filter(x => typeof x === "string").slice(0,3) : [] });
-          finish("done", { reference: ref, stage, finishReason, incomplete: false, durationMs: Date.now()-started });
           return;
         }
         if (stage === "audit") {
@@ -491,5 +574,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.7" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.8" });
 }
