@@ -1,4 +1,996 @@
-import bundledResearchIndex from "../research/index.json";
+// Self-contained compiled research index. No dependency on research/index.json at build or runtime.
+const bundledResearchIndex = {
+  "schema_version": 1,
+  "generated_at": "2026-11-14",
+  "articles": [
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "authors": [
+        "Azfar Samin",
+        "Dr. Bashir Ahmad Malik"
+      ],
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "source_sha256": "26674edf0263d043f4d02adab7458dfb1e545bdc36add6fc61aad9252c687c95",
+      "primary_verse": "65:4",
+      "source_type": "user_supplied_article",
+      "status": "indexed_not_fact_checked",
+      "description": "Argument about Qur’an 65:4, marriageable age, nisa, maturity and Qur’an-centred interpretation. Historical reports are discussed as objects of critique, not authority."
+    }
+  ],
+  "chunks": [
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s01:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Abstract",
+      "section_number": 1,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:1",
+        "4:2",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "maturity",
+        "consent",
+        "divorce",
+        "child",
+        "marriage"
+      ],
+      "text": "This article offers a critical analysis of Qur’anic verse 65:4 (Surah At-Talaq). This verse has often been cited in debates about the permissibility of child marriage in Islam. Traditional exegetical readings have interpreted the verse as legitimizing the divorce and remarriage of prepubescent girls (al-saghīrah), drawing on certain hadith reports that claim the Prophet’s marriage to Āʾishah at the age of six and consummated at nine. This study challenges such interpretations by conducting a close linguistic and contextual examination of the verse, alongside related Qur’anic passages such as 4:1–4, 4:6, 4:19, among others.\n\nThe analysis demonstrates that the language of verse 65:4 does not support its application to prepubescent girls, and that interpretations to this effect reflect cultural and political overlays rather than the Qur’an’s intended meaning. Instead, the Qur’an consistently frames marriage as a contractual union requiring maturity, consent, and accountability, thereby excluding the possibility of child marriage. Hadith reports that appear to endorse early marriage are considered only as part of the broader exegetical discourse but are shown to be secondary and methodologically less reliable when weighed against the Qur’an’s primary guidance.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s01:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Abstract",
+      "section_number": 1,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "4:19",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "maturity",
+        "consent",
+        "divorce",
+        "child",
+        "marriage"
+      ],
+      "text": "The article concludes that Qur’an 65:4, properly understood, does not sanction child marriage. Rather, it reinforces the Qur’an’s overarching vision of marriage as a bond between responsible individuals, while early marriage practices should be understood as remnants of pre-Islamic cultural traditions not Qur’anic prescriptions.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s02:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Keywords",
+      "section_number": 2,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [],
+      "topics": [],
+      "text": "Qur'anic guidance, Hadith authenticity, Prepubescent marriage, Nisāʾ (adult women), Islamic jurisprudence, Tafsīr (Qur'anic exegesis), ʿĀʾishah’s marriage, Reformist Islam",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s03:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Introduction",
+      "section_number": 3,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "65:4"
+      ],
+      "topics": [
+        "hadith",
+        "child",
+        "marriage",
+        "quran",
+        "authority",
+        "methodology"
+      ],
+      "text": "Non-Muslim polemicists frequently criticize Prophet Muhammad by alleging that he endorsed child marriage, citing hadith reports which claim that ʿĀʾishah was married at six and consummated at nine (3, 12, 13, 14, 15). These narratives are then invoked to portray both the Prophet and the Qur’an as condoning these practices. The traditionalist reliance on hadiths for historical context (4), however, overlooks their inconsistencies with the Qur’an’s authoritative guidance, which provides the definitive framework for Islamic jurisprudence (1, 19).\n\nClassical exegetes such as al-Ṭabarī, Ibn Kathīr, and al-Qurṭubī often accepted these reports as historically reliable, thereby normalizing the notion of prepubescent marriage. By contrast, modern scholarship has demonstrated how cultural, political, and patriarchal contexts shaped these interpretations, frequently obscuring the Qur’an’s ethical orientation (2, 7). In particular, scholars have shown how elevating contested hadith reports to near-canonical status distorted the Qur’an’s plain meaning and reflected sociocultural pressures more than divine intent (2, 5, 6). Unlike broader feminist frameworks that critique patriarchal structures in Islam more generally (8), this study builds on specific reinterpretations of the marriage verses to challenge hadith-based claims of child marriage and to highlight the Qur’an’s self-sufficient authority.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s03:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Introduction",
+      "section_number": 3,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "65:4"
+      ],
+      "topics": [
+        "hadith",
+        "child",
+        "marriage",
+        "quran",
+        "authority",
+        "methodology"
+      ],
+      "text": "The central question this article addresses is whether the Qur’an itself provides any textual or conceptual support for child marriage, or whether such claims arise solely from contested hadith reports and later exegetical traditions. This question carries particular significance today, as both polemicists and certain Muslim groups invoke these narrations in debates on Islam’s ethical stance regarding marriage, gender, and children’s rights.\n\nTo answer this, the article first examines the hadith literature, especially the narrations concerning ʿĀʾishah’s age, and then presents the Qur’an’s perspective, which demonstrates that marriage is intended exclusively for mature women (nisāʾ), not prepubescent girls (1). Through a holistic analysis of the Qur’an’s verse 65:4, g, and interrelated verses, followed by a reassessment of classical exegetical works—including those of al-Ṭabarī, al-Qurṭubī, and Ibn Kathīr—this study argues that claims of Qur’anic sanction for child marriage are interpretive impositions rather than textual realities, and that the Qur’an’s framework is sufficient and authoritative in itself (1, 5, 10).\n\nLet us now turn to the hadith literature that addresses the age of Aisha at the time of her marriage.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s04:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Hadiths Mentioning ʿĀʾishah’s Age",
+      "section_number": 4,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "hadith",
+        "reports",
+        "Aisha",
+        "early",
+        "marriage",
+        "narrations",
+        "criticism",
+        "source",
+        "comparison"
+      ],
+      "text": "Certain hadiths, cited by non-Muslim polemicists to criticize the Prophet and attack the divinity of the Qur'an, claim ʿĀʾishah was married at age six and the marriage consummated at nine, a narrative that stands in tension with the Qur'an's consistent emphasis on marriage involving adult women. These reports, found across canonical collections, include:\n\nتَزَوَّجَ النبيُّ ﷺ عائِشَةَ وهي بنْتُ سِتِّ سِنِينَ، وبَنى بها وهي بنْتُ تِسْعٍ، ومَكَثَتْ عِنْدَهُ تِسْعًا\n\nSahīh al-Bukhārī — 5158: Narrated by ‘Urwah, it states: \"The Prophet (ﷺ) wrote the (marriage contract) with ʿĀʾishah while she was six years old and consummated his marriage with her while she was nine years old and she remained with him for nine years (i.e., till his death)\" (3).\n\nSahīh al-Bukhārī — 5133-5134: Narrated ʿĀʾishah: that the Prophet (ﷺ) married her when she was six years old and he consummated his marriage when she was nine years old, and then she remained with him for nine years (i.e., till his death) (3).\n\nعَنْ عائِشَةَ، قالَتْ: تَزَوَّجَها رَسولُ اللهِ ﷺ وَهي بنْتُ سِتٍّ، وَبَنى بها وَهي بنْتُ تِسْعٍ، وَماتَ عَنْها وَهي بنْتُ ثَمانَ عَشْرَةَ\n\nSahīh Muslim — 1422: Narrated ʿĀʾishah: that the Prophet (ﷺ) married her when she was six years old and he consummated his marriage when she was nine years old, and then she remained with him for nine years (i.e., till his death) (12).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s04:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Hadiths Mentioning ʿĀʾishah’s Age",
+      "section_number": 4,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "hadith",
+        "reports",
+        "Aisha",
+        "early",
+        "marriage",
+        "narrations",
+        "criticism",
+        "source",
+        "comparison"
+      ],
+      "text": "- تزوَّجَني رسولُ اللهِ ﷺ وأنا بِنتُ سِتٍّ، ودخلَ عليَّ وأنا بِنتُ تِسعِ سنينَ، وكنتُ ألعَبُ بالبناتِ\n\nSunan an-Nasa’ī — 3378: It was narrated that 'Aishah said: \"The Messenger of Allah married me when I was six, and consummated the marriage with me when I was nine, and I used to play with dolls (13).\n\nتزوَّجَني رسولُ اللَّهِ ﷺ وأنا بنتُ ستِّ سنينَ فقدِمنا المدينةَ فنزلنا في بَني الحارثِ بنِ الخزرجِ فوعِكْتُ فتمرَّقَ شعري حتّى وفى لَه جُمَيْمةٌ فأتَتني أمِّي أمُّ رومانَ وإنِّي لفي أرجوحةٍ ومعي صواحباتٌ لي فصرخَت بي فأتيتُها وما أدري ما تريدُ فأخذَت بيدي فأوقَفَتني على بابِ الدّارِ وإنِّي لأنهجُ حتّى سَكَنَ بعضُ نفَسي ثمَّ أخذَتْ شيئًا من ماءٍ فمسَحت بهِ على وجهي ورأسي ثمَّ أدخلَتني الدّارَ فإذا نسوةٌ منَ الأنصارِ في بيتٍ فقُلنَ على الخيرِ والبرَكَةِ وعلى خيرِ طائرٍ فأسلَمَتني إليهنَّ فأصلَحنَ من شأني فلم يرُعني إلّا رسولُ اللَّهِ ﷺ ضُحًى فأسلَمَتني إليهِ وأنا يومئذٍ بنتُ تسعِ سنين\n\nSunan Ibn Mājah — 1877: Includes a detailed account of ʿĀʾishah’s age, illness, playing on an urjuhah (swing/seesaw) with friends, and the marriage consummation at nine (14).\n\nهشام بن عروة عن أبيه قال قالت عائشة تزوجني رسول الله صلى الله عليه وسلم وأنا ابنة ست سنين بمكة متوفى خديجة ودخل بي وأنا ابنة تسع سنين بالمدينة\n\nMusnad Ahmad ibn Ḥanbal — 24139, 24602, 24603, 25636: Reiterate the claim of ʿĀʾishah’s marriage at six and consummation at nine (15).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s04:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Hadiths Mentioning ʿĀʾishah’s Age",
+      "section_number": 4,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "4:19",
+        "65:4"
+      ],
+      "topics": [
+        "hadith",
+        "reports",
+        "Aisha",
+        "early",
+        "marriage",
+        "narrations",
+        "criticism",
+        "source",
+        "comparison"
+      ],
+      "text": "A related hadith in Sahih Muslim 1422c also mentions Āʾishah playing with dolls, stating: \"I used to play with the dolls in the presence of the Prophet, and my girl friends also used to play with me.\" (12).\n\nWhile these hadiths are classified as sahih (authentic), they rely heavily on narrators like Hisham ibn Urwah, whose reports from Iraq—where these narrations originate—have been questioned by classical scholars like Malik ibn Anas for potential memory issues or influence from local narrators (4, 11). Scholars note that such reports may reflect cultural practices or political motives from later periods, such as justifying early marriages for tribal alliances (7, 9), and modern critiques highlight how historical context influenced their authenticity (2).\n\nWhile hadiths can offer historical context, their human-compiled nature makes them susceptible to errors, unlike the Qur'an’s divine precision (4, 5). The Quran’s textual and grammatical clarity, when examined across related verses, provides the authoritative guidance about marriage, reducing the need for reliance on such narrations (1, 5, 10).  It will be shown below that these hadiths present a narrative that contrasts with the Qur'an’s clear use of nisāʾ and its focus on maturity (e.g., 4:6, 4:19) (1).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s05:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Quran 65:4: Linguistic and Contextual Reading",
+      "section_number": 5,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:228",
+        "65:1",
+        "65:2",
+        "65:3",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "women",
+        "menstruation",
+        "divorce",
+        "waiting",
+        "period",
+        "iddah",
+        "amenorrhea",
+        "grammar",
+        "relative",
+        "pronoun"
+      ],
+      "text": "While the historical and methodological issues around the hadiths concerning Aisha’s age are substantive and warrant careful examination, ironically, verse 65:4 from Surah At-Talaq (The Divorce) is commonly cited by some traditional scholars, such as Ibn Kathir (discussed below) to support the notion of child marriage in the Qur’an. It is important to acknowledge that their interpretation is not independent of hadith influence. However, a close reading of the opening verse of this chapter explicitly establishes that the subject is a waiting period (iddah) for women in case of a divorce to establish paternity before potential remarriage. 65:1-4 expand upon the waiting period after divorce outlined in 2:228.\n\nIn particular, verse 65:4 provides further details about the waiting period for divorced women before remarriage (1):\n\nوَاللَّائِي يَئِسْنَ مِنَ الْمَحِيضِ مِنْ نِسَائِكُمْ إِنِ ارْتَبْتُمْ فَعِدَّتُهُنَّ ثَلَاثَةُ أَشْهُرٍ وَاللَّائِي لَمْ يَحِضْنَ وَأُولَاتُ الْأَحْمَالِ أَجَلُهُنَّ أَنْ يَضَعْنَ حَمْلَهُنَّ وَمَنْ يَتَّقِ اللَّهَ يَجْعَلْ لَهُ مِنْ أَمْرِهِ يُسْرًا",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s05:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Quran 65:4: Linguistic and Contextual Reading",
+      "section_number": 5,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:228",
+        "4:3",
+        "4:11",
+        "4:127",
+        "65:1",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "women",
+        "menstruation",
+        "divorce",
+        "waiting",
+        "period",
+        "iddah",
+        "amenorrhea",
+        "grammar",
+        "relative",
+        "pronoun"
+      ],
+      "text": "\"And as for those of your women who have despaired of menstruation, if you have a doubt, their prescribed time shall be three months; and [the same applies to] those who have not yet menstruated. As for those who are pregnant, their prescribed time is until they deliver their burdens. And for everyone who is conscious of God, He makes it easy to obey His commandment.\" (65:4)\n\nThis verse reveals important insights through a lexical, morphological, syntactic, and grammatical agreement analysis. The key term is nisāʾ (نِسَاء), the plural of imraʾa (امرأة), meaning “women” in Arabic. Its triliteral root nūn sīn wāw occurs roughly 59 times in the Qur'an as only the noun nisā  (نِسَاء) and consistently refers to adult females in legal contexts such as marriage, divorce, and inheritance (e.g., 4:3, 4:11, 4:127).  The subject in the verse is nisāʾikum (“your women”), referring to adult female spouses. The feminine plural relative pronoun wallāʾī (وَاللَّائِي, “and those who”) refers back to nisāʾ in the preceding clause, and the third person plural verb yahidna (يَحِضْنَ, “have not menstruated”) agrees syntactically and morphologically with nisāʾ, maintaining adult women as the subject throughout the verse. Consequently, based on the linguistic and grammatical examination, there is no basis for interpreting the bolded portion of the verse as referring to prepubescent girls; it clearly addresses adult women.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s05:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Quran 65:4: Linguistic and Contextual Reading",
+      "section_number": 5,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:228",
+        "65:1",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "women",
+        "menstruation",
+        "divorce",
+        "waiting",
+        "period",
+        "iddah",
+        "amenorrhea",
+        "grammar",
+        "relative",
+        "pronoun"
+      ],
+      "text": "The phrase wallāʾī lam yahidna (“and those who have not yet menstruated”) can be understood as referring to two plausible categories of adult women who may not menstruate:\n\nWomen past menopause, who have naturally ceased menstruating due to age.\n\nWomen experiencing physiological conditions, such as amenorrhea caused by hormonal imbalances, stress, illness, or irregular cycles (1, 6).\n\nPregnant women are listed separately in the same verse, whose waiting period (iddah) concludes upon childbirth. Notably, the Quran does not use any of the Arabic terms like sabiyyah (young girl), jāriyah (maiden), or tiflah (child) when referring to marriageable females in this or any other context. The grammar and context of 65:4, when read alongside related verses, consistently employs nisāʾ (women), a term reserved for adult females. Claims that this verse permits child marriage have no textual or grammatical basis within the Qur’anic text. Yet, to understand how the controversial interpretations about the permissibility of child marriage took root, it is important to look at how classical exegetes interpreted this verse.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s06:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Tradition on 65:4",
+      "section_number": 6,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "tafsir",
+        "tabari",
+        "qurtubi",
+        "ibn",
+        "kathir",
+        "exegetical",
+        "reports",
+        "classical",
+        "claims"
+      ],
+      "text": "Classical and post-classical exegetes offer insights into the scholarly traditions of their times. Their conclusions, however, stem from the principles that are tenuously linked to the Qur’anic text itself., Ibn Kathīr, for example, interpreted 65:4 to apply not only to post-menopausal women but also to girls who have not yet begun menstruating. In his Tafsīr al-Qur’ān al-ʿAzīm (vol. 10, p. 137), he  writes:\n\nلِلصَّغِيرَةِ الَّتِي لَمْ تَحِضْ\n\n(al-saghīrah allatī lam tahid — “the young girl who has not menstruated”) (16).\n\nHe explicitly includes prepubescent girls in the scope of the verse, aligning with many earlier commentators such as al-Tabarī and al-Qurtubī (17, 18). To support this view, Ibn Kathīr draws upon narrations, including the widely cited hadith reports about ʿĀʾishah’s marriage found in Sahīh al-Bukhārī and Sahīh Muslim. Moreover, in his tafsīr, a narration attributed to Ubayy bin Kaʿb is cited in the commentary on verse 65:4. According to this report, Ubayy asked the Prophet:\n\n\"O Allah's Messenger! When the Ayah in Surat Al-Baqarah was revealed prescribing the Iddah of divorce, some people in Al-Madinah said, 'There are still some women whose Iddah has not been mentioned in the Qur'an. There are the young, the old whose menstruation is discontinued, and the pregnant.' Later on, this Ayah was revealed (i.e 65:4)\"",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s06:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Tradition on 65:4",
+      "section_number": 6,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "tafsir",
+        "tabari",
+        "qurtubi",
+        "ibn",
+        "kathir",
+        "exegetical",
+        "reports",
+        "classical",
+        "claims"
+      ],
+      "text": "This report appears in Ibn Abī Hātim’s tafsīr and is cited by later exegetes (16). However, like many tafsīr transmissions, it does not occur in the Sahīh hadith collections and is transmitted without a fully authenticated isnād. It is stated that the verse (65:4) was revealed to address categories with specific waiting periods. This tafsīr report suggests that Ubayy’s comment prompted clarification in the Qur’an that the prescribed ʿiddah applies to women who have not menstruated (i.e., young girls), those who have ceased menstruation (menopausal), and those who are pregnant. Ibn Kathīr synthesized verse 65:4 with the hadith reports about ʿĀʾishah and the tafsīr narration attributed to Ubayy ibn Kaʿb, treating them collectively as evidence that the Qur’an encompasses prepubescent girls within its ruling on ʿiddah.\n\nIbn Kathīr built on earlier exegetes, notably al-Tabarī and al-Qurtubī, who form the backbone of the mainstream tafsīr tradition on 65:4. Al-Tabarī in his Jāmiʿ al-Bayān writes:\n\n“As for those who have not menstruated, their waiting period is three months. So said the scholars regarding this matter. Ibn Zayd said: If a man divorces a young girl who has not menstruated, then her waiting period is three months.”\n\nAl-Tabarī explicitly ties “those who have not menstruated” to al-saghīrah (the young girl) (17).\n\nAl-Qurtubī in al-Jāmiʿ li-Ahkām al-Qur’ān likewise comments (18):",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s06:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Tradition on 65:4",
+      "section_number": 6,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "tafsir",
+        "tabari",
+        "qurtubi",
+        "ibn",
+        "kathir",
+        "exegetical",
+        "reports",
+        "classical",
+        "claims"
+      ],
+      "text": "“As for the waiting period of the one who has not menstruated due to her young age, her waiting period is three months.”\n\nIbn Kathīr largely reiterated these interpretations. Classical exegetes appear not to have considered alternative explanations for the phrase wa-llāʾī lam yahidna (“those who have not menstruated”), such as adult women who have not menstruated due to medical conditions (amenorrhea). Not only did they rely on received hadith and tafsīr reports, but they were also influenced by the prevailing social norms of their times. In his landmark book, Truth and Method (1989), Hans-Georg Gadamer argues that the interpreter’s prejudices and historicity must be taken into consideration, for all interpretation is shaped by preconceptions (21).\n\nThe disjuncture between the exegetical readings and the Qur’anic language on the issue demands a recalibration of our understanding of the norms of marriage in the Quran.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s07:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Impositions at Odds with Qur’anic Linguistic Integrity",
+      "section_number": 7,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:222",
+        "4:127",
+        "4:176",
+        "64:1",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "grammatical",
+        "agreement",
+        "tafsir",
+        "external",
+        "narratives",
+        "question",
+        "formula"
+      ],
+      "text": "The dominant exegetical reading stands at odds with the Qur’an’s own linguistic and rhetorical patterns. The Qur’an never uses the term al-saghīrah (“the young girl”) when legislating marriage or divorce, but instead consistently employs the term nisāʾ (“women”). Moreover, if one accepts the claim that 65:4 was revealed in response to Ubayy ibn Kaʿb’s query about the demographic to which ʿiddah applies, it is striking that the verse does not open with the formula “They ask you…” (yasʾalūnaka / yastaftūnaka), as in other clarifying verses including those pertaining to women’s issues (2:222, 4:127, 4:176). Yet this is not the case: 65:4 begins with wa (“and”), a resumption particle indicating continuation from 64:1, which itself starts with yā ayyuhā al-nabiyu (“O Prophet”), showing that the divine guidelines on the waiting period after divorce were communicated directly to Muhammad without any prompting from his companions.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s07:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Impositions at Odds with Qur’anic Linguistic Integrity",
+      "section_number": 7,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:222",
+        "4:127",
+        "4:176",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "grammatical",
+        "agreement",
+        "tafsir",
+        "external",
+        "narratives",
+        "question",
+        "formula"
+      ],
+      "text": "Furthermore, Kaʿb’s a priori classification—allegedly made prior to the revelation of 65:4—assumes young girls as a category which later exegetes then treated as authoritative. This reasoning exemplifies a form of circular logic or a ‘begging the question’ fallacy: the interpretation assumes the conclusion (that young girls are included) rather than allowing the Qur’an’s own text and grammar to define the verse’s scope. Such an interpretive imposition introduces human constructs into the reading of the divine speech, creating a tension between the Qur’an’s diction and the dominant exegetical tradition.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s07:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Exegetical Impositions at Odds with Qur’anic Linguistic Integrity",
+      "section_number": 7,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:222",
+        "4:127",
+        "4:176",
+        "65:4"
+      ],
+      "topics": [
+        "nisāʾ",
+        "grammatical",
+        "agreement",
+        "tafsir",
+        "external",
+        "narratives",
+        "question",
+        "formula"
+      ],
+      "text": "Ibn Kathīr’s commentary, produced in the 14th century under the Mamluk context, reflects reliance on inherited reports and cultural norms more than on independent linguistic analysis of the Qur’an. By treating hadith about ʿĀʾishah’s marriage and the tafsīr report of Ubayy ibn Kaʿb as decisive, he privileged tradition over a Qur’an-centered reading. His interpretation, in line with earlier exegetes, advanced views on child marriage that may owe more to prevailing historical culture than to the Qur’an’s own linguistic framework (16, 17, 18). Modern scholarship further illuminates how early Islamic marriage practices, influenced by pre-Islamic norms, shaped such exegesis (7), while political and sectarian agendas may have motivated hadith fabrication (9). Contemporary critiques have emphasized the need to re-evaluate these interpretations in light of the Qur'an's linguistic and textual integrity (2).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s08:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Marriage in the Qur’an: Adulthood, Consent, and Maturity",
+      "section_number": 8,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:1",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "4:21",
+        "24:58",
+        "24:59",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "maturity",
+        "rushd",
+        "balaghu",
+        "nikah",
+        "orphans",
+        "nisa",
+        "women"
+      ],
+      "text": "The Qur'an 4:1 and 4:3-4, in Surah An-Nisa (The Women), further clarifies that marriage is for adult, mature women by using nisāʾ and emphasizing qualities tied to adulthood (1). The passage begins:\n\nيَا أَيُّهَا النَّاسُ اتَّقُوا رَبَّكُمُ الَّذِي خَلَقَكُمْ مِنْ نَفْسٍ وَاحِدَةٍ وَخَلَقَ مِنْهَا زَوْجَهَا وَبَثَّ مِنْهُمَا رِجَالًا كَثِيرًا وَنِسَاءً وَاتَّقُوا اللَّهَ الَّذِي تَسَاءَلُونَ بِهِ وَالْأَرْحَامَ إِنَّ اللَّهَ كَانَ عَلَيْكُمْ رَقِيبًا ()\n\nO mankind! Be conscious of your Sustainer, who has created you out of one living entity, and out of it created its mate, and out of the two spread abroad a multitude of men and women. And remain conscious of God, in whose name you demand [your rights] from one another, and of these ties of kinship. Verily, God is ever watchful over you! (4:1)\n\nHere, nisāʾ denotes adult women, counterparts to men (rijāl), in the context of creation and familial bonds. Verses 4:3–4 continue:\n\nوَإِنْ خِفْتُمْ أَلَّا تُقْسِطُوا فِي الْيَتَامَى فَانْكِحُوا مَا طَابَ لَكُمْ مِنَ النِّسَاءِ مَثْنَى وَثُلَاثَ وَرُبَاعَ فَإِنْ خِفْتُمْ أَلَّا تَعْدِلُوا فَوَاحِدَةً أَوْ مَا مَلَكَتْ أَيْمَانُكُمْ ذَلِكَ أَدْنَى أَلَّا تَعُولُوا () وَآتُوا النِّسَاءَ صَدُقَاتِهِنَّ نِحْلَةً فَإِنْ طِبْنَ لَكُمْ عَنْ شَيْءٍ مِنْهُ نَفْسًا فَكُلُوهُ هَنِيئًا مَرِيئًا()",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s08:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Marriage in the Qur’an: Adulthood, Consent, and Maturity",
+      "section_number": 8,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:1",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "4:21",
+        "24:58",
+        "24:59",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "maturity",
+        "rushd",
+        "balaghu",
+        "nikah",
+        "orphans",
+        "nisa",
+        "women"
+      ],
+      "text": "\"And if you have reason to fear that you might not act equitably towards orphans, then marry from among women such as are lawful to you – [even] two, or three, or four: but if you have reason to fear that you might not be able to treat them with equal fairness, then [only] one – or [from among] those whom you rightfully possess. This will make it more likely that you will not deviate from the right course. And give unto women their marriage portions in the spirit of a gift; but if they, of their own accord, give up unto you aught thereof, then enjoy it with pleasure and good cheer.\" (4:3–4)\n\nThese verses use nisāʾ to describe marriageable women, emphasizing justice, consent, and financial responsibilities like dowers, which point to adult partners capable of mutual agreement and marital duties. The reference to orphans in 4:3 is linked to 4:6 which states:\n\nوَابْتَلُوا الْيَتَامَى حَتَّى إِذَا بَلَغُوا النِّكَاحَ فَإِنْ آنَسْتُمْ مِنْهُمْ رُشْدًا فَادْفَعُوا إِلَيْهِمْ أَمْوَالَهُمْ وَلَا تَأْكُلُوهَا إِسْرَافًا وَبِدَارًا أَنْ يَكْبَرُوا وَمَنْ كَانَ غَنِيًّا فَلْيَسْتَعْفِفْ وَمَنْ كَانَ فَقِيرًا فَلْيَأْكُلْ بِالْمَعْرُوفِ فَإِذَا دَفَعْتُمْ إِلَيْهِمْ أَمْوَالَهُمْ فَأَشْهِدُوا عَلَيْهِمْ وَكَفَى بِاللَّهِ حَسِيبًا ()",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s08:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Marriage in the Qur’an: Adulthood, Consent, and Maturity",
+      "section_number": 8,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:1",
+        "4:2",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "4:21",
+        "24:58",
+        "24:59",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "maturity",
+        "rushd",
+        "balaghu",
+        "nikah",
+        "orphans",
+        "nisa",
+        "women"
+      ],
+      "text": "And test the orphans [in your charge] until they reach the age of marriage; then, if you find them to be mature of mind, hand over to them their possessions; and do not consume them extravagantly or hastily in anticipation of their growing up. And let him who is rich abstain entirely [from his ward’s property]; and let him who is poor partake thereof in a fair manner. And when you hand over to them their possessions, let there be witnesses on their behalf – although God is sufficient as a witness. (4:6)\n\nThe Qur'an requires waiting for orphans to reach \"the age of marriage\" (balaghū an-nikāh) before entrusting property and mental maturity (rushd), underscoring the principle that legal and social responsibility requires adulthood. Read holistically, 4:1–4 with 4:6 indicates that marriage is intended for adult women who have reached mental maturity, consistent with the Quran’s text and grammar.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s08:c03",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Marriage in the Qur’an: Adulthood, Consent, and Maturity",
+      "section_number": 8,
+      "chunk_number": 3,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:221",
+        "2:222",
+        "2:223",
+        "4:1",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "4:21",
+        "4:22",
+        "4:23",
+        "4:24",
+        "4:25",
+        "24:58",
+        "24:59",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "maturity",
+        "rushd",
+        "balaghu",
+        "nikah",
+        "orphans",
+        "nisa",
+        "women"
+      ],
+      "text": "The Quran’s marriage rulings consistently use nisāʾ to refer to marriageable females, as seen in verses like 2:221-223, 4:22–24, and 4:25, which address believing women capable of consent and responsibility. Verses 4:19 and 4:21 present marriage as a solemn covenant (mīthāqan ghalīzan) and emphasize mutual consent and kindness in marriage, indicating partners with the capacity for informed decision-making (6, 8). The Qur'an’s silence on prepubescent marriage, combined with its emphasis on reaching the age of maturity (e.g., 4:6), confirms that marriage is between adult males and females. The discussion in 2:222 assumes women in marital relations are menstruating, and of reproductive age. In 65:4, \"those who have not menstruated\" is more plausibly understood as referring to adult women with physiological conditions, not children, as no Qur'anic term or context supports such an interpretation. Qur’an 24:58-59 establishes that children are subject to special privacy rules until they reach puberty (hulm)—an age of discernment and maturity—after which they are treated as adults responsible for observing household boundaries similar to those senior to them. Taken together, these verses reveal a consistent framework: marriage in the scripture is firmly grounded in adulthood, responsibility, and consent (1, 2, 5, 6, 8).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s08:c04",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Marriage in the Qur’an: Adulthood, Consent, and Maturity",
+      "section_number": 8,
+      "chunk_number": 4,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:221",
+        "2:222",
+        "2:223",
+        "4:1",
+        "4:2",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "4:21",
+        "24:58",
+        "24:59",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "maturity",
+        "rushd",
+        "balaghu",
+        "nikah",
+        "orphans",
+        "nisa",
+        "women"
+      ],
+      "text": "Some hadiths mention puberty or consent in marriage, partially aligning with the Qur'an’s emphasis on maturity. However, those hadiths claiming ʿĀʾishah was a child bride and played with dolls or on a swing with friends conflict with the Quran’s consistent use of nisāʾ and its focus on adult females (e.g., 4:6, 4:19). As human-compiled texts, hadiths are inherently fallible, whereas the Quran represents God’s perfect, infallible word. Verses such as 2:221–223, 4:1-4, 4:6, 4:19, and 4:21 collectively emphasize that marriage is intended for older menstruating females capable of consent and responsibility, providing a clear and complete framework (1, 10). By relying solely on the Qur'an’s text, grammar, and interconnected verses, one can discern God’s guidance on marriage, without needing to depend on hadiths that introduce distortions or culturally influenced interpretations (5, 10, 11). This raises a broader methodological question, how should themes such as marriage guide our interpretation?",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s09:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Text, Grammar, and Context: A Qur’an-Only Method of Interpretation",
+      "section_number": 9,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "4:19",
+        "4:21",
+        "6:114",
+        "6:115",
+        "7:52",
+        "12:111",
+        "16:89",
+        "17:9",
+        "39:18",
+        "49:6",
+        "65:4"
+      ],
+      "topics": [
+        "quran",
+        "only",
+        "methodology",
+        "coherence",
+        "calibration",
+        "tafsir",
+        "hadith",
+        "authority",
+        "marriage",
+        "maturity"
+      ],
+      "text": "The Qur'an, as God’s infallible word, claims that it is the sole and sufficient authority for divine guidance. It is a clarification and detailed explanation of everything (16:89, 6:114-115, 7:52, 12:111, 17:9). To understand its message accurately including the complete criteria on marriage, one must study the text, grammar, and related verses as a whole, ensuring interpretations remain faithful to its divine intent. Hadiths claiming that ʿĀʾishah was married at six and consummated at nine introduce a narrative of child marriage entirely absent from the Qur'an’s framework, which emphasizes adult women (nisāʾ) and maturity (e.g., 4:6, 4:19, 4:21). The Qur'an consistently treats women as legally competent adults—able to own property, take oaths, bear witness, and bear full accountability—roles that prepubescent girls cannot fulfill. These hadith reports and the later exegetical sources, shaped by post-prophetic cultural and political contexts, rely on narrators whose reliability has been debated (4, 6, 10, 11). Such hadith reports, often shaped by early Islamic marriage practices that included pre-Islamic customs (7), may reflect political or sectarian motivations for fabrication (9). Modern critiques further highlight their inconsistencies with the Qur’an’s ethical framework (2).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s09:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Text, Grammar, and Context: A Qur’an-Only Method of Interpretation",
+      "section_number": 9,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:221",
+        "2:222",
+        "2:223",
+        "4:1",
+        "4:2",
+        "4:3",
+        "4:4",
+        "4:6",
+        "4:19",
+        "6:114",
+        "6:115",
+        "16:89",
+        "33:21",
+        "39:18",
+        "49:6",
+        "65:4"
+      ],
+      "topics": [
+        "quran",
+        "only",
+        "methodology",
+        "coherence",
+        "calibration",
+        "tafsir",
+        "hadith",
+        "authority",
+        "marriage",
+        "maturity"
+      ],
+      "text": "The Qur'an’s holistic guidance—seen in verses like 2:221–223, 4:1–4, 4:6, 4:19, and 65:4—frames marriage as a covenant between mature females and males, emphasizing consent, responsibility, and readiness (1, 8). Muhammad, the final messenger through whom the Qur'an was revealed, is understood to have been a good example for the believers (33:21) suggesting his actions aligned with divine principles, and the reports suggesting he married a prepubescent ʿĀʾishah are best read as later attributions which stand at odds with Qur'an's own linguistic and rhetorical patterns. Such inconsistencies underscore the importance of critically reevaluating hadith literature that conflicts with the divine guidance.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s09:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Text, Grammar, and Context: A Qur’an-Only Method of Interpretation",
+      "section_number": 9,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "4:19",
+        "6:114",
+        "6:115",
+        "9:107",
+        "16:89",
+        "33:12",
+        "33:13",
+        "39:18",
+        "49:6",
+        "63:1",
+        "63:2",
+        "63:3",
+        "65:4"
+      ],
+      "topics": [
+        "quran",
+        "only",
+        "methodology",
+        "coherence",
+        "calibration",
+        "tafsir",
+        "hadith",
+        "authority",
+        "marriage",
+        "maturity"
+      ],
+      "text": "Typically, hadith are understood as the sayings of the Prophet meant to “explain” the divine scripture. Yet in this case, narrators introduce an entirely new demographic— prepubescent girls—into the marriage context potentially assuming the conclusion a priori through circular reasoning or 'begging the question' fallacy without any linguistic basis in the Quran. In mainstream Islam, narrators of the major hadith collections are generally regarded as reliable and beyond reproach, even when the reports attributed to them do not stand up to scrutiny when they are critically evaluated and benchmarked against the Quran. Questioning such reports can provoke reprisal from devout followers who treat them as final authority, discouraging intellectual discourse. The Quran, however, grants no such immunity to human transmitters. It explicitly warns that even some of the Prophet’s contemporaries were hypocrites whose words and actions were unreliable (63:1–3, 9:107, 33:12–13), underscoring the need to evaluate all reports carefully and independently (49:6), and reaching one's conclusions on the basis of critical examination and logical inference (39:18) with the word of God as the ultimate standard of truth.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s09:c03",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Text, Grammar, and Context: A Qur’an-Only Method of Interpretation",
+      "section_number": 9,
+      "chunk_number": 3,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "2:221",
+        "2:222",
+        "2:223",
+        "4:6",
+        "4:19",
+        "4:21",
+        "4:22",
+        "4:23",
+        "4:24",
+        "4:25",
+        "6:114",
+        "6:115",
+        "16:89",
+        "39:18",
+        "49:6",
+        "65:4"
+      ],
+      "topics": [
+        "quran",
+        "only",
+        "methodology",
+        "coherence",
+        "calibration",
+        "tafsir",
+        "hadith",
+        "authority",
+        "marriage",
+        "maturity"
+      ],
+      "text": "The Qur’an precisely encodes divine guidance in its text, grammar, and interwoven verses, which can be decoded by examining it from within—without reliance on external sources—thereby preventing false assumptions, erroneous interpretations, and intellectual tampering.\n\nIt must be engaged directly to ensure that the true meaning of the text is not distorted by political and cultural impositions.\n\nA close study of the Qur’an’s text and grammar makes it clear that it elevates women's status by requiring adulthood and consent and does not reintroduce the hadith-based narrative of supporting pre-Islamic cultural practices of prepubescent marriage.\n\nThe Qur’an consistently uses the term nisāʾ (women) in marriage rulings (2:221–223, 4:22–25), and emphasizes mutual consent (4:19), solemn covenant (mīthāq ghalīz, 4:21), and maturity (4:6), all of which presuppose adult partners with the capacity for responsibility.\n\nVerse 2:222 addresses menstruation in the context of marital relations, indicating that the Qur’an links marriage and sexual relations to women who have reached biological maturity.\n\nEven in 65:4—often misinterpreted—the phrase “those who have not menstruated” is better understood as referring to post-menopausal women or women with medical conditions such as amenorrhea, not children, since the Qur’an provides no language permitting child marriage.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s09:c04",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Text, Grammar, and Context: A Qur’an-Only Method of Interpretation",
+      "section_number": 9,
+      "chunk_number": 4,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "4:19",
+        "6:114",
+        "6:115",
+        "7:52",
+        "16:89",
+        "39:18",
+        "49:6",
+        "65:4"
+      ],
+      "topics": [
+        "quran",
+        "only",
+        "methodology",
+        "coherence",
+        "calibration",
+        "tafsir",
+        "hadith",
+        "authority",
+        "marriage",
+        "maturity"
+      ],
+      "text": "Many modern Muslim-majority countries, recognizing the Qur’an’s emphasis on maturity and responsibility, have set minimum age laws (e.g., 16 or 18), aligning with its principles of justice and protection (20).\n\nThrough careful intellectual analysis, Muslims can recover God’s guidance not only on marriage but also on other societal issues, grounded solely on the Qur’an’s clear and infallible revelation (16:89, 6:114–115, 7:52).\n\nThis Qur’an only method guards against external intrusions and socio-cultural assumptions, which, as is evident in the case of traditional exegetes, have shaped, and in the case of the age of marriage, distorted interpretation.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s10:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "Conclusion",
+      "section_number": 10,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:6",
+        "65:4"
+      ],
+      "topics": [
+        "marriage",
+        "adulthood",
+        "consent",
+        "child",
+        "marriage",
+        "quran",
+        "hadith"
+      ],
+      "text": "This study has critically examined the Qur’an, Hadith, and exegetical traditions in relation to the debate on child marriage, with particular attention to Qur’an 65:4 and hadith reports concerning the age of ʿĀʾishah. The analysis demonstrates that the Qur’an consistently frames marriage as a contractual union requiring maturity, consent, and responsibility, offering no textual support for child marriage. Reports suggesting otherwise reflect cultural and historical contexts rather than the Qur’an’s ethical directives. By prioritizing Qur’anic guidance, this article calls for a re-reading of the tradition that upholds human dignity, protects children, and aligns with Islam’s higher objectives of justice and mercy. The study underscores the necessity of revisiting classical interpretations on the basis of comprehensive Qur'anic analysis, which in this case converges with contemporary understandings of children’s rights and welfare. Ultimately, it emphasizes that Islam envisions marriage as a responsible partnership rooted in moral accountability, not a cultural practice devoid of ethical grounding.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s11:c00",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "References",
+      "section_number": 11,
+      "chunk_number": 0,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "4:1",
+        "4:2",
+        "4:3",
+        "4:4",
+        "65:4"
+      ],
+      "topics": [
+        "bibliography",
+        "cited",
+        "scholarship",
+        "hadith",
+        "tafsir",
+        "works",
+        "sources"
+      ],
+      "text": "Asad, M. (1980). The Message of the Qur’an (M. Asad, Trans.). The Book Foundation. [Primary source for Quranic verses 65:4, 4:1–4, and other references.]\n\nAfsaruddin, A. (2014). Contemporary Issues in Islam. Edinburgh: Edinburgh University Press. [Discusses modern critiques of hadith authenticity and historical context.]\n\nSahih al-Bukhari. Translated by Muhammad Muhsin Khan. (1997). Riyadh: Darussalam Publishers. [Primary source for hadiths 5158, 5133, 5134.]\n\nBrown, J. A. C. (2009). Hadith: Muhammad’s Legacy in the Medieval and Modern World (pp. 129–135). Oxford: Oneworld Publications. [Analyzes hadith transmission, including questions about Hisham ibn Urwah’s reliability.]\n\nHallaq, W. B. (2005). The Origins and Evolution of Islamic Law (pp. 16–20). Cambridge: Cambridge University Press. [Discusses Quranic primacy and the role of hadiths in Islamic jurisprudence.]\n\nWadud, A. (1999). Qur’an and Woman: Rereading the Sacred Text from a Woman’s Perspective (pp. 72–73). Oxford University Press.\n\nAli, K. (2010). Marriage and Slavery in Early Islam. Cambridge, MA: Harvard University Press. [Provides historical context for marriage practices in early Islam.]\n\nBarlas, A. (2002). “Believing Women” in Islam: Unreading Patriarchal Interpretations of the Quran (pp. 141–143). Austin: University of Texas Press. [Critiques hadith-based interpretations that deviate from Quranic principles.]",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s11:c01",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "References",
+      "section_number": 11,
+      "chunk_number": 1,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "bibliography",
+        "cited",
+        "scholarship",
+        "hadith",
+        "tafsir",
+        "works",
+        "sources"
+      ],
+      "text": "Brown, D. W. (1999). Rethinking Tradition in Modern Islamic Thought. Cambridge: Cambridge University Press. [Discusses motivations for hadith fabrication, including political and sectarian agendas.]\n\nEdip Yuksel, E. (2007). Quran: A Reformist Translation. Brainbow Press. [Quranist perspective emphasizing the Quran’s sufficiency over hadiths.]\n\nSiddiqui, M. (2012). The Good Muslim: Reflections on Classical Islamic Law and Theology. Cambridge: Cambridge University Press. [Examines historical debates on hadith authenticity and their alignment with the Quran.]\n\nSahih Muslim. Translated by Muhammad Muhsin Khan. (2000). Riyadh: Darussalam Publishers. [Primary source for hadith 1422.]\n\nSunan an-Nasa'i. Translated by Muhammad Muhsin Khan. (2007). Riyadh: Darussalam Publishers. [Primary source for hadith 3378.]\n\nSunan Ibn Majah. Translated by Muhammad Muhsin Khan. (2007). Riyadh: Darussalam Publishers. [Primary source for hadith 1877.]\n\nMusnad Ahmad ibn Hanbal. Translated by Muhammad Muhsin Khan. (2012). Riyadh: Darussalam Publishers. [Primary source for hadiths 24139, 24602, 24603, 25636.]\n\nIbn Kathīr, I. ʿU. (2003). Tafsir Ibn Kathir (Abridged) (M. M. Khan, Trans.; 10 vols.). Riyadh: Dārussalām.[Ibn Kathīr’s exegesis and interpretation of 65:4]\n\nAl-Ṭabarī, M. J. (1990). Jāmiʿ al-Bayān ʿan Taʾwīl āy al-Qurʾān, vol. 23–24. Beirut: Dār al-Kutub al-ʿIlmiyya. [Classical interpretation of 65:4 including prepubescent girls.]",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis:s11:c02",
+      "article_id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "section": "References",
+      "section_number": 11,
+      "chunk_number": 2,
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "verse_refs": [
+        "65:4"
+      ],
+      "topics": [
+        "bibliography",
+        "cited",
+        "scholarship",
+        "hadith",
+        "tafsir",
+        "works",
+        "sources"
+      ],
+      "text": "Al-Qurṭubī, M. A. (2001). Al-Jāmiʿ li-Ahkām al-Qurʾān, vol. 9. Beirut: Dār al-Kutub al-ʿIlmiyya. [Classical interpretation of 65:4 including prepubescent girls.]\n\nRahman, F. (1980). Major Themes of the Qur’an. Bibliotheca Islamica.\n\nUNICEF. (2020). Child Marriage in the Middle East and North Africa. United Nations Children’s Fund.\n\nGadamer, H.-G. (1989). Truth and Method. Translated by Joel Weinsheimer and Donald G. Marshall. New York: Crossroad.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    }
+  ]
+};
 
 type Chunk = {
   id: string; article_id: string; title: string; section: string;
