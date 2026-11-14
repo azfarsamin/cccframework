@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { searchResearch, formatResearchContext } from "../../../lib/research-retrieval";
 
 export const runtime = "nodejs";
 export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
@@ -12,6 +13,7 @@ const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing s
 const AUDIT_OUTPUT_TOKENS = 1200; // Short, targeted proofing pass; never rewrites the full answer.
 const DISCOVERY_OUTPUT_TOKENS = 1300;
 const HEARTBEAT_MS = 12000;
+// User-authored research excerpts enrich discovery but never override Qur'anic wording.
 
 type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
@@ -173,13 +175,13 @@ function chooseDiscoveryPool(candidates: EvidenceCandidate[], corpus: Corpus): E
 function evidenceText(refs: string[], corpus: Corpus): string {
   return refs.filter(ref => corpus[ref]).map(ref => `${ref} ${corpus[ref]}`).join("\n");
 }
-const DISCOVERY_SYSTEM = `You are selecting evidence for Qurʾān-only, pan-textual research. The supplied candidates were retrieved from a FULL-CORPUS morphological scan; roots alone do not establish relevance. First prioritize verses addressing the same concrete subject, command, object, and consequences; next clauses that qualify or challenge those claims; then relevant contextual and grammatical parallels. Never prioritize incidental shared roots over direct subject matter. Do not invent references. Return ONLY JSON {"references":["2:275",...],"coverage_gaps":["short specific issue"]}. Choose 8–16 unique references from the supplied list. Preserve direct subject occurrences and important adjacent passages; include possible tension, not only corroboration. Report any critical unresolved evidence limitations without inventing sources.`;
+const DISCOVERY_SYSTEM = `You are selecting evidence for Qurʾān-only, pan-textual research. The supplied candidates were retrieved from a full-corpus scan plus candidate citations from the indexed research library; roots alone do not establish relevance. First prioritize verses addressing the same concrete subject, command, object, and consequences; next clauses that qualify or challenge those claims; then relevant contextual and grammatical parallels. Never prioritize incidental shared roots over direct subject matter. Do not invent references. Return ONLY JSON {"references":["2:275",...],"coverage_gaps":["short specific issue"]}. Choose 8–16 unique references from the supplied list. Preserve direct subject occurrences and important adjacent passages; include possible tension, not only corroboration. Report any critical unresolved evidence limitations without inventing sources.`;
 
 const AUDIT_SYSTEM = `You are an evidence-grounded Qurʾān-only reviewer, not an autonomous editor. Audit the FIVE-section analysis against the supplied full Arabic focal verse, corpus morphology and verified Arabic evidence. Check conditional syntax, operative-clause coverage, invented grammatical discrepancies, misquotation, and unsupported inference. Distinguish morphology tags from syntactic conclusions. Do not manufacture ambiguity, infer absent verses, or invent corrections.
 Return ONLY JSON {"findings":[{"quote":"exact unique substring from analysis","issue":"specific material error","evidence_ref":"chapter:verse","evidence_quote":"exact contiguous Arabic quote from the SUPPLIED verse text","suggestion":"proposed correction"}],"unresolved":[]}. Maximum 4 findings and 2 unresolved. Evidence reference and Arabic quotation are mandatory for any finding. A lexical match does not prove a semantic claim. If no verified material error, use empty arrays. This review is advisory; the original text is not automatically overwritten.`;
 
 const SYSTEM = `Analyze ONE Qurʾānic verse using the complete Arabic, numbered morphology, local context and PRE-DISCOVERED PAN-TEXTUAL EVIDENCE. Qurʾān-only: no hadith, tafsir, inherited reconstruction or presupposed geography.
-EVIDENCE ORDER: The primary verse first; relevant Qurʾānic passages next; grammatical/morphological annotations as fallible analytical data. Prioritize directly related concepts over common roots or superficial phrase similarities. Your conclusions must follow the cumulative evidence, not merely the focal verse.
+SOURCE RULE: Indexed research is authored interpretation, NOT Qurʾānic authority. Extract its testable claims and verse citations, test each against actual Qurʾānic wording, reject unsupported premises. Do not automatically adopt the article's conclusions or external hadith/tafsir materials. Label any argument drawn from the article as an attributed hypothesis.\nEVIDENCE ORDER: The primary verse first; relevant Qurʾānic passages next; grammatical/morphological annotations as fallible analytical data. Prioritize directly related concepts over common roots or superficial phrase similarities. Your conclusions must follow the cumulative evidence, not merely the focal verse.
 GRAMMAR: Conditional protasis includes all prerequisites before its consequence. Separate conditional in (إِنْ) from emphatic inna (إِنَّ); subjunctive after purpose lām from jussive after command lām; ordinary negation lā from prohibition lā. Do not fabricate textual variants from annotation disagreements, case endings, or romanization. Distinguish active from passive participles. Cite word numbers sparingly and accurately.
 CALIBRATION: Separate (A) explicit wording of selected verse, (B) conclusions warranted by cumulative Qurʾānic evidence, (C) possible but not established. Never turn uncertainty into certainty or declare a question unresolved before checking supplied evidence. Do not import external narratives. Avoid unsupported legal generalizations.
 OUTPUT: Only the exact requested headings; no separate Arabic verse or translation section (already displayed in Reader). Use clean Unicode Arabic and readable prose, NEVER HTML entities or raw corpus notation. Section 3 MUST distinguish direct subject evidence from structural parallels and explain each passage's contribution and tensions. No arbitrary four-reference cap. Never say Qurʾānic evidence outside the verse is extraneous.`;
@@ -220,8 +222,27 @@ export async function POST(req: NextRequest) {
   if (!focalMorph?.length)
     return NextResponse.json({ error: `Morphological evidence for ${ref} is unavailable. Analysis was not attempted.` }, { status: 503 });
 
+  // Retrieve authored research BEFORE discovery and interpretation. Fail open if
+  // index has not been deployed; the existing Qur'an pipeline remains usable.
+  let researchContext = "No indexed research available.";
+  let researchRefs: string[] = [];
+  try {
+    const articleHits = await searchResearch("", ref, 4);
+    researchContext = formatResearchContext(articleHits, 4200);
+    researchRefs = [...new Set(articleHits.flatMap(hit => hit.verseRefs))];
+  } catch (err) {
+    console.warn("Research index unavailable; continuing Qur'an-only", err instanceof Error ? err.message : err);
+  }
   const grammar = focalMorph.map(extractWordFacts).join("\n");
   const candidatePool = chooseDiscoveryPool(discoveryCandidates(ref, corpus, morph), corpus);
+  // Article verse references are candidate leads only, never injected as authoritative
+  // evidence; only actual corpus verses may be added. This avoids losing concept
+  // references that share no morphological root with the focal verse.
+  for (const linkedRef of researchRefs) {
+    if (linkedRef !== ref && corpus[linkedRef] && !candidatePool.some(c => c.ref === linkedRef)) {
+      candidatePool.push({ ref: linkedRef, score: 12, reasons: ["indexed article citation; verify against Qur'an"], required: false });
+    }
+  }
   const requestedRefs = Array.isArray(data.evidence) ? data.evidence.filter((x): x is string => typeof x === "string" && /^\d{1,3}:\d{1,3}$/.test(x)).slice(0, 22) : [];
   const validCandidates = new Set(candidatePool.map(x => x.ref));
   const evidenceRefs = [...new Set(requestedRefs)].filter(r => validCandidates.has(r) && Boolean(corpus[r]));
@@ -309,10 +330,10 @@ export async function POST(req: NextRequest) {
             messages: [
               { role: "system", content: stage === "discovery" ? DISCOVERY_SYSTEM : stage === "audit" ? AUDIT_SYSTEM : SYSTEM },
               { role: "user", content: stage === "discovery"
-                ? `FOCAL VERSE ${ref} (full Arabic):\n${corpus[ref]}\n\nCORPUS-WIDE CANDIDATES, SCORED AS DISCOVERY LEADS ONLY (preview text can be truncated, complete selected text will be retrieved later):\n${candidatePool.map(c => `${c.ref} [${c.required ? "DIRECT ROOT" : "CONTEXT"}; ${c.reasons.slice(0,2).join("; ")}] ${corpus[c.ref].slice(0,420)}`).join("\n")}\n\nChoose references on SUBSTANTIVE grounds, not coincidental roots. Do not omit direct topic occurrences in favor of generic lexical parallels.`
+                ? `FOCAL VERSE ${ref} (full Arabic):\n${corpus[ref]}\n\nCORPUS-WIDE CANDIDATES, SCORED AS DISCOVERY LEADS ONLY (preview text can be truncated, complete selected text will be retrieved later):\n${candidatePool.map(c => `${c.ref} [${c.required ? "DIRECT ROOT" : "CONTEXT"}; ${c.reasons.slice(0,2).join("; ")}] ${corpus[c.ref].slice(0,420)}`).join("\n")}\n\nINDEXED RESEARCH EXCERPTS (authored argument, not scripture):\n${researchContext}\n\nChoose references on SUBSTANTIVE grounds, not coincidental roots. Do not omit direct topic occurrences in favor of generic lexical parallels.`
                 : stage === "audit"
-                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
-                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\n${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nINDEXED RESEARCH (not primary evidence):\n${researchContext}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nINDEXED RESEARCH (attributed arguments, not Qur'anic authority):\n${researchContext}\n\n${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
             ],
           }),
         });
