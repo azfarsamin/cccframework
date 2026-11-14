@@ -368,6 +368,9 @@ export default function QuranResearchPage() {
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
+  // Immutable identity of the request being streamed (independent of Reader navigation).
+  const [analysisReference, setAnalysisReference] = useState<string | null>(null);
+  const [readerStatus, setReaderStatus] = useState("");
   const [incomplete, setIncomplete] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [status, setStatus] = useState("");
@@ -377,16 +380,16 @@ export default function QuranResearchPage() {
     fetch("https://api.alquran.cloud/v1/surah")
       .then((r) => { if (!r.ok) throw new Error("Surah list unavailable"); return r.json(); })
       .then((j: QuranResponse<Surah[]>) => setSurahs(j.data))
-      .catch(() => setStatus("Could not load the surah list. Check network access."));
+      .catch(() => setReaderStatus("Could not load the surah list. Check network access."));
   }, []);
   useEffect(() => {
     let cancelled = false;
-    setAyahs([]); setSelected([]); setSelectedSearch([]); setAiResponse("");
+    setAyahs([]); setSelected([]); setSelectedSearch([]);
     fetch(`https://api.alquran.cloud/v1/surah/${chapter}/quran-uthmani`)
       .then((r) => { if (!r.ok) throw new Error("Unable to fetch Arabic text"); return r.json(); })
       .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) {
         setAyahs(j.data.ayahs);
-        setStatus("");
+        setReaderStatus("");
         if (pendingJump.current?.chapter === chapter) {
           const verse = pendingJump.current.verse;
           if (verse <= j.data.ayahs.length) {
@@ -398,7 +401,7 @@ export default function QuranResearchPage() {
           pendingJump.current = null;
         }
       } })
-      .catch(() => { if (!cancelled) setStatus("Unable to load Arabic text from the data provider."); });
+      .catch(() => { if (!cancelled) setReaderStatus("Unable to load Arabic text from the data provider."); });
     return () => { cancelled = true; };
   }, [chapter]);
 
@@ -750,14 +753,11 @@ export default function QuranResearchPage() {
     : selectedAyahs.map(a => ({ chapter, verse: a.numberInSurah, arabic: a.text }));
   const currentSurah = surahs.find(s => s.number === chapter);
   function toggleAyah(n: number) {
+    // Reader selection is independent of any active or completed Chutes stream.
     setSelected(old => old.length === 1 && old[0] === n ? [] : [n]);
-    analysisRun.current++; analysisAbort.current?.abort(); analysisAbort.current = null; setLoading(false);
-    setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
   }
   function toggleSearchVerse(result: SearchResult) {
     setSelectedSearch(old => old.length === 1 && old[0].chapter === result.chapter && old[0].verse === result.verse ? [] : [result]);
-    analysisRun.current++; analysisAbort.current?.abort(); analysisAbort.current = null; setLoading(false);
-    setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
   }
   const analysisVerse = analysisVerses[0] || null;
   function cancelAnalysis() {
@@ -775,6 +775,8 @@ export default function QuranResearchPage() {
     analysisAbort.current = request;
     const run = ++analysisRun.current;
     const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
+    setAnalysisReference(reference);
+    setResearchTab("analysis");
     setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false);
     let collected = "";
     let completed = false;
@@ -794,7 +796,7 @@ export default function QuranResearchPage() {
         }
         throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
       }
-      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.4.1 files together and hard-refresh the Reader.");
+      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: deploy the matching v7.5 files and hard-refresh the Reader.");
       if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -858,9 +860,9 @@ export default function QuranResearchPage() {
     }
   }
   function saveNote() {
-    if (!analysisVerse) { setStatus("Select a verse before saving an analysis note."); return; }
+    if (!analysisReference || !aiResponse) { setStatus("No analysis output to save."); return; }
     const entry: Note = {
-      id: `${Date.now()}`, reference: refOf(analysisVerse.chapter, analysisVerse.verse),
+      id: `${Date.now()}`, reference: analysisReference,
       question: "Detailed Analysis", response: cleanAnalysisText(aiResponse) || "Analysis not generated.", created: new Date().toISOString(),
     };
     const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
@@ -930,9 +932,10 @@ export default function QuranResearchPage() {
           {showSearchResults ? (
             <div className={styles.resultsToolbar}>
               <span><strong>{globalTotal ?? 0}</strong> matches · Arabic and {editions.find(e => e.id === edition)?.name}</span>
-              <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]); setAiResponse("");}}>Back to surah reader</button>
+              <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]);}}>Back to surah reader</button>
             </div>
           ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
+          {readerStatus && <p role="alert" className={styles.status}>{readerStatus}</p>}
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
@@ -995,7 +998,7 @@ export default function QuranResearchPage() {
             <div className={styles.panelHeader}>
               <h2>Study tools</h2>
               <div className={styles.researchActions}>
-                <span>{analysisVerse ? `Verse ${refOf(analysisVerse.chapter, analysisVerse.verse)}` : "Select a verse"}</span>
+                <span>{loading && analysisReference ? `Streaming ${analysisReference}` : analysisVerse ? `Selected ${refOf(analysisVerse.chapter, analysisVerse.verse)}` : "Select a verse"}</span>
                 <button
                   type="button"
                   className={styles.researchExpandButton}
@@ -1175,16 +1178,19 @@ export default function QuranResearchPage() {
               </div>}
               {researchTab === 'analysis' && <>
           <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "No verse selected"}</span></div>
-            <div className={styles.selection}>{analysisVerse ? <span>{refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select one verse in the Reader."}</div>
-            <p className={styles.hint}>The selected model analyzes grammar, immediate context, and related Qurʾānic verses. Results appear progressively as the model responds.</p>
+            <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{analysisReference ? `Analysis ${analysisReference}` : "No analysis yet"}</span></div>
+            <div className={styles.selection}>
+              {analysisVerse ? <span>Reader selection: {refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select a verse in the Reader."}
+              {analysisReference && <span style={{ marginLeft: 12 }}> {loading ? "Streaming" : "Last analysis"}: {analysisReference}</span>}
+            </div>
+            <p className={styles.hint}>Browse and search on the left without interrupting this analysis. A new request begins only when you press Analyze verse; Stop cancels it explicitly. Keep this browser tab open while streaming.</p>
             <label className={styles.label}>Private analysis passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? "Analyzing verse…" : "Analyze verse"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? `Analyzing ${analysisReference || "verse"}…` : `Analyze ${analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "selected verse"}`}</button>
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/></div>}
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/></div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
