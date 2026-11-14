@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { planQuranQuery, parseVerseReferences, isRetrievalOnly } from "../../../lib/ccc-query-planner";
+import { resolveLexicalQuery } from "../../../lib/ccc-lexical-resolver";
 import { collectEvidence, versesForReferences, formatExactEvidence } from "../../../lib/ccc-evidence-engine";
 import { timingSafeEqual } from "node:crypto";
 import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } from "../../../lib/ccc-corpus";
@@ -148,7 +149,19 @@ export async function POST(request: NextRequest) {
     // are corpus-determined and run before any thematic discovery or AI.
     const parsedRefs = parseVerseReferences(q);
     if (parsedRefs.invalid) return NextResponse.json({ error: parsedRefs.invalid }, {status:400});
-    const queryPlan = planQuranQuery(q);
+    let queryPlan = planQuranQuery(q);
+    // Generic indexed lexical resolution precedes conceptual AI retrieval.
+    // If a lexical target cannot be resolved, NEVER fabricate a zero count.
+    if (queryPlan.kind === "semantic") {
+      const resolution = await resolveLexicalQuery(q);
+      if (resolution.status === "resolved") queryPlan = resolution.plan;
+      if (resolution.status === "unresolved") {
+        return NextResponse.json({
+          answer: `Could not resolve the lexical term **${resolution.term}** uniquely in the Qurʾānic morphology index. This is NOT evidence of zero occurrences. ${resolution.reason}.${resolution.suggestions.length ? `\n\nCorpus-derived candidates: ${resolution.suggestions.join("; ")}` : ""}\n\nTry the Arabic spelling or specify the lemma versus root.`,
+          incomplete: true, finishReason: "lexical_resolution_required", queryClass: "lexical-unresolved", evidenceComplete: false,
+        });
+      }
+    }
     console.info("CCC query planner", {kind:queryPlan.kind, analysis:queryPlan.analysis, scope:queryPlan.scope});
     if (queryPlan.kind !== "semantic") {
       stage = "planned_evidence";
