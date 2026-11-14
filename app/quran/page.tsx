@@ -369,6 +369,13 @@ export default function QuranResearchPage() {
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[] } | null>(null);
+  const [evidenceAudit, setEvidenceAudit] = useState<{
+    references: string[];
+    researchSources: { id: string; title: string; section: string }[];
+    researchReferences: string[];
+    lexical: { lemma: string; total: number; supplied: number }[];
+    sources: Record<string, string[]>;
+  } | null>(null);
   // Immutable identity of the request being streamed (independent of Reader navigation).
   const [analysisReference, setAnalysisReference] = useState<string | null>(null);
   const [readerStatus, setReaderStatus] = useState("");
@@ -778,7 +785,7 @@ export default function QuranResearchPage() {
     const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
     setAnalysisReference(reference);
     setResearchTab("analysis");
-    setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null);
+    setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null); setEvidenceAudit(null);
     let collected = "";
     let discovered: string[] = [];
     try {
@@ -816,7 +823,7 @@ export default function QuranResearchPage() {
           const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
           const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
           if (!data) return;
-          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
+          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string }[]; researchReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
           try { value = JSON.parse(data); } catch { return; }
           if (event === "delta") {
             const chunk = value.text || "";
@@ -825,6 +832,9 @@ export default function QuranResearchPage() {
             if (Date.now() - lastRender >= 125) { setAiResponse(collected); lastRender = Date.now(); }
           } else if (event === "evidence") {
             discovered = (value.references || []).filter(r => /^\d{1,3}:\d{1,3}$/.test(r));
+            setEvidenceAudit({ references: discovered, researchSources: value.researchSources || [],
+              researchReferences: value.researchReferences || [], lexical: value.lexical || [],
+              sources: value.sources || {} });
             setStatus(`Selected ${discovered.length} pan-textual evidence passages.`);
           } else if (event === "audit") {
             // Advisory findings only: the verifier may identify errors but
@@ -1214,6 +1224,15 @@ export default function QuranResearchPage() {
             <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? `Analyzing ${analysisReference || "verse"}…` : `Analyze ${analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "selected verse"}`}</button>
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
+            {evidenceAudit && <details className={styles.note}>
+              <summary>Evidence audit: {evidenceAudit.references.length} Qurʾānic passages supplied; {evidenceAudit.researchSources.length} research excerpts</summary>
+              <p className={styles.hint}>These are search leads verified against the local Qurʾān, not independent proof of an article's conclusion. Evidence remains fixed across the analysis stages.</p>
+              <p><strong>Full Arabic passages supplied:</strong> {evidenceAudit.references.join(", ")}</p>
+              <p><strong>Indexed research excerpts used:</strong></p>
+              <ul>{evidenceAudit.researchSources.map(src => <li key={src.id}>{src.title} — {src.section}</li>)}</ul>
+              <p><strong>Corpus lemma coverage:</strong></p>
+              <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{entry.lemma}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
+            </details>}
             {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} grounded finding(s), {auditReport.unresolved.length} unresolved question(s)</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
