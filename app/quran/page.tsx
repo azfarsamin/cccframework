@@ -794,7 +794,7 @@ export default function QuranResearchPage() {
         }
         throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
       }
-      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.4 files together and hard-refresh the Reader.");
+      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.4.1 files together and hard-refresh the Reader.");
       if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
