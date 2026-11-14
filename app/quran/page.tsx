@@ -766,12 +766,13 @@ export default function QuranResearchPage() {
     let collected = "";
     let completed = false;
     try {
-      const response = await fetch("/api/verse-analysis", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
+      const response = await fetch("/api/verse-analysis?protocol=sse-v1", {
+        method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "Accept": "text/event-stream", "x-ccc-passcode": password },
         body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse }),
         signal: request.signal,
       });
       const type = (response.headers.get("content-type") || "").toLowerCase();
+      const protocol = response.headers.get("x-verse-analysis-protocol") || "";
       if (!response.ok || !type.includes("text/event-stream")) {
         const payload = await response.text();
         let message: string | undefined;
@@ -780,6 +781,7 @@ export default function QuranResearchPage() {
         }
         throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
       }
+      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.3b files together and hard-refresh the Reader.");
       if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
