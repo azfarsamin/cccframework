@@ -8,7 +8,7 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 // Fail before the platform's 150-second limit, preserving any streamed text.
 // A shorter response and leaner evidence payload should normally finish well before this.
 const UPSTREAM_LIMIT_MS = 132000;
-const MAX_OUTPUT_TOKENS = 4200; // Non-thinking output budget; tokens are no longer consumed by hidden reasoning.
+const MAX_OUTPUT_TOKENS = 4200; // Per-stage budget: each request produces only three sections.
 const HEARTBEAT_MS = 12000;
 
 type MorphSegment = [string, string, string];
@@ -135,14 +135,7 @@ EVIDENCE AND GRAMMAR RULES:
 - When the text is clear, do not invent competing readings, fake tensions or obligatory uncertainty. When it is not decisive, state exactly what remains unestablished.
 - Use Unicode Arabic (or simple, clean transliteration). Never emit HTML entities (&#...;), Buckwalter strings, broken Markdown escapes or raw corpus notation in the prose.
 
-OUTPUT CONTRACT: Finish ALL SIX SECTIONS, in this order, before elaborating. Use EXACTLY these Markdown headings, each on its own line:
-## 1. Verse and translation
-## 2. Grammar and morphology
-## 3. Immediate context
-## 4. Related Qurʾānic passages
-## 5. Interpretation
-## 6. Conclusion
-Use short paragraphs and '-' bullets, NEVER a second numbered list under the headings. In section 2 focus on 3–7 decisive constructions and verify syntactic claims; in section 4 use up to 4 compelling parallels, or fewer if none. In section 5 explicitly separate wording from inference and alternatives only when relevant. Keep the entire answer approximately 400–650 words for a complex verse (shorter for a simple verse). Be concise, evidence-led and non-repetitive. No meta preamble. Do not mention CCC.`;
+OUTPUT CONTRACT: Write ONLY the headings specified by the user message, each on its own line, and complete every required heading. Use short paragraphs and '-' bullets, NEVER a second numbered list under headings. In Grammar focus on 3–7 decisive constructions; in Related passages use at most 4 compelling parallels; in Interpretation separate explicit wording from inference. No meta preamble. No duplicate heading. Do not mention CCC.`;
 
 export async function POST(req: NextRequest) {
   const passcode = process.env.CCC_RESEARCH_PASSCODE;
@@ -152,10 +145,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid analysis passcode." }, { status: 401 });
   if (!key) return NextResponse.json({ error: "Chutes API key not configured." }, { status: 503 });
 
-  let data: { chapter?: unknown; verse?: unknown };
+  let data: { chapter?: unknown; verse?: unknown; stage?: unknown; prior?: unknown };
   try { data = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   const { chapter, verse } = data;
+  const stage = data.stage === "synthesis" ? "synthesis" : data.stage === "foundation" ? "foundation" : null;
+  if (!stage) return NextResponse.json({ error: "Invalid analysis stage. Update both v7.5.2 files." }, { status: 400 });
+  const prior = typeof data.prior === "string" ? data.prior.slice(0, 16000) : "";
+  if (stage === "synthesis" && !prior.includes("## 3. Immediate context"))
+    return NextResponse.json({ error: "Foundation analysis is missing. Cannot synthesize an incomplete analysis." }, { status: 400 });
   if (typeof chapter !== "number" || !Number.isInteger(chapter) || chapter < 1 || chapter > 114 ||
       typeof verse !== "number" || !Number.isInteger(verse) || verse < 1)
     return NextResponse.json({ error: "Select a valid Qurʾānic verse." }, { status: 400 });
@@ -174,6 +172,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Morphological evidence for ${ref} is unavailable. Analysis was not attempted.` }, { status: 503 });
 
   const grammar = focalMorph.map(extractWordFacts).join("\n");
+  const requiredSections = stage === "foundation" ? [1, 2, 3] : [4, 5, 6];
+  const stageInstructions = stage === "foundation"
+    ? `Write ONLY these three sections with these EXACT headings:\n## 1. Verse and translation\n## 2. Grammar and morphology\n## 3. Immediate context\nProvide a faithful concise translation, 3–7 consequential grammatical observations, and immediate context. Limit to roughly 250–400 words excluding the Arabic verse. Finish section 3 completely. Do not start section 4.`
+    : `Write ONLY these three sections with these EXACT headings:\n## 4. Related Qurʾānic passages\n## 5. Interpretation\n## 6. Conclusion\nFirst verify relevant pan-textual references; in interpretation distinguish explicit statements, necessary inferences, and possibilities. Keep the conclusion aligned with the evidence and avoid restating the earlier sections. Limit to roughly 250–400 words. Finish section 6 completely.`;
   const context = contextWindow(chapter, verse, corpus);
   const parallels = relatedText(ref, corpus, morph);
   const model = process.env.VERSE_ANALYSIS_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
@@ -229,22 +231,24 @@ export async function POST(req: NextRequest) {
         catch { /* Client disconnected. */ }
       };
       try {
-        emit(controller, "status", { message: `Preparing analysis for ${ref}…`, reference: ref });
+        emit(controller, "status", { message: `${stage === "foundation" ? "Analyzing wording, grammar and context" : "Analyzing Qurʾānic parallels and interpretation"} for ${ref}…`, reference: ref, stage });
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
           signal: abort.signal,
           body: JSON.stringify({
             model, temperature: 0.1, max_tokens: MAX_OUTPUT_TOKENS, stream: true,
-            // DeepSeek V3.2 defaults to thinking; that can exhaust max_tokens before
-            // a single final-answer token is emitted. This model supports chat mode.
-            // Leave this out for other model families with different templates.
+            // Both model families can default to extended reasoning, which uses
+            // completion tokens before final-answer text is produced. Apply the
+            // template option appropriate to the exact selected model family.
             ...(model === "deepseek-ai/DeepSeek-V3.2-TEE"
               ? { chat_template_kwargs: { thinking_mode: "chat" } }
-              : {}),
+              : model === "zai-org/GLM-5.2-Fast" || model.startsWith("zai-org/GLM-5.2-")
+                ? { chat_template_kwargs: { enable_thinking: false } }
+                : {}),
             messages: [
               { role: "system", content: SYSTEM },
-              { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nCORPUS MORPHOLOGY (numbered words in reading order; tags may be questioned on explicit grammatical grounds):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\nProduce all six concise sections before adding detail. Check tags against visible forms, and flag specific discrepancies. Use the passages as evidence, not as automatic confirmations. Finish with section 6.` },
+              { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nCORPUS MORPHOLOGY (numbered words in reading order; tags may be questioned on explicit grammatical grounds):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\n${stage === "synthesis" ? `\nPREVIOUSLY COMPLETED FOUNDATION (do not repeat; ensure consistency):\n${prior}\n` : ""}\n${stageInstructions}\nCheck tags against visible forms. Use the supplied passages as leads, not automatic confirmations.` },
             ],
           }),
         });
@@ -311,8 +315,8 @@ export async function POST(req: NextRequest) {
             reasoningCharacters: reasoningCharactersObserved,
           });
           finish("error", { message: reasoningCharactersObserved
-            ? "Chutes generated reasoning but no final answer. The model did not honor non-thinking mode; check Chutes model/template configuration."
-            : `Chutes returned no final-answer text (finish reason: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
+            ? `Chutes generated reasoning but no final answer (model: ${model}; finish: ${finishReason || "unknown"}; reasoning characters: ${reasoningCharactersObserved}). Check whether this Chutes deployment honors its non-thinking setting.`
+            : `Chutes returned no final-answer text (model: ${model}; finish: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
           return;
         }
         validateReferences(answer);
@@ -323,7 +327,7 @@ export async function POST(req: NextRequest) {
           providerDone, reasoningChunks: reasoningTokensObserved,
         });
         finish("done", {
-          reference: ref, incomplete: finishReason === "length" || !providerDone || sectionCoverage(answer).size < 6,
+          reference: ref, stage, finishReason, incomplete: finishReason === "length" || !providerDone || requiredSections.some(n => !sectionCoverage(answer).has(n)),
           completedSections: [...sectionCoverage(answer)].sort(),
           invalidReferences: [...invalid], durationMs: Date.now() - started,
         });
@@ -362,5 +366,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.5" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.5.2" });
 }
