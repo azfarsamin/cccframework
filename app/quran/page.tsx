@@ -779,75 +779,89 @@ export default function QuranResearchPage() {
     setResearchTab("analysis");
     setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false);
     let collected = "";
-    let completed = false;
     try {
-      const response = await fetch("/api/verse-analysis?protocol=sse-v1", {
-        method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "Accept": "text/event-stream", "x-ccc-passcode": password },
-        body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse }),
-        signal: request.signal,
-      });
-      const type = (response.headers.get("content-type") || "").toLowerCase();
-      const protocol = response.headers.get("x-verse-analysis-protocol") || "";
-      if (!response.ok || !type.includes("text/event-stream")) {
-        const payload = await response.text();
-        let message: string | undefined;
-        if (type.includes("application/json")) {
-          try { message = (JSON.parse(payload) as { error?: string }).error; } catch { /* invalid response */ }
-        }
-        throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
-      }
-      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: deploy the matching v7.5 files and hard-refresh the Reader.");
-      if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let lastRender = 0;
-      const processFrame = (frame: string) => {
-        const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
-        const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
-        if (!data) return;
-        let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[] };
-        try { value = JSON.parse(data); } catch { return; }
-        if (event === "delta") {
-          collected += value.text || "";
-          if (Date.now() - lastRender >= 125) { setAiResponse(collected); lastRender = Date.now(); }
-        } else if (event === "status") {
-          setStatus(value.message || "Analyzing…");
-        } else if (event === "done") {
-          completed = true;
-          setAiResponse(collected);
-          setIncomplete(Boolean(value.incomplete));
-          const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
-          setStatus((value.incomplete ? "Analysis may be incomplete." : "Analysis complete.") + warnings);
-        } else if (event === "error") {
-          completed = true;
-          setAiResponse(collected);
-          setIncomplete(Boolean(collected));
-          setStatus(value.message || "Analysis stream failed.");
-        }
-      };
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (run !== analysisRun.current) return;
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          let boundary: number;
-          while (true) {
-            const match = /\r?\n\r?\n/.exec(buffer);
-            if (!match) break;
-            boundary = match.index;
-            const frame = buffer.slice(0, boundary).replace(/\r\n/g, "\n"); buffer = buffer.slice(boundary + match[0].length);
-            processFrame(frame);
+      // Two independently budgeted requests: stage two starts only after a complete stage one.
+      // The reader may be used freely during both; both stages retain the same abort controller and verse.
+      for (const stage of ["foundation", "synthesis"] as const) {
+        if (run !== analysisRun.current || request.signal.aborted) return;
+        setStatus(stage === "foundation" ? "Analyzing wording, grammar and context (1/2)…" : "Analyzing Qurʾānic parallels and interpretation (2/2)…");
+        const foundation = collected;
+        const response = await fetch("/api/verse-analysis?protocol=sse-v1", {
+          method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "Accept": "text/event-stream", "x-ccc-passcode": password },
+          body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse, stage, ...(stage === "synthesis" ? { prior: foundation } : {}) }),
+          signal: request.signal,
+        });
+        const type = (response.headers.get("content-type") || "").toLowerCase();
+        const protocol = response.headers.get("x-verse-analysis-protocol") || "";
+        if (!response.ok || !type.includes("text/event-stream")) {
+          const payload = await response.text();
+          let message: string | undefined;
+          if (type.includes("application/json")) {
+            try { message = (JSON.parse(payload) as { error?: string }).error; } catch { /* invalid response */ }
           }
-          if (buffer.length > 2_000_000) throw new Error("Invalid oversized analysis event.");
+          throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
         }
-        if (buffer.trim()) processFrame(buffer.replace(/\r\n/g, "\n"));
-      } finally { reader.releaseLock(); }
-      if (run === analysisRun.current && !completed) {
-        setAiResponse(collected); setIncomplete(Boolean(collected));
-        setStatus("The analysis stream ended unexpectedly. Partial text is retained.");
+        if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: deploy both matching v7.5.1 files and hard-refresh the Reader.");
+        if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let lastRender = 0;
+        let completed = false;
+        let failed = false;
+        let stageIncomplete = false;
+        const processFrame = (frame: string) => {
+          const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+          if (!data) return;
+          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string };
+          try { value = JSON.parse(data); } catch { return; }
+          if (event === "delta") {
+            const chunk = value.text || "";
+            if (stage === "synthesis" && collected === foundation && chunk) collected += "\n\n";
+            collected += chunk;
+            if (Date.now() - lastRender >= 125) { setAiResponse(collected); lastRender = Date.now(); }
+          } else if (event === "status") {
+            setStatus(value.message || "Analyzing…");
+          } else if (event === "done") {
+            completed = true;
+            stageIncomplete = Boolean(value.incomplete);
+            setAiResponse(collected);
+            const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
+            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "foundation" ? "Foundation complete. Continuing with synthesis…" : "Analysis complete.") + warnings);
+          } else if (event === "error") {
+            completed = true;
+            failed = true;
+            setAiResponse(collected);
+            setStatus(value.message || "Analysis stream failed.");
+          }
+        };
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (run !== analysisRun.current) return;
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            while (true) {
+              const match = /\r?\n\r?\n/.exec(buffer);
+              if (!match) break;
+              const frame = buffer.slice(0, match.index).replace(/\r\n/g, "\n");
+              buffer = buffer.slice(match.index + match[0].length);
+              processFrame(frame);
+            }
+            if (buffer.length > 2_000_000) throw new Error("Invalid oversized analysis event.");
+          }
+          buffer += decoder.decode();
+          if (buffer.trim()) processFrame(buffer.replace(/\r\n/g, "\n"));
+        } finally { reader.releaseLock(); }
+        if (!completed || failed || stageIncomplete) {
+          setAiResponse(collected);
+          setIncomplete(true);
+          if (!completed) setStatus(`Stage ${stage} ended unexpectedly. Partial text retained.`);
+          return;
+        }
       }
+      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all six sections."); }
     } catch (e) {
       if (run === analysisRun.current && !request.signal.aborted) {
         setAiResponse(collected); setIncomplete(Boolean(collected));
@@ -859,6 +873,7 @@ export default function QuranResearchPage() {
       }
     }
   }
+
   function saveNote() {
     if (!analysisReference || !aiResponse) { setStatus("No analysis output to save."); return; }
     const entry: Note = {
