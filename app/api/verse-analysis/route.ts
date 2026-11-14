@@ -11,7 +11,7 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 const UPSTREAM_LIMIT_MS = 132000;
 const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
 const AUDIT_OUTPUT_TOKENS = 1600;
-const RECONSTRUCTION_OUTPUT_TOKENS = 1600; // Short, targeted proofing pass; never rewrites the full answer.
+const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
 
 const HEARTBEAT_MS = 12000;
 const EVIDENCE_LIMIT = 24;
@@ -349,7 +349,7 @@ function parseReconstruction(raw: string, allowed: Set<string>): Reconstruction 
 }
 
 const RECONSTRUCTION_SYSTEM = `Reconstruct a Qurʾān-centric research argument accurately, BEFORE evaluating it. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use only supplied text and verified references. No hadith or tafsīr.
-Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, 5 premises each, 5 items in each disputed list. Do not provide a verdict.`;
+Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, up to 3 concise premises per claim and 6 evidenceRefs per claim; up to 3 brief items in each disputed list. Each claim <= 35 words; each premise <= 20 words. Keep all JSON compact (ideally under 1300 output tokens). Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
 
 const AUDIT_SYSTEM = `You are a Qurʾān-centric proof-checker. The Qurʾān's text is the primary calibration standard; indexed articles are researched arguments and do not inherit authority merely from authorship. Evaluate ALL claims using identical proof obligations, without artificial balance or defensive objections.
 Check the completed analysis against FULL Arabic, annotated morphology, contextual passages, restored full research sections, and the prior neutral argument reconstruction. Audit the strongest ACTUAL supporting argument before claiming a contradiction. To label a claim contradicted, identify (1) the exact proposition, (2) the exact affirmative contrary evidence, and (3) why both propositions cannot be true simultaneously. Mere alternatives, absence of a second identical lemma, transitivity versus self-directed semantics, or an unsupported possibility do not by themselves prove a contradiction. A rebuttal of one aspect of reported speech does not automatically rebut every associated activity; separate WHAT is contested from WHAT is established. Do not promote the converse mistake of treating the unchallenged portion of hostile speech as independently verified history. Cross-root examples are relevant to pattern-level morphology; a representative set cannot prove a universal rule. Distinguish provenance: supplied full Arabic, research assertions, and model background knowledge. Never invent verses, lexical evidence, or external citations. Findings are advisory only.
@@ -426,7 +426,12 @@ export async function POST(req: NextRequest) {
   // A single default model drives discovery, writing and review, with optional overrides.
   // This route does not control unrelated CCC discovery routes elsewhere in the repository.
   const baseModel = process.env.VERSE_ANALYSIS_MODEL || "zai-org/GLM-5.2-Fast";
-  const model = (stage === "discovery" ? process.env.VERSE_ANALYSIS_DISCOVERY_MODEL : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
+  // Reconstruction must use the tested primary model, not the verification-model override.
+  // Otherwise an old VERSE_ANALYSIS_AUDIT_MODEL setting can accidentally select
+  // a thinking-heavy model for this short JSON stage and exhaust its token budget.
+  const model = (stage === "reconstruction" ? baseModel
+    : stage === "discovery" ? process.env.VERSE_ANALYSIS_DISCOVERY_MODEL
+    : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
     : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
     : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
   // Evidence discovery is now a deterministic local operation: zero Chutes
@@ -592,8 +597,18 @@ export async function POST(req: NextRequest) {
           return;
         }
         if (stage === "reconstruction") {
-          if (finishReason === "length" || !providerDone) {
-            finish("error", {message:"Argument reconstruction was truncated; no synthesis attempted.",partial:false});
+          console.info("Verse argument reconstruction result", {
+            ref, model, finishReason, providerDone, durationMs: Date.now() - started,
+            promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+            reasoningChunks: reasoningTokensObserved, answerCharacters: answer.length,
+            maxOutputTokens: RECONSTRUCTION_OUTPUT_TOKENS,
+          });
+          if (finishReason === "length") {
+            finish("error", {message:`Argument reconstruction exceeded the ${RECONSTRUCTION_OUTPUT_TOKENS}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
+            return;
+          }
+          if (!providerDone) {
+            finish("error", {message:"Argument reconstruction stream ended without provider completion; no synthesis attempted.",partial:false});
             return;
           }
           const parsed = parseReconstruction(answer,allSupplied);
@@ -684,5 +699,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.0" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.1" });
 }
