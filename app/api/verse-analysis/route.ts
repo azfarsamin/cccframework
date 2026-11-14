@@ -8,7 +8,8 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 // Fail before the platform's 150-second limit, preserving any streamed text.
 // A shorter response and leaner evidence payload should normally finish well before this.
 const UPSTREAM_LIMIT_MS = 132000;
-const MAX_OUTPUT_TOKENS = 4200; // Per-stage budget: each request produces only three sections.
+const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
+const AUDIT_OUTPUT_TOKENS = 1500; // Short, targeted proofing pass; never rewrites the full answer.
 const HEARTBEAT_MS = 12000;
 
 type MorphSegment = [string, string, string];
@@ -124,6 +125,12 @@ function relatedText(ref: string, corpus: Corpus, morph: Morphology): string[] {
     .map(([candidate]) => `${candidate} ${corpus[candidate]}`);
 }
 
+const AUDIT_SYSTEM = `You are a strict Qurʾān-only proofreader. Audit the six-section answer against the primary Arabic verse, supplied morphology, context and related Arabic passages. Do not introduce hadith, tafsir, inherited geography, or outside claims.
+Check specifically: (1) correct protasis/apodosis for EVERY conditional, (2) visible mood vs corpus annotations without invented discrepancies, including estimated case endings, (3) lām of command versus prohibitive lā, (4) inaccurate claims of exact quotation, (5) claims contradicted by relevant Qurʾānic wording, (6) unsupported historical, legal or grammatical conclusions, (7) omissions of an operative clause where central to the interpretation.
+Do not manufacture disputes or revise defensible wording merely for style. The first Arabic text is the source of truth. Never revise Arabic source text, headings or quotations of the verse itself.
+Output ONLY a valid JSON object (no Markdown fences) with this shape: {"edits":[{"old":"exact unique text fragment copied from the provided analysis","new":"replacement text","reason":"one-line evidence grounded in supplied text"}],"unresolved":["material question not resolved by supplied evidence"]}.
+Maximum 5 edits and 3 unresolved. Each old fragment must be unique in the analysis, no longer than 500 characters; each replacement must be no longer than 650 characters. If no material mistakes, output {"edits":[],"unresolved":[]}. Avoid making an edit unless the correction is well supported.`;
+
 const SYSTEM = `Analyze ONE Qurʾānic verse from the supplied Arabic text, morphology and passages. Qurʾān-only: no hadith, tafsir, inherited historical narratives, presumed geography or theological assumptions.
 
 EVIDENCE AND GRAMMAR RULES:
@@ -149,11 +156,13 @@ export async function POST(req: NextRequest) {
   try { data = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   const { chapter, verse } = data;
-  const stage = data.stage === "synthesis" ? "synthesis" : data.stage === "foundation" ? "foundation" : null;
-  if (!stage) return NextResponse.json({ error: "Invalid analysis stage. Update both v7.5.2 files." }, { status: 400 });
-  const prior = typeof data.prior === "string" ? data.prior.slice(0, 16000) : "";
+  const stage = data.stage === "audit" ? "audit" : data.stage === "synthesis" ? "synthesis" : data.stage === "foundation" ? "foundation" : null;
+  if (!stage) return NextResponse.json({ error: "Invalid analysis stage. Update both v7.6 files." }, { status: 400 });
+  const prior = typeof data.prior === "string" ? data.prior.slice(0, 30000) : "";
   if (stage === "synthesis" && !prior.includes("## 3. Immediate context"))
     return NextResponse.json({ error: "Foundation analysis is missing. Cannot synthesize an incomplete analysis." }, { status: 400 });
+  if (stage === "audit" && ![1, 2, 3, 4, 5, 6].every(n => prior.includes(`## ${n}.`)))
+    return NextResponse.json({ error: "Audit requires all six sections. Preserve the existing analysis and retry." }, { status: 400 });
   if (typeof chapter !== "number" || !Number.isInteger(chapter) || chapter < 1 || chapter > 114 ||
       typeof verse !== "number" || !Number.isInteger(verse) || verse < 1)
     return NextResponse.json({ error: "Select a valid Qurʾānic verse." }, { status: 400 });
@@ -172,13 +181,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Morphological evidence for ${ref} is unavailable. Analysis was not attempted.` }, { status: 503 });
 
   const grammar = focalMorph.map(extractWordFacts).join("\n");
-  const requiredSections = stage === "foundation" ? [1, 2, 3] : [4, 5, 6];
+  const requiredSections = stage === "audit" ? [] : stage === "foundation" ? [1, 2, 3] : [4, 5, 6];
   const stageInstructions = stage === "foundation"
     ? `Write ONLY these three sections with these EXACT headings:\n## 1. Verse and translation\n## 2. Grammar and morphology\n## 3. Immediate context\nProvide a faithful concise translation, 3–7 consequential grammatical observations, and immediate context. Limit to roughly 250–400 words excluding the Arabic verse. Finish section 3 completely. Do not start section 4.`
     : `Write ONLY these three sections with these EXACT headings:\n## 4. Related Qurʾānic passages\n## 5. Interpretation\n## 6. Conclusion\nFirst verify relevant pan-textual references; in interpretation distinguish explicit statements, necessary inferences, and possibilities. Keep the conclusion aligned with the evidence and avoid restating the earlier sections. Limit to roughly 250–400 words. Finish section 6 completely.`;
   const context = contextWindow(chapter, verse, corpus);
   const parallels = relatedText(ref, corpus, morph);
-  const model = process.env.VERSE_ANALYSIS_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
+  // A single default model drives all stages, with independent overrides available.
+  // This route does not control unrelated CCC discovery routes elsewhere in the repository.
+  const baseModel = process.env.VERSE_ANALYSIS_MODEL || "zai-org/GLM-5.2-Fast";
+  const model = (stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
+    : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
+    : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
   // Stream immediately: this removes the 45-second all-at-once response constraint.
   // Every event is JSON inside a Server-Sent Events frame (not arbitrary text).
   const encoder = new TextEncoder();
@@ -231,13 +245,13 @@ export async function POST(req: NextRequest) {
         catch { /* Client disconnected. */ }
       };
       try {
-        emit(controller, "status", { message: `${stage === "foundation" ? "Analyzing wording, grammar and context" : "Analyzing Qurʾānic parallels and interpretation"} for ${ref}…`, reference: ref, stage });
+        emit(controller, "status", { message: `${stage === "foundation" ? "Analyzing wording, grammar and context" : stage === "synthesis" ? "Analyzing Qurʾānic parallels and interpretation" : "Verifying grammatical accuracy and Qurʾānic coherence"} for ${ref}…`, reference: ref, stage });
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
           signal: abort.signal,
           body: JSON.stringify({
-            model, temperature: 0.1, max_tokens: MAX_OUTPUT_TOKENS, stream: true,
+            model, temperature: 0.1, max_tokens: stage === "audit" ? AUDIT_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
             // Both model families can default to extended reasoning, which uses
             // completion tokens before final-answer text is produced. Apply the
             // template option appropriate to the exact selected model family.
@@ -247,8 +261,10 @@ export async function POST(req: NextRequest) {
                 ? { chat_template_kwargs: { enable_thinking: false } }
                 : {}),
             messages: [
-              { role: "system", content: SYSTEM },
-              { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nCORPUS MORPHOLOGY (numbered words in reading order; tags may be questioned on explicit grammatical grounds):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\n${stage === "synthesis" ? `\nPREVIOUSLY COMPLETED FOUNDATION (do not repeat; ensure consistency):\n${prior}\n` : ""}\n${stageInstructions}\nCheck tags against visible forms. Use the supplied passages as leads, not automatic confirmations.` },
+              { role: "system", content: stage === "audit" ? AUDIT_SYSTEM : SYSTEM },
+              { role: "user", content: stage === "audit"
+                ? `AUDIT THIS ANALYSIS OF ${ref}.\n\nPRIMARY ARABIC VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nIMMEDIATE CONTEXT:\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (only leads):\n${parallels.join("\n")}\n\nCOMPLETE SIX-SECTION ANALYSIS:\n${prior}\n\nFind only material, verifiable errors; keep any uncertain issue in unresolved, not as an edit.`
+                : `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nCORPUS MORPHOLOGY (numbered words in reading order; tags may be questioned on explicit grammatical grounds):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\n${stage === "synthesis" ? `\nPREVIOUSLY COMPLETED FOUNDATION (do not repeat; ensure consistency):\n${prior}\n` : ""}\n${stageInstructions}\nCheck tags against visible forms. Use the supplied passages as leads, not automatic confirmations.` },
             ],
           }),
         });
@@ -289,7 +305,7 @@ export async function POST(req: NextRequest) {
           const delta = choice?.delta?.content;
           if (typeof delta === "string" && delta) {
             answer += delta;
-            emit(controller, "delta", { text: delta });
+            if (stage !== "audit") emit(controller, "delta", { text: delta }); // Audit JSON is internal until validated.
           }
         };
         while (true) {
@@ -317,6 +333,40 @@ export async function POST(req: NextRequest) {
           finish("error", { message: reasoningCharactersObserved
             ? `Chutes generated reasoning but no final answer (model: ${model}; finish: ${finishReason || "unknown"}; reasoning characters: ${reasoningCharactersObserved}). Check whether this Chutes deployment honors its non-thinking setting.`
             : `Chutes returned no final-answer text (model: ${model}; finish: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
+          return;
+        }
+        if (stage === "audit") {
+          // A verifier's assertion is not a verified fact: apply only exact, unique,
+          // short replacements; do not permit changes to headings or Arabic source text.
+          let parsed: { edits?: { old?: string; new?: string; reason?: string }[]; unresolved?: string[] };
+          try {
+            const clean = answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+            parsed = JSON.parse(clean);
+          } catch {
+            finish("error", { message: `Audit returned invalid JSON (finish: ${finishReason || "unknown"}). Original analysis retained; not independently verified.`, partial: false });
+            return;
+          }
+          if (finishReason === "length" || !providerDone || !Array.isArray(parsed.edits) || !Array.isArray(parsed.unresolved) || parsed.edits.length > 5 || parsed.unresolved.length > 3) {
+            finish("error", { message: "Audit was truncated or did not follow its structured output contract. Original analysis retained.", partial: false });
+            return;
+          }
+          let revised = prior;
+          const accepted: { old: string; new: string; reason: string }[] = [];
+          const rejected: string[] = [];
+          for (const item of parsed.edits) {
+            if (typeof item.old !== "string" || typeof item.new !== "string" || typeof item.reason !== "string" ||
+                item.old.length < 12 || item.old.length > 500 || item.new.length > 650 ||
+                item.old.includes("## ") || item.new.includes("## ") ||
+                revised.split(item.old).length !== 2 || revised.indexOf(item.old) < revised.indexOf("## 2. Grammar and morphology")) { rejected.push(item.reason || "Non-unique or unsupported correction"); continue; }
+            // The corpus must contain every reference inserted by the proposed correction.
+            const badRef = [...item.new.matchAll(/\b(\d{1,3}):(\d{1,3})\b/g)].some(m => !verifyReference(`${m[1]}:${m[2]}`, corpus));
+            if (badRef) { rejected.push(item.reason); continue; }
+            revised = revised.replace(item.old, item.new);
+            accepted.push({ old: item.old, new: item.new, reason: item.reason.slice(0, 400) });
+          }
+          console.info("Verse analysis audit", { ref, model, durationMs: Date.now() - started, accepted: accepted.length, rejected: rejected.length, unresolved: parsed.unresolved.length, finishReason });
+          emit(controller, "audit", { correctedText: revised, corrections: accepted, rejected: rejected.slice(0, 3), unresolved: parsed.unresolved.filter(x => typeof x === "string").slice(0, 3) });
+          finish("done", { reference: ref, stage, finishReason, incomplete: false, durationMs: Date.now() - started, corrected: accepted.length, unresolved: parsed.unresolved.length });
           return;
         }
         validateReferences(answer);
@@ -366,5 +416,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.5.2" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.6" });
 }
