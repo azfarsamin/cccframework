@@ -372,7 +372,7 @@ export default function QuranResearchPage() {
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
-  const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[] } | null>(null);
+  const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[]; deterministicFindings?: number; grammarStatus?: string; evidenceStatus?: string } | null>(null);
   const [evidenceAudit, setEvidenceAudit] = useState<{
     references: string[];
     researchSources: { id: string; title: string; section: string; complete?: boolean; parts?: number }[];
@@ -801,6 +801,8 @@ export default function QuranResearchPage() {
     let collected = "";
     let discovered: string[] = [];
     let reconstruction = "";
+    let auditFindingCount = 0;
+    let evidenceGapCount = 0;
     try {
       // Discovery precedes the two writing stages. Verification is advisory;
       // the Reader remains independent throughout all four network calls.
@@ -839,7 +841,8 @@ export default function QuranResearchPage() {
           let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string; complete?: boolean; parts?: number }[]; researchReferences?: string[];
             focalReference?: string; contextReferences?: string[]; researchSections?: { section: string; article: string; complete: boolean; parts: number }[];
             reconstruction?: { issue: string; claims: { claim: string; source: string; premises: string[]; evidenceRefs: string[]; status: string }[]; disputed: string[]; notNecessarilyDisputed: string[] };
-            unsuppliedReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
+            unsuppliedReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[];
+            deterministicFindings?: number; grammarStatus?: string; evidenceStatus?: string; coverageGaps?: string[] };
           try { value = JSON.parse(data); } catch { return; }
           if (event === "delta") {
             const chunk = value.text || "";
@@ -852,7 +855,8 @@ export default function QuranResearchPage() {
               researchReferences: value.researchReferences || [], lexical: value.lexical || [],
               sources: value.sources || {}, focalReference: value.focalReference,
               contextReferences: value.contextReferences || [], researchSections: value.researchSections || [] });
-            setStatus(`Selected ${discovered.length} pan-textual evidence passages.`);
+            evidenceGapCount = (value.coverageGaps || []).length;
+            setStatus(`Selected ${discovered.length} pan-textual evidence passages${evidenceGapCount ? `; ${evidenceGapCount} central-lemma coverage gaps` : ""}.`);
           } else if (event === "argument") {
             if (value.reconstruction) {
               reconstruction = JSON.stringify(value.reconstruction);
@@ -861,7 +865,9 @@ export default function QuranResearchPage() {
           } else if (event === "audit") {
             // Advisory findings only: the verifier may identify errors but
             // cannot silently replace an interpretation with another guess.
-            setAuditReport({ findings: value.findings || [], unresolved: value.unresolved || [] });
+            auditFindingCount = (value.findings || []).length;
+            setAuditReport({ findings: value.findings || [], unresolved: value.unresolved || [],
+              deterministicFindings: value.deterministicFindings, grammarStatus: value.grammarStatus, evidenceStatus: value.evidenceStatus });
           } else if (event === "status") {
             setStatus(value.message || "Analyzing…");
           } else if (event === "done") {
@@ -905,7 +911,11 @@ export default function QuranResearchPage() {
           return;
         }
       }
-      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections; structured verification passed."); }
+      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false);
+        setStatus(auditFindingCount > 0
+          ? `Analysis complete — verification completed with ${auditFindingCount} flagged issue(s); review findings below.`
+          : `Analysis complete — structured verification completed; no detected contradictions${evidenceGapCount ? ` (${evidenceGapCount} lexical coverage gap(s))` : ""}. Not a guarantee of correctness.`);
+      }
     } catch (e) {
       if (run === analysisRun.current && !request.signal.aborted) {
         setAiResponse(collected); setIncomplete(Boolean(collected));
@@ -1273,7 +1283,7 @@ export default function QuranResearchPage() {
               {argumentAudit.notNecessarilyDisputed.length > 0 && <p><strong>Not automatically negated:</strong> {argumentAudit.notNecessarilyDisputed.join(" · ")}</p>}
             </details>}
             {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} grounded finding(s), {auditReport.unresolved.length} unresolved question(s)</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
