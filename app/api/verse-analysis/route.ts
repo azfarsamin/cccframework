@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 export const runtime = "nodejs";
-export const maxDuration = 150;
+export const maxDuration = 60;
 
 type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(105000),
+      signal: AbortSignal.timeout(45000),
       body: JSON.stringify({
         model, temperature: 0.1, max_tokens: 5800,
         messages: [
@@ -221,6 +221,11 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const name = err instanceof Error ? err.name : "UnknownError";
     console.error("Verse analysis request failure", { ref, model, name, ms: Date.now() - started });
-    return NextResponse.json({ error: name === "TimeoutError" ? "The analysis model timed out." : "Unable to complete analysis." }, { status: 504 });
+    return NextResponse.json({ error: name === "TimeoutError" ? "Chutes did not complete the analysis within 45 seconds. Retry or consult the Vercel function logs." : "Unable to complete analysis; check the Vercel function logs." }, { status: 503 });
   }
+}
+
+// A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
+export async function GET() {
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.2" });
 }
