@@ -279,7 +279,7 @@ export default function QuranResearchPage() {
   const [wordChoice, setWordChoice] = useState<WordChoice | null>(null);
   const [wordGloss, setWordGloss] = useState("");
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
-  const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "ccc" | "notes">("grammar");
+  const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "analysis" | "notes">("grammar");
   const [researchExpanded, setResearchExpanded] = useState(false);
   const [rootQuery, setRootQuery] = useState("");
   const [rootInitial, setRootInitial] = useState("");
@@ -351,7 +351,6 @@ export default function QuranResearchPage() {
 
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
-  const [question, setQuestion] = useState("");
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [incomplete, setIncomplete] = useState(false);
@@ -367,7 +366,7 @@ export default function QuranResearchPage() {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    setAyahs([]); setSelected([]); setAiResponse("");
+    setAyahs([]); setSelected([]); setSelectedSearch([]); setAiResponse("");
     fetch(`https://api.alquran.cloud/v1/surah/${chapter}/quran-uthmani`)
       .then((r) => { if (!r.ok) throw new Error("Unable to fetch Arabic text"); return r.json(); })
       .then((j: QuranResponse<{ ayahs: Ayah[] }>) => { if (!cancelled) {
@@ -735,36 +734,35 @@ export default function QuranResearchPage() {
     ? selectedSearch.map(r => ({ chapter: r.chapter, verse: r.verse, arabic: r.arabic }))
     : selectedAyahs.map(a => ({ chapter, verse: a.numberInSurah, arabic: a.text }));
   const currentSurah = surahs.find(s => s.number === chapter);
-  function toggleAyah(n: number) { setSelected(old => old.includes(n) ? old.filter(v => v !== n) : [...old, n].sort((a,b) => a-b)); }
-  function toggleSearchVerse(result: SearchResult) {
-    setSelectedSearch(old => {
-      const exists = old.some(r => r.chapter === result.chapter && r.verse === result.verse);
-      if (exists) return old.filter(r => !(r.chapter === result.chapter && r.verse === result.verse));
-      if (old.length >= 12) { setStatus("You can select up to 12 verses per question."); return old; }
-      setStatus("");
-      return [...old, result].sort((a,b) => a.chapter - b.chapter || a.verse - b.verse);
-    });
+  function toggleAyah(n: number) {
+    setSelected(old => old.length === 1 && old[0] === n ? [] : [n]);
+    setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
   }
+  function toggleSearchVerse(result: SearchResult) {
+    setSelectedSearch(old => old.length === 1 && old[0].chapter === result.chapter && old[0].verse === result.verse ? [] : [result]);
+    setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
+  }
+  const analysisVerse = analysisVerses[0] || null;
   async function analyze() {
-    if (!question.trim()) { setStatus("Enter a research question first."); return; }
+    if (!analysisVerse) { setStatus("Select a verse in the Reader first."); return; }
     setLoading(true); setStatus(""); setAiResponse(""); setIncomplete(false);
     try {
-      const response = await fetch("/api/ccc-ai", {
+      const response = await fetch("/api/verse-analysis", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
-        body: JSON.stringify({ question, chapter, verses: analysisVerses }),
+        body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse }),
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "Research service unavailable");
-      setAiResponse(json.answer || "No response returned.");
+      if (!response.ok) throw new Error(json.error || "Analysis service unavailable");
+      setAiResponse(json.answer || "No analysis returned.");
       setIncomplete(Boolean(json.incomplete));
     } catch (e) { setStatus(e instanceof Error ? e.message : "Unexpected problem"); }
     finally { setLoading(false); }
   }
   function saveNote() {
-    if (!question.trim()) { setStatus("Enter a research question before saving a note."); return; }
+    if (!analysisVerse) { setStatus("Select a verse before saving an analysis note."); return; }
     const entry: Note = {
-      id: `${Date.now()}`, reference: analysisVerses.length ? analysisVerses.map(a => refOf(a.chapter, a.verse)).join(", ") : "Question only",
-      question, response: aiResponse || "No AI analysis saved; question only.", created: new Date().toISOString(),
+      id: `${Date.now()}`, reference: refOf(analysisVerse.chapter, analysisVerse.verse),
+      question: "Detailed Analysis", response: aiResponse || "Analysis not generated.", created: new Date().toISOString(),
     };
     const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
     setStatus("Saved in this browser. Export notes before clearing browser data.");
@@ -777,7 +775,7 @@ export default function QuranResearchPage() {
   return (
     <main className={styles.main}>
       <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · verse selection · research questions · notes</p></div>
+        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · grammar · detailed verse analysis · notes</p></div>
         <span className={styles.beta}>Qurʾān-only research</span>
       </div>
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
@@ -833,9 +831,9 @@ export default function QuranResearchPage() {
           {showSearchResults ? (
             <div className={styles.resultsToolbar}>
               <span><strong>{globalTotal ?? 0}</strong> matches · Arabic and {editions.find(e => e.id === edition)?.name}</span>
-              <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]);}}>Back to surah reader</button>
+              <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]); setAiResponse("");}}>Back to surah reader</button>
             </div>
-          ) : <p className={styles.hint}>Optionally select verses as starting evidence for your research question. {currentSurah?.englishName || ""}</p>}
+          ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
@@ -893,25 +891,25 @@ export default function QuranResearchPage() {
           </div>
           <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the Surah 1–5 Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
         </section>
-        <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Research tools">
+        <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Qurʾān study tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
             <div className={styles.panelHeader}>
-              <h2>Research tools</h2>
+              <h2>Study tools</h2>
               <div className={styles.researchActions}>
-                <span>{analysisVerses.length} selected</span>
+                <span>{analysisVerse ? `Verse ${refOf(analysisVerse.chapter, analysisVerse.verse)}` : "Select a verse"}</span>
                 <button
                   type="button"
                   className={styles.researchExpandButton}
                   aria-pressed={researchExpanded}
-                  title={researchExpanded ? "Restore the standard two-column layout" : "Give research tools more horizontal space"}
+                  title={researchExpanded ? "Restore the standard two-column layout" : "Give analysis more horizontal space"}
                   onClick={() => setResearchExpanded(previous => !previous)}
                 >
                   {researchExpanded ? "Standard width" : "Wider panel"}
                 </button>
               </div>
             </div>
-            <div role="tablist" aria-label="Research tools" className={styles.researchTabs}>
-              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['ccc', 'Research'], ['notes', 'Notes']] as const).map(([id, label]) => (
+            <div role="tablist" aria-label="Qurʾān study tools" className={styles.researchTabs}>
+              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis'], ['notes', 'Notes']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
                   aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
                   className={researchTab === id ? styles.activeResearchTab : ''}>{label}</button>
@@ -1076,21 +1074,18 @@ export default function QuranResearchPage() {
             {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
             <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
               </div>}
-              {researchTab === 'ccc' && <>
+              {researchTab === 'analysis' && <>
           <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>Qurʾān research assistant</h2><span>{analysisVerses.length} selected</span></div>
-            <div className={styles.selection}>{analysisVerses.length ? analysisVerses.map(a => <span key={`${a.chapter}:${a.verse}`}>{refOf(a.chapter, a.verse)}</span>) : "Optional — no verses selected"}</div>
-            <label className={styles.label}>Research question
-              <textarea rows={6} value={question} onChange={e => setQuestion(e.target.value)} />
-            </label>
-            <label className={styles.label}>Private research passcode
+            <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "No verse selected"}</span></div>
+            <div className={styles.selection}>{analysisVerse ? <span>{refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select one verse in the Reader."}</div>
+            <p className={styles.hint}>DeepSeek analyzes the selected verse, its grammar, immediate context, and potentially related Qurʾānic verses. No research question is required.</p>
+            <label className={styles.label}>Private analysis passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !question.trim()} onClick={analyze}>{loading ? "Analyzing…" : "Research question"}</button>
+            <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? "Analyzing verse…" : "Analyze verse"}</button>
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Research response</h3>{incomplete && <p role="alert" className={styles.incomplete}>Incomplete response: the model reached its output-token limit. This answer may be truncated; shorten the question or request a narrower analysis.</p>}<ResearchMarkdown source={aiResponse}/></div>}
-            <button type="button" className={styles.secondary} onClick={saveNote}>Save research note</button>
-            <p className={styles.hint}>Checked verses are optional starting evidence. The server searches its morphology concordance for a recognized term in your question. Lexical coverage does not guarantee complete conceptual coverage.</p>
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The model reached its output limit. This analysis may be incomplete.</p>}<ResearchMarkdown source={aiResponse}/></div>}
+            <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
               {researchTab === 'notes' && <>
