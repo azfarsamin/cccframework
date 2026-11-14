@@ -10,7 +10,7 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 // A shorter response and leaner evidence payload should normally finish well before this.
 const UPSTREAM_LIMIT_MS = 132000;
 const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
-const AUDIT_OUTPUT_TOKENS = 1600;
+const AUDIT_OUTPUT_TOKENS = 3000; // Structured verification needs headroom; output remains capped by the compact schema.
 const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
 
 const HEARTBEAT_MS = 12000;
@@ -348,12 +348,41 @@ function parseReconstruction(raw: string, allowed: Set<string>): Reconstruction 
   return {claims,issue:obj.issue.slice(0,800),disputed:clean(obj.disputed),notNecessarilyDisputed:clean(obj.notNecessarilyDisputed)};
 }
 
+// Extract a complete JSON object, tolerating a model's accidental markdown fence
+// or leading/trailing commentary. Never repair or infer missing JSON fields.
+function parseStructuredObject(raw: string): Record<string, unknown> | null {
+  const candidate = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch { /* Attempt to isolate one complete JSON object without synthesizing content. */ }
+  const start = candidate.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0, quoted = false, escaped = false;
+  for (let i = start; i < candidate.length; i++) {
+    const ch = candidate[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) {
+      try {
+        const parsed: unknown = JSON.parse(candidate.slice(start, i + 1));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+      } catch { return null; }
+    }
+  }
+  return null;
+}
+
 const RECONSTRUCTION_SYSTEM = `Reconstruct a Qurʾān-centric research argument accurately, BEFORE evaluating it. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use only supplied text and verified references. No hadith or tafsīr.
 Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, up to 3 concise premises per claim and 6 evidenceRefs per claim; up to 3 brief items in each disputed list. Each claim <= 35 words; each premise <= 20 words. Keep all JSON compact (ideally under 1300 output tokens). Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
 
 const AUDIT_SYSTEM = `You are a Qurʾān-centric proof-checker. The Qurʾān's text is the primary calibration standard; indexed articles are researched arguments and do not inherit authority merely from authorship. Evaluate ALL claims using identical proof obligations, without artificial balance or defensive objections.
 Check the completed analysis against FULL Arabic, annotated morphology, contextual passages, restored full research sections, and the prior neutral argument reconstruction. Audit the strongest ACTUAL supporting argument before claiming a contradiction. To label a claim contradicted, identify (1) the exact proposition, (2) the exact affirmative contrary evidence, and (3) why both propositions cannot be true simultaneously. Mere alternatives, absence of a second identical lemma, transitivity versus self-directed semantics, or an unsupported possibility do not by themselves prove a contradiction. A rebuttal of one aspect of reported speech does not automatically rebut every associated activity; separate WHAT is contested from WHAT is established. Do not promote the converse mistake of treating the unchallenged portion of hostile speech as independently verified history. Cross-root examples are relevant to pattern-level morphology; a representative set cannot prove a universal rule. Distinguish provenance: supplied full Arabic, research assertions, and model background knowledge. Never invent verses, lexical evidence, or external citations. Findings are advisory only.
-Return ONLY JSON {"findings":[{"quote":"exact unique substring from analysis","issue":"specific material error and actual logical relationship","evidence_kind":"quran|research|reconstruction","evidence_ref":"chapter:verse OR source unit key OR reconstruction","evidence_quote":"contiguous exact text from that source","suggestion":"evidence-grounded correction"}],"unresolved":[]}. Max 4 findings and 2 unresolved. Valid evidence is (a) verbatim Arabic from a supplied Qurʾānic verse, (b) verbatim quoted text from a RESTORED research section, or (c) verbatim text of the VALIDATED reconstruction. An objection to the article's actual claim can cite research evidence; do not falsely assert its table was absent. Use empty arrays when there are no substantiated material errors.`;
+Return ONLY compact, valid JSON {"findings":[{"quote":"short exact substring of analysis","issue":"specific material error","evidence_kind":"quran|research|reconstruction","evidence_ref":"chapter:verse OR source unit key OR reconstruction","evidence_quote":"short verbatim source excerpt","suggestion":"short precise correction"}],"unresolved":[]}. Max 2 findings and 2 unresolved. Each text value <= 240 characters. No markdown, no commentary, no repeated analysis. Prefer {"findings":[],"unresolved":[]} when no independently substantiated material error. Valid evidence is (a) verbatim Arabic from a supplied Qurʾānic verse, (b) verbatim quoted text from a RESTORED research section, or (c) verbatim text of the VALIDATED reconstruction. An objection to the article's actual claim can cite research evidence; do not falsely assert its table was absent. Use empty arrays when there are no substantiated material errors. For morphology, distinguish syntactic transitivity from reflexivity and distinguish a negative particle from a conditional particle by the clause syntax; do not infer semantic age from gender/number agreement.`;
 
 const SYSTEM = `Analyze one Qurʾānic verse through grammar, immediate context, complete relevant Qurʾānic comparisons, and CCC (coherence, correspondence, calibration). Qurʾān-centric: no hadith, tafsīr, inherited reconstruction, or privileged mainstream doctrines. The Qurʾān is the reference standard; authored articles are evidence-bearing arguments, not scripture.
 FOLLOW THE RECONSTRUCTED ARGUMENT: Before reaching a verdict examine the actual premises and comparative evidence in the supplied RESTORED research sections. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
@@ -621,18 +650,22 @@ export async function POST(req: NextRequest) {
           return;
         }
         if (stage === "audit") {
-          let parsed: { findings?: { quote?: string; issue?: string; evidence_kind?: string; evidence_ref?: string; evidence_quote?: string; suggestion?: string }[]; unresolved?: string[] };
-          try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
-          catch { finish("error", { message: "Verification JSON invalid; original analysis retained.", partial: false }); return; }
-          if (finishReason === "length" || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
-            finish("error", { message: "Verification incomplete; original analysis retained.", partial: false }); return;
+          const parsed = parseStructuredObject(answer) as { findings?: { quote?: string; issue?: string; evidence_kind?: string; evidence_ref?: string; evidence_quote?: string; suggestion?: string }[]; unresolved?: string[] } | null;
+          console.info("Verse verification response diagnostics", {ref,model,finishReason,providerDone,
+            promptTokens:usage?.prompt_tokens,completionTokens:usage?.completion_tokens,
+            answerCharacters:answer.length,maxOutputTokens:AUDIT_OUTPUT_TOKENS,validJson:Boolean(parsed)});
+          if (!parsed) {
+            finish("error", { message: `Verification could not parse valid JSON (model: ${model}; finish: ${finishReason || "unknown"}; tokens: ${usage?.completion_tokens ?? "unreported"}/${AUDIT_OUTPUT_TOKENS}). Analysis retained as UNVERIFIED.`, partial: false }); return;
+          }
+          if (finishReason === "length" || !providerDone || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
+            finish("error", { message: `Verification incomplete or wrong schema (finish: ${finishReason || "unknown"}; completion: ${providerDone}; tokens: ${usage?.completion_tokens ?? "unreported"}/${AUDIT_OUTPUT_TOKENS}). Analysis retained as UNVERIFIED.`, partial: false }); return;
           }
           // Validation requires a verbatim quote in an ACTUAL supplied verse.
           // Never silently replace generated analytical text based on a model's
           // self-certified verdict. Report grounded findings for human review.
           const supplied = new Set([ref, ...context.map(line => line.split(" ")[0]), ...evidenceRefs]);
           const normalize = (v: string) => v.normalize("NFKD").replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "");
-          const findings = (parsed.findings || []).slice(0,4).filter(item => {
+          const findings = (parsed.findings || []).slice(0,2).filter(item => {
             if (!item.quote || !item.issue || !item.evidence_ref || !item.evidence_quote || !item.suggestion) return false;
             if (!prior.includes(item.quote)) return false;
             const kind = item.evidence_kind || "quran";
@@ -699,5 +732,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.1" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.2" });
 }
