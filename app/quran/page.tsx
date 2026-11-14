@@ -5,6 +5,19 @@ import { ResearchMarkdown } from "./research-markdown";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 
+// The model occasionally emits numeric HTML entities and malformed section numbering.
+// Decode numeric character references as plain text; React/ResearchMarkdown still
+// controls rendering (never inject the output as HTML).
+function cleanAnalysisText(source: string): string {
+  return source.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (full, encoded: string) => {
+    const hex = encoded[0].toLowerCase() === "x";
+    const value = Number.parseInt(hex ? encoded.slice(1) : encoded, hex ? 16 : 10);
+    return Number.isInteger(value) && value > 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
+      ? String.fromCodePoint(value) : full;
+  }).replace(/&(?:amp|lt|gt|quot|apos);/g, entity =>
+    ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '\"', "&apos;": "'" } as Record<string, string>)[entity] || entity);
+}
+
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
 type Ayah = { numberInSurah: number; text: string };
 type QuranResponse<T> = { code: number; data: T };
@@ -781,7 +794,7 @@ export default function QuranResearchPage() {
         }
         throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
       }
-      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.3b files together and hard-refresh the Reader.");
+      if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: redeploy both v7.4 files together and hard-refresh the Reader.");
       if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -848,7 +861,7 @@ export default function QuranResearchPage() {
     if (!analysisVerse) { setStatus("Select a verse before saving an analysis note."); return; }
     const entry: Note = {
       id: `${Date.now()}`, reference: refOf(analysisVerse.chapter, analysisVerse.verse),
-      question: "Detailed Analysis", response: aiResponse || "Analysis not generated.", created: new Date().toISOString(),
+      question: "Detailed Analysis", response: cleanAnalysisText(aiResponse) || "Analysis not generated.", created: new Date().toISOString(),
     };
     const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
     setStatus("Saved in this browser. Export notes before clearing browser data.");
@@ -1171,7 +1184,7 @@ export default function QuranResearchPage() {
             <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? "Analyzing verse…" : "Analyze verse"}</button>
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={aiResponse}/></div>}
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/></div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
