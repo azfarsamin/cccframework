@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { planQuranQuery, parseVerseReferences, isRetrievalOnly } from "../../../lib/ccc-query-planner";
+import { collectEvidence, versesForReferences, formatExactEvidence } from "../../../lib/ccc-evidence-engine";
 import { timingSafeEqual } from "node:crypto";
 import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } from "../../../lib/ccc-corpus";
 import { discoverQuranCandidates } from "../../../lib/ccc-conceptual";
@@ -108,10 +110,10 @@ function equal(a: string, b: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const key = process.env.CHUTES_API_KEY;
+  const key = process.env.CHUTES_API_KEY || "";
   const passcode = process.env.CCC_RESEARCH_PASSCODE;
-  if (!key || !passcode) {
-    return NextResponse.json({ error: "AI is not configured. Check Vercel environment variables." }, { status: 503 });
+  if (!passcode) {
+    return NextResponse.json({ error: "Research passcode is not configured." }, { status: 503 });
   }
   if (!equal(request.headers.get("x-ccc-passcode") || "", passcode)) {
     return NextResponse.json({ error: "Invalid research passcode." }, { status: 401 });
@@ -142,6 +144,70 @@ export async function POST(request: NextRequest) {
     // Resolve explicit listing requests BEFORE broad conceptual discovery and
     // BEFORE any remote corpus fetch or LLM use. This is an index-only route.
     const q = input.question!.trim();
+    // V6: global query planner. Exact reference/phrase/lemma/root operations
+    // are corpus-determined and run before any thematic discovery or AI.
+    const parsedRefs = parseVerseReferences(q);
+    if (parsedRefs.invalid) return NextResponse.json({ error: parsedRefs.invalid }, {status:400});
+    const queryPlan = planQuranQuery(q);
+    console.info("CCC query planner", {kind:queryPlan.kind, analysis:queryPlan.analysis, scope:queryPlan.scope});
+    if (queryPlan.kind !== "semantic") {
+      stage = "planned_evidence";
+      let evidence;
+      try { evidence = await collectEvidence(queryPlan); }
+      catch (error) { return NextResponse.json({error:error instanceof Error?error.message:"Evidence lookup failed"},{status:400}); }
+      const listing = isRetrievalOnly(q,queryPlan);
+      const referencesOnly = isReferenceOnlyQuestion(q);
+      // Text is only needed for listing verse bodies or AI analysis.
+      const source = listing && referencesOnly ? {rows:[],textAvailable:false} :
+        await versesForReferences(listing ? evidence.references : evidence.references.slice(0, 40));
+      const certified = formatExactEvidence(evidence, source, listing && !referencesOnly &&
+        (queryPlan.kind === "verse" || /\b(?:text|arabic|full\s+verses?|quote|recite)\b/i.test(q)));
+      if (listing) return NextResponse.json({answer:referencesOnly ? evidence.references.join(", ") : certified,incomplete:false,
+        finishReason:"deterministic_"+queryPlan.kind, evidenceComplete:true,
+        references:evidence.references, occurrences:evidence.occurrences, queryClass:queryPlan.kind});
+      // The AI is a downstream analyst, not an arbiter of exact matches.
+      // Bound the explanatory context, but NEVER the certified concordance.
+      const contextRefs = evidence.narrativeReferences.slice(0,28);
+      const context = contextRefs.length ? await versesForReferences(contextRefs) : {rows:[],textAvailable:false};
+      const primaryRows = source.rows.filter(v=>v.arabic);
+      // Keep every retrieved verse identifiable in the model evidence.
+      // For large sets, abbreviate each passage rather than deleting tail verses.
+      const maxEach = Math.max(140,Math.floor(8500/Math.max(1,primaryRows.length))-12);
+      const primary = primaryRows.map(v=>`${v.reference} ${v.arabic.length>maxEach?v.arabic.slice(0,maxEach)+"…":v.arabic}`).join("\n");
+      const extraRows = context.rows.filter(v=>v.arabic);
+      const maxContextEach = Math.max(100,Math.floor(4600/Math.max(1,extraRows.length))-12);
+      const extra = extraRows.map(v=>`${v.reference} ${v.arabic.length>maxContextEach?v.arabic.slice(0,maxContextEach)+"…":v.arabic}`).join("\n");
+      const system = "Qur'an-only research. Explain the user's question with explicit wording separated from inference. The server-verified exact reference list is authoritative and must not be modified. Focus on the immediate context of requested verses; do not infer that semantic parallels are complete. No hadith or tafsir. Be concise (maximum 450 words) and avoid duplicating the reference list.";
+      const prompt = `Question: ${q}\n\nCOMPLETE EXACT REFERENCE LIST (${evidence.references.length}; ${evidence.occurrences} occurrences): ${evidence.references.join(", ")}\n\nPRIMARY VERSE EVIDENCE:\n${primary || "Arabic verse text temporarily unavailable"}\n\nADJACENT CONTEXT (not a complete narrative):\n${extra || "None supplied"}`;
+      stage = "planned_analysis";
+      if (!key) return NextResponse.json({answer:`${certified}\n\nAI analysis is not configured.`,
+        incomplete:true,evidenceComplete:true,queryClass:queryPlan.kind,references:evidence.references});
+      try {
+        const started = Date.now();
+        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+          method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
+          signal:AbortSignal.timeout(FINAL_TIMEOUT_MS),
+          body:JSON.stringify({model:ANALYSIS_MODEL,temperature:0.2,max_tokens:3200,
+            messages:[{role:"system",content:system},{role:"user",content:prompt}]})});
+        if (!response.ok) throw new Error(`Model HTTP ${response.status}`);
+        const json = await response.json();
+        const choice = json?.choices?.[0];
+        const content = choice?.message?.content;
+        console.info("CCC planned analysis",{kind:queryPlan.kind,elapsedMs:elapsed(started),
+          finishReason:choice?.finish_reason,promptTokens:json?.usage?.prompt_tokens,
+          outputTokens:json?.usage?.completion_tokens});
+        if (typeof content!=="string" || !content.trim()) throw new Error("No final model answer");
+        return NextResponse.json({answer:`${certified}\n\n---\n\n${content}`,
+          incomplete:choice?.finish_reason==="length",finishReason:choice?.finish_reason,
+          evidenceComplete:true,queryClass:queryPlan.kind,references:evidence.references});
+      } catch(error) {
+        console.error("CCC planned analysis unavailable",{kind:queryPlan.kind,error:error instanceof Error?error.message:"unknown"});
+        return NextResponse.json({answer:`${certified}\n\nAI interpretation unavailable; complete verified references are retained.`,
+          incomplete:true,finishReason:"planned_evidence_fallback",evidenceComplete:true,
+          queryClass:queryPlan.kind,references:evidence.references});
+      }
+    }
+    if (!key) return NextResponse.json({error:"AI is not configured for conceptual research; exact corpus lookup remains available."},{status:503});
     stage = "deterministic_retrieval";
     const exactStart = Date.now();
     const exact = await resolveDeterministicListing(q);
@@ -257,7 +323,10 @@ export async function POST(request: NextRequest) {
         console.info("CCC AI stage", { stage, elapsedMs: elapsed(discoveryStart), references: proposed.references.length, roots: proposed.roots.length });
         stage = "thematic_verification";
         const verificationStart = Date.now();
-        const verified = await retrieveConceptualContext(selected, proposed);
+        // Exact candidate references are checked against the corpus. Never
+        // expand a semantic discovery into 800+ root matches and classify
+        // only the first 56 as though that covered the user's topic.
+        const verified = await retrieveConceptualContext(selected, { ...proposed, roots: [] });
         console.info("CCC AI stage", { stage, elapsedMs: elapsed(verificationStart), candidates: verified.suppliedVerses.length });
         thematicEvidence = verified.text;
         verifiedThematic = verified;
