@@ -8,7 +8,7 @@ export const maxDuration = 150; // Requires a Vercel deployment with >=150s func
 // Fail before the platform's 150-second limit, preserving any streamed text.
 // A shorter response and leaner evidence payload should normally finish well before this.
 const UPSTREAM_LIMIT_MS = 132000;
-const MAX_OUTPUT_TOKENS = 3200;
+const MAX_OUTPUT_TOKENS = 4200; // Non-thinking output budget; tokens are no longer consumed by hidden reasoning.
 const HEARTBEAT_MS = 12000;
 
 type MorphSegment = [string, string, string];
@@ -202,6 +202,8 @@ export async function POST(req: NextRequest) {
 
       let answer = "";
       let finishReason = "";
+      let reasoningTokensObserved = 0;
+      let reasoningCharactersObserved = 0;
       let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
       let invalid = new Set<string>();
       const validateReferences = (text: string) => {
@@ -234,6 +236,12 @@ export async function POST(req: NextRequest) {
           signal: abort.signal,
           body: JSON.stringify({
             model, temperature: 0.1, max_tokens: MAX_OUTPUT_TOKENS, stream: true,
+            // DeepSeek V3.2 defaults to thinking; that can exhaust max_tokens before
+            // a single final-answer token is emitted. This model supports chat mode.
+            // Leave this out for other model families with different templates.
+            ...(model === "deepseek-ai/DeepSeek-V3.2-TEE"
+              ? { chat_template_kwargs: { thinking_mode: "chat" } }
+              : {}),
             messages: [
               { role: "system", content: SYSTEM },
               { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nCORPUS MORPHOLOGY (numbered words in reading order; tags may be questioned on explicit grammatical grounds):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\nProduce all six concise sections before adding detail. Check tags against visible forms, and flag specific discrepancies. Use the passages as evidence, not as automatic confirmations. Finish with section 6.` },
@@ -268,7 +276,12 @@ export async function POST(req: NextRequest) {
           if (msg.usage) usage = msg.usage;
           const choice = msg.choices?.[0];
           if (choice?.finish_reason) finishReason = choice.finish_reason;
-          // Deliberately ignore reasoning_content. Display final answer only.
+          // Never show private reasoning. Count it to diagnose any ignored chat-mode flag.
+          const reasoning = choice?.delta?.reasoning_content;
+          if (typeof reasoning === "string" && reasoning) {
+            reasoningTokensObserved++;
+            reasoningCharactersObserved += reasoning.length;
+          }
           const delta = choice?.delta?.content;
           if (typeof delta === "string" && delta) {
             answer += delta;
@@ -292,7 +305,14 @@ export async function POST(req: NextRequest) {
         pending += decoder.decode();
         if (pending.trim()) handleFrame(pending.replace(/\r\n/g, "\n"));
         if (!answer.trim()) {
-          finish("error", { message: "The model finished without final-answer text (possibly consumed by reasoning tokens).", partial: false });
+          console.error("Verse analysis returned no final text", {
+            ref, model, finishReason, providerDone, durationMs: Date.now() - started,
+            completionTokens: usage?.completion_tokens, reasoningChunks: reasoningTokensObserved,
+            reasoningCharacters: reasoningCharactersObserved,
+          });
+          finish("error", { message: reasoningCharactersObserved
+            ? "Chutes generated reasoning but no final answer. The model did not honor non-thinking mode; check Chutes model/template configuration."
+            : `Chutes returned no final-answer text (finish reason: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
           return;
         }
         validateReferences(answer);
@@ -300,7 +320,7 @@ export async function POST(req: NextRequest) {
           ref, model, durationMs: Date.now() - started, finishReason,
           promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
           contentLength: answer.length, morphologyWords: focalMorph.length, parallelVerses: parallels.length,
-          providerDone,
+          providerDone, reasoningChunks: reasoningTokensObserved,
         });
         finish("done", {
           reference: ref, incomplete: finishReason === "length" || !providerDone || sectionCoverage(answer).size < 6,
@@ -342,5 +362,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.4" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.4.1" });
 }
