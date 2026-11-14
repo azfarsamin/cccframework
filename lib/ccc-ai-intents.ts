@@ -83,3 +83,19 @@ export async function resolveDeterministicListing(question: string): Promise<Det
   }
   return null;
 }
+
+/** A complete lexical anchor for *analysis* questions. Unlike a plain listing,
+ * this does not answer the semantic question itself; it supplies a certified
+ * occurrence list for the independent interpretive stage. Never use a root
+ * search as a substitute for a lemma search. */
+export async function resolveLexicalResearchAnchor(question: string): Promise<DeterministicListing | null> {
+  const q = question.normalize("NFKC");
+  const wisdom = /\bwisdom\b|\bhikmah\b|\bḥikmah\b|\bhikmat\b|حِ?كْمَة|حكمة|الحكمة/i.test(q);
+  if (!wisdom || /\b(?:root|derivatives?|derived from|every form of)\b/i.test(q)) return null;
+  const index = await getIndex();
+  const rows = index.filter(t => t.lemma &&
+    t.lemma.replace(/[\u064B-\u065F\u0670]/g, "").replace(/[إأآٱ]/g, "ا").replace(/ة/g, "ه") === "حكمه"
+  );
+  if (!rows.length) throw new Error("The ḥikmah morphology lemma was not found");
+  return render("ḥikmah (حكمة)", "lexical", rows, false);
+}
