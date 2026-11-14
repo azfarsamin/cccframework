@@ -31,14 +31,55 @@ const editions: { id: TranslationEdition; name: string }[] = [
   { id: "en.pickthall", name: "Marmaduke Pickthall" },
   { id: "en.itani", name: "Talal Itani" },
   { id: "gerrans", name: "Sam Gerrans" },
-  { id: "ur.islahi", name: "Amin Ahsan Islahi — Urdu (Surahs 1–5)" },
+  { id: "ur.islahi", name: "Amin Ahsan Islahi — Urdu (all 114 surahs)" },
 ];
 type GerransMap = Record<string, string>;
-type IslahiSurah = {
-  surah_number: number;
+type IslahiQuran = {
+  title: string;
   translator: string;
-  verses: { surah: number; ayah: number; translation_ur: string }[];
+  source: string;
+  total_surahs: number;
+  total_verses: number;
+  surahs: {
+    surah_number: number;
+    total_verses: number;
+    verses: { surah: number; ayah: number; arabic: string; translation_ur: string }[];
+  }[];
 };
+// One shared, cached download for the entire 114-surah Urdu translation.
+// Its Arabic field is not substituted for the separate Reader Arabic edition.
+let islahiPromise: Promise<GerransMap> | null = null;
+async function loadIslahiQuran(): Promise<GerransMap> {
+  if (!islahiPromise) islahiPromise = (async () => {
+    const response = await fetch("/data/quran_translation_amin_ahsan_islahi.json");
+    if (!response.ok) throw new Error(`Islahi Urdu data unavailable (HTTP ${response.status})`);
+    const data = await response.json() as IslahiQuran;
+    if (data?.total_surahs !== 114 || data?.total_verses !== 6236 ||
+        !Array.isArray(data.surahs) || data.surahs.length !== 114 ||
+        data.translator !== "Amin Ahsan Islahi") {
+      throw new Error("Invalid full-Qurʾān Islahi translation metadata");
+    }
+    const result: GerransMap = {};
+    let total = 0;
+    for (let i = 0; i < 114; i++) {
+      const surah = data.surahs[i];
+      if (surah?.surah_number !== i + 1 || !Array.isArray(surah.verses) ||
+          surah.verses.length !== surah.total_verses) throw new Error(`Invalid Urdu Surah ${i+1} record`);
+      for (let j = 0; j < surah.verses.length; j++) {
+        const verse = surah.verses[j];
+        if (verse.surah !== i + 1 || verse.ayah !== j + 1 ||
+            typeof verse.translation_ur !== "string" || !verse.translation_ur.trim()) {
+          throw new Error(`Invalid Urdu verse ${i+1}:${j+1}`);
+        }
+        result[`${i+1}:${j+1}`] = verse.translation_ur;
+        total++;
+      }
+    }
+    if (total !== 6236 || Object.keys(result).length !== 6236) throw new Error("Urdu verse map incomplete");
+    return result;
+  })().catch(error => { islahiPromise = null; throw error; });
+  return islahiPromise;
+}
 
 type FullSurah = { number: number; ayahs: Ayah[] };
 type SearchResult = { chapter: number; verse: number; arabic: string; english: string };
@@ -430,25 +471,9 @@ export default function QuranResearchPage() {
     setTranslations([]);
     setTranslationError("");
     if (edition === "ur.islahi") {
-      if (chapter < 1 || chapter > 5) {
-        setTranslationError("Islahi Urdu text is currently available for Surahs 1–5 only.");
-      } else {
-        const expected = ({ 1: 7, 2: 286, 3: 200, 4: 176, 5: 120 } as Record<number, number>)[chapter];
-        fetch(`/data/islahi-urdu-surah-${chapter}.json`)
-          .then(r => { if (!r.ok) throw new Error("Islahi Urdu data unavailable"); return r.json(); })
-          .then((data: IslahiSurah) => {
-            if (data?.surah_number !== chapter || !Array.isArray(data.verses) ||
-                data.verses.length !== expected ||
-                data.verses.some(v => v.surah !== chapter || !Number.isInteger(v.ayah) || v.ayah < 1 || v.ayah > expected || typeof v.translation_ur !== "string") ||
-                new Set(data.verses.map(v => v.ayah)).size !== expected) {
-              throw new Error("Invalid Islahi Urdu verse mapping");
-            }
-            if (!cancelled) setIslahi(previous => ({ ...previous,
-              ...Object.fromEntries(data.verses.map(v => [refOf(chapter, v.ayah), v.translation_ur]))
-            }));
-          })
-          .catch(() => { if (!cancelled) setTranslationError(`Unable to load Islahi Urdu text for Surah ${chapter}.`); });
-      }
+      loadIslahiQuran()
+        .then(data => { if (!cancelled) setIslahi(data); })
+        .catch(() => { if (!cancelled) setTranslationError("Unable to load the 114-surah Islahi Urdu translation."); });
     } else if (edition === "gerrans") {
       fetch("/data/gerrans.json")
         .then(r => { if (!r.ok) throw new Error("Gerrans data not installed yet"); return r.json(); })
@@ -575,21 +600,7 @@ export default function QuranResearchPage() {
       // Both Arabic and English are displayed for every matching verse.
       if (true) {
         if (edition === "ur.islahi") {
-          // Search the full installed Urdu dataset, not just the surah currently open.
-          const pairs = await Promise.all(([1, 2, 3, 4, 5] as const).map(async surahNumber => {
-            const res = await fetch(`/data/islahi-urdu-surah-${surahNumber}.json`);
-            if (!res.ok) throw new Error(`Islahi Urdu Surah ${surahNumber} data unavailable.`);
-            const data: IslahiSurah = await res.json();
-            const expected = ({ 1: 7, 2: 286, 3: 200, 4: 176, 5: 120 } as Record<number, number>)[surahNumber];
-            if (data.surah_number !== surahNumber || !Array.isArray(data.verses) ||
-                data.verses.length !== expected ||
-                data.verses.some(v => v.surah !== surahNumber || !Number.isInteger(v.ayah) || v.ayah < 1 || v.ayah > expected || typeof v.translation_ur !== "string") ||
-                new Set(data.verses.map(v => v.ayah)).size !== expected) {
-              throw new Error(`Invalid Islahi Urdu Surah ${surahNumber} dataset.`);
-            }
-            return data.verses.map(v => [refOf(surahNumber, v.ayah), v.translation_ur] as const);
-          }));
-          gerransMap = Object.fromEntries(pairs.flat());
+          gerransMap = await loadIslahiQuran();
           setIslahi(gerransMap);
         } else if (edition === "gerrans") {
           if (Object.keys(gerrans).length) gerransMap = gerrans;
@@ -607,7 +618,6 @@ export default function QuranResearchPage() {
       const normalizedQuery = globalLanguage === "arabic" ? normalizeArabic(query) : query.toLocaleLowerCase();
       const hits: SearchResult[] = [];
       for (const surah of arabicCorpus.current) {
-        if (edition === "ur.islahi" && globalLanguage === "english" && surah.number > 5) continue;
         const engSurah = translationVerses?.find(item => item.number === surah.number);
         for (const verse of surah.ayahs) {
           const ref = refOf(surah.number, verse.numberInSurah);
@@ -954,7 +964,7 @@ export default function QuranResearchPage() {
       </nav>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
-        <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches currently cover Surahs 1–5; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
+        <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches cover all 114 surahs; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
         <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
           <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "19:28 or Arabic word (e.g. مريم)" : edition === "ur.islahi" ? "2:255 or Urdu word" : "19:28 or English word (e.g. mercy)"} />
           <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
@@ -1017,7 +1027,7 @@ export default function QuranResearchPage() {
                     <VerseAudioButton audio={verseAudio} chapter={result.chapter} verse={result.verse} />
                   </div>
                   <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
-                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu text currently available for Surahs 1–5 only." : "Translation unavailable for this verse.")}</span>
+                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu translation unavailable for this verse." : "Translation unavailable for this verse.")}</span>
                   <VerseReferences chapter={result.chapter} verse={result.verse} />
                 </div>;
               })}
@@ -1049,9 +1059,7 @@ export default function QuranResearchPage() {
               <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`}
                 lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>
                 {edition === "ur.islahi"
-                  ? (chapter >= 1 && chapter <= 5
-                    ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
-                    : "Islahi Urdu text is available for Surahs 1–5 only.")
+                  ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
                   : edition === "gerrans"
                     ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
                     : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
@@ -1062,7 +1070,7 @@ export default function QuranResearchPage() {
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
             </>}
           </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the Surah 1–5 Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
+          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the full 114-surah Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Qurʾān study tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
