@@ -751,8 +751,24 @@ export default function QuranResearchPage() {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
         body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse }),
       });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json.error || "Analysis service unavailable");
+      // A Vercel gateway, middleware or missing route can return HTML rather than JSON.
+      // Read as text first so we show the actual HTTP failure instead of a JSON parse error.
+      const contentType = response.headers.get("content-type") || "";
+      const payload = await response.text();
+      if (!contentType.toLowerCase().includes("application/json")) {
+        const hint = response.status === 404
+          ? "The /api/verse-analysis route was not found on this deployment."
+          : response.status === 401 || response.status === 403
+          ? "The server or access-control layer rejected this request."
+          : response.status === 504 || response.status === 502
+          ? "The deployment gateway returned an error, possibly a function timeout."
+          : "The analysis endpoint returned a non-JSON response.";
+        throw new Error(`${hint} HTTP ${response.status}. Check Vercel Runtime Logs for /api/verse-analysis.`);
+      }
+      let json: { answer?: string; incomplete?: boolean; error?: string };
+      try { json = JSON.parse(payload); }
+      catch { throw new Error(`Analysis endpoint returned invalid JSON (HTTP ${response.status}).`); }
+      if (!response.ok) throw new Error(json.error || `Analysis service failed (HTTP ${response.status}).`);
       setAiResponse(json.answer || "No analysis returned.");
       setIncomplete(Boolean(json.incomplete));
     } catch (e) { setStatus(e instanceof Error ? e.message : "Unexpected problem"); }
