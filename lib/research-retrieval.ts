@@ -18407,7 +18407,7 @@ export async function expandResearchEvidence(
     const full = pieces.map(c => c.text).join("\n\n");
     // Keep as many entire sections as the budget permits. Trim only an
     // exceptionally long section, and expose truncation explicitly.
-    const allowance = Math.min(5000, remaining);
+    const allowance = Math.min(6500, remaining);
     const complete = full.length <= allowance;
     const selected = complete ? full : full.slice(0, allowance);
     const citationFrequency:Record<string,number> = {};
