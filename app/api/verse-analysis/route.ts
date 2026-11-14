@@ -4,7 +4,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
+const UPSTREAM_LIMIT_MS = 132000; // Leave time to flush a final SSE event.
+const HEARTBEAT_MS = 12000;
 
 type MorphSegment = [string, string, string];
 type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
@@ -173,59 +175,162 @@ export async function POST(req: NextRequest) {
   const context = contextWindow(chapter, verse, corpus);
   const parallels = relatedText(ref, corpus, morph);
   const model = process.env.VERSE_ANALYSIS_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
-  const started = Date.now();
-  try {
-    const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(45000),
-      body: JSON.stringify({
-        model, temperature: 0.1, max_tokens: 5800,
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nVERIFIED MORPHOLOGY (numbered words in reading order; unmarked verb forms are Form I):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\nProduce the six-section analysis. Treat verb forms and mood tags as verified; check every morphological claim against the numbered records. Do not weaken or strengthen grammatical imperatives without explaining the textual grounds. Only discuss cross-references actually pertinent to the verse.` },
-        ],
-      }),
-    });
-    if (!response.ok) {
-      console.error("Verse analysis HTTP error", { ref, status: response.status, durationMs: Date.now() - started });
-      return NextResponse.json({ error: `Analysis model unavailable (HTTP ${response.status}).` }, { status: 502 });
-    }
-    const result = await response.json() as {
-      choices?: { finish_reason?: string; message?: { content?: string; reasoning_content?: string } }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    const choice = result.choices?.[0];
-    const answer = choice?.message?.content?.trim() || "";
-    const incomplete = choice?.finish_reason === "length";
-    console.info("Verse analysis completion", {
-      ref, model, ms: Date.now() - started, finishReason: choice?.finish_reason,
-      promptTokens: result.usage?.prompt_tokens, completionTokens: result.usage?.completion_tokens,
-      contentLength: answer.length, reasoningOnly: !answer && Boolean(choice?.message?.reasoning_content),
-      morphologyWords: focalMorph.length, parallelVerses: parallels.length,
-    });
-    if (!answer) return NextResponse.json({ error: "Model returned no final analysis; it may have exhausted the reasoning budget." }, { status: 502 });
+  // Stream immediately: this removes the 45-second all-at-once response constraint.
+  // Every event is JSON inside a Server-Sent Events frame (not arbitrary text).
+  const encoder = new TextEncoder();
+  const emit = (controller: ReadableStreamDefaultController<Uint8Array>, event: string, payload: unknown) =>
+    controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
 
-    // Validate the existence of every cited reference. A citation's substantive relevance
-    // is not mechanically certified by this check.
-    const matches = [...answer.matchAll(/\b(\d{1,3}):(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?\b/g)];
-    const invalid = [...new Set(matches.filter(m => {
-      const start = `${m[1]}:${m[2]}`;
-      if (!verifyReference(start, corpus)) return true;
-      if (!m[3]) return false;
-      const end = Number(m[3]);
-      return end < Number(m[2]) || end - Number(m[2]) > 100 || !verifyReference(`${m[1]}:${end}`, corpus);
-    }).map(m => m[0]))];
-    const notice = invalid.length ? `\n\n**Reference warning:** These citations could not be verified: ${invalid.join(", ")}.` : "";
-    return NextResponse.json({ answer: answer + notice, incomplete, reference: ref });
-  } catch (err) {
-    const name = err instanceof Error ? err.name : "UnknownError";
-    console.error("Verse analysis request failure", { ref, model, name, ms: Date.now() - started });
-    return NextResponse.json({ error: name === "TimeoutError" ? "Chutes did not complete the analysis within 45 seconds. Retry or consult the Vercel function logs." : "Unable to complete analysis; check the Vercel function logs." }, { status: 503 });
-  }
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const started = Date.now();
+      const abort = new AbortController();
+      let finished = false;
+      let upstreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+      // Disconnects, timeouts, and cancellation all stop the upstream request.
+      const onDisconnect = () => abort.abort();
+      req.signal.addEventListener("abort", onDisconnect, { once: true });
+      const deadline = setTimeout(() => abort.abort(), UPSTREAM_LIMIT_MS);
+      const heartbeat = setInterval(() => {
+        if (!finished) {
+          try { emit(controller, "heartbeat", { elapsedMs: Date.now() - started }); }
+          catch { abort.abort(); }
+        }
+      }, HEARTBEAT_MS);
+
+      let answer = "";
+      let finishReason = "";
+      let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
+      let invalid = new Set<string>();
+      const validateReferences = (text: string) => {
+        const matches = [...text.matchAll(/\b(\d{1,3}):(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?\b/g)];
+        for (const m of matches) {
+          const first = `${m[1]}:${m[2]}`;
+          if (!verifyReference(first, corpus) ||
+            (m[3] && (Number(m[3]) < Number(m[2]) || Number(m[3]) - Number(m[2]) > 100 || !verifyReference(`${m[1]}:${m[3]}`, corpus)))) {
+            invalid.add(m[0]);
+          }
+        }
+      };
+      const finish = (event: "done" | "error", payload: Record<string, unknown>) => {
+        if (finished) return;
+        finished = true;
+        try { emit(controller, event, payload); controller.close(); }
+        catch { /* Client disconnected. */ }
+      };
+      try {
+        emit(controller, "status", { message: `Preparing analysis for ${ref}…`, reference: ref });
+        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
+          signal: abort.signal,
+          body: JSON.stringify({
+            model, temperature: 0.1, max_tokens: 7000, stream: true,
+            messages: [
+              { role: "system", content: SYSTEM },
+              { role: "user", content: `SELECTED VERSE ${ref}: ${corpus[ref]}\n\nVERIFIED MORPHOLOGY (numbered words in reading order; unmarked verb forms are Form I):\n${grammar}\n\nIMMEDIATE CONTEXT (full verse text):\n${context.join("\n")}\n\nCROSS-REFERENCE CANDIDATES (full verified verse text, ranked by lexical overlap; NOT presumed relevant):\n${parallels.join("\n") || "None"}\n\nProduce the six-section analysis. Treat verb forms and mood tags as verified; check every morphological claim against the numbered records. Do not weaken or strengthen grammatical imperatives without explaining the textual grounds. Only discuss cross-references actually pertinent to the verse.` },
+            ],
+          }),
+        });
+        if (!response.ok) {
+          console.error("Verse analysis upstream HTTP", { ref, model, status: response.status, ms: Date.now() - started });
+          finish("error", { message: `Chutes returned HTTP ${response.status}.`, partial: false });
+          return;
+        }
+        if (!response.body) {
+          finish("error", { message: "Chutes returned no streaming response body.", partial: false });
+          return;
+        }
+        emit(controller, "status", { message: "Connected to analysis model. Awaiting final-answer text…" });
+        upstreamReader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = "";
+        let providerDone = false;
+        const handleFrame = (frame: string) => {
+          const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n").trim();
+          if (!data) return;
+          if (data === "[DONE]") { providerDone = true; return; }
+          let msg: {
+            error?: { message?: string } | string;
+            choices?: { delta?: { content?: string | null; reasoning_content?: string | null }; finish_reason?: string | null }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
+          };
+          try { msg = JSON.parse(data); } catch { return; }
+          if (msg.error) throw new Error(typeof msg.error === "string" ? msg.error : msg.error.message || "Model stream error");
+          if (msg.usage) usage = msg.usage;
+          const choice = msg.choices?.[0];
+          if (choice?.finish_reason) finishReason = choice.finish_reason;
+          // Deliberately ignore reasoning_content. Display final answer only.
+          const delta = choice?.delta?.content;
+          if (typeof delta === "string" && delta) {
+            answer += delta;
+            emit(controller, "delta", { text: delta });
+          }
+        };
+        while (true) {
+          const { done, value } = await upstreamReader.read();
+          if (done) break;
+          pending += decoder.decode(value, { stream: true });
+          let boundary: number;
+          while (true) {
+            const match = /\r?\n\r?\n/.exec(pending);
+            if (!match) break;
+            boundary = match.index;
+            const frame = pending.slice(0, boundary).replace(/\r\n/g, "\n"); pending = pending.slice(boundary + match[0].length);
+            handleFrame(frame);
+          }
+          if (pending.length > 2_000_000) throw new Error("Oversized provider stream frame");
+        }
+        pending += decoder.decode();
+        if (pending.trim()) handleFrame(pending.replace(/\r\n/g, "\n"));
+        if (!answer.trim()) {
+          finish("error", { message: "The model finished without final-answer text (possibly consumed by reasoning tokens).", partial: false });
+          return;
+        }
+        validateReferences(answer);
+        console.info("Verse analysis streamed", {
+          ref, model, durationMs: Date.now() - started, finishReason,
+          promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+          contentLength: answer.length, morphologyWords: focalMorph.length, parallelVerses: parallels.length,
+          providerDone,
+        });
+        finish("done", {
+          reference: ref, incomplete: finishReason === "length" || !providerDone,
+          invalidReferences: [...invalid], durationMs: Date.now() - started,
+        });
+      } catch (err) {
+        const timedOut = abort.signal.aborted && !req.signal.aborted;
+        console.error("Verse analysis stream failed", {
+          ref, model, durationMs: Date.now() - started,
+          name: err instanceof Error ? err.name : "Unknown", message: err instanceof Error ? err.message : String(err),
+          partialLength: answer.length, timedOut,
+        });
+        if (!req.signal.aborted) finish("error", {
+          message: timedOut
+            ? `Analysis exceeded the ${Math.round(UPSTREAM_LIMIT_MS / 1000)}-second server limit. ${answer ? "Partial analysis preserved below." : "No final-answer text was received."}`
+            : (err instanceof Error ? err.message : "Analysis stream interrupted."),
+          partial: Boolean(answer.trim()),
+        });
+      } finally {
+        clearTimeout(deadline); clearInterval(heartbeat);
+        req.signal.removeEventListener("abort", onDisconnect);
+        try { await upstreamReader?.cancel(); } catch { /* upstream already closed */ }
+        if (!finished) { finished = true; try { controller.close(); } catch { /* disconnected */ } }
+      }
+    },
+    cancel() { /* Request abort signal is handled above on disconnect. */ },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.2" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.3" });
 }
