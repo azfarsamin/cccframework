@@ -326,11 +326,12 @@ export async function POST(req: NextRequest) {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Accel-Buffering": "no",
+      "X-Verse-Analysis-Protocol": "sse-v1",
     },
   });
 }
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.3" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.3b" });
 }
