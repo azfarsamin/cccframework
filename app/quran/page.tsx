@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ResearchMarkdown } from "./research-markdown";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
+import audioStyles from "./verse-audio.module.css";
+import { VerseAudioButton, VerseAudioDock, useQuranVerseAudio } from "./verse-audio";
 
 // The model occasionally emits numeric HTML entities and malformed section numbering.
 // Decode numeric character references as plain text; React/ResearchMarkdown still
@@ -275,6 +277,8 @@ function storageRead(): Note[] {
 
 export default function QuranResearchPage() {
   const [surahs, setSurahs] = useState<Surah[]>([]);
+  // One shared recorded-audio player; entirely independent of verse selection and AI.
+  const verseAudio = useQuranVerseAudio(surahs);
   const [chapter, setChapter] = useState(1);
   const [ayahs, setAyahs] = useState<Ayah[]>([]);
   const [edition, setEdition] = useState<TranslationEdition>("gerrans");
@@ -895,13 +899,11 @@ export default function QuranResearchPage() {
         if (!completed || failed || stageIncomplete) {
           setAiResponse(collected);
           setIncomplete(true);
-          // Preserve generated text, but do not describe an unverified analysis as completed.
-          if (stage === "audit" && !failed && !stageIncomplete) setStatus("Verification did not finish. Analysis retained as UNVERIFIED.");
           if (!completed) setStatus(`Stage ${stage} ended unexpectedly. Partial text retained.`);
           return;
         }
       }
-      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections; structured verification passed."); }
+      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections, evidence review finished."); }
     } catch (e) {
       if (run === analysisRun.current && !request.signal.aborted) {
         setAiResponse(collected); setIncomplete(Boolean(collected));
@@ -991,14 +993,16 @@ export default function QuranResearchPage() {
             </div>
           ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
           {readerStatus && <p role="alert" className={styles.status}>{readerStatus}</p>}
+          <VerseAudioDock audio={verseAudio} goToVerse={goToReference} />
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
                 const chosen = selectedSearch.some(r => r.chapter === result.chapter && r.verse === result.verse);
-                return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""}`} key={`${result.chapter}:${result.verse}`}>
+                return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""} ${verseAudio.isActive(result.chapter, result.verse) ? audioStyles.activeVerse : ""}`} key={`${result.chapter}:${result.verse}`}>
                   <div className={styles.verseToolbar}>
                     <button type="button" className={styles.searchRef} onClick={() => openSearchResult(result)} title="Open this verse in the surah reader">{refOf(result.chapter, result.verse)} <span aria-hidden="true">↗</span></button>
                     <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected ✓" : "Select verse"}</button>
+                    <VerseAudioButton audio={verseAudio} chapter={result.chapter} verse={result.verse} />
                   </div>
                   <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
                   <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu text currently available for Surahs 1–5 only." : "Translation unavailable for this verse.")}</span>
@@ -1010,8 +1014,8 @@ export default function QuranResearchPage() {
             </>}
             {!showSearchResults && <>
             {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
-              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""}`}>
-              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected ✓" : "Select verse"}</button></div>
+              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""} ${verseAudio.isActive(chapter, a.numberInSurah) ? audioStyles.activeVerse : ""}`}>
+              <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected ✓" : "Select verse"}</button><VerseAudioButton audio={verseAudio} chapter={chapter} verse={a.numberInSurah} /></div>
               <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
                 const reference = refOf(chapter, a.numberInSurah);
                 const tokens = a.text.trim().split(/\s+/);
