@@ -271,20 +271,46 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     (researchCounts.get(b)!.count-researchCounts.get(a)!.count) || compareRefs(a,b));
   const highResearch = researchReferences.filter(r => (researchCounts.get(r)?.count || 0) >= 2).slice(0, 15);
   const otherResearch = researchReferences.filter(r => !highResearch.includes(r)).slice(0, 12);
-  // Prevent one polysemous lemma from consuming the entire evidence budget.
-  // Reserve substantial capacity for an interrogated concept before loose root parallels.
-  // For a manageable lemma (<=24 verse occurrences), include the WHOLE occurrence
-  // set when the character/verse budget permits. This is generic, not a hardcoded
-  // gloss of hikma, nisāʾ, or any other word. Prioritize broad but finite content
-  // lemmas (8–24) before shorter sets and allow research cross-citations priority
-  // where they have affirmative textual support. Exclude heavily polysemous roots.
-  const conceptLemma = lexical.filter(l => l.total >= 2 && l.total <= 24)
-    .sort((a,b) => (b.total >= 8 ? 1 : 0) - (a.total >= 8 ? 1 : 0) || b.total-a.total)
-    .flatMap(l => l.references.filter(r => r !== ref));
-  const rareLemma = lexical.filter(l => l.total <= 16).flatMap(l => l.references.filter(r => r !== ref).slice(0, 2)).slice(0, 6);
+  // Allocate evidence by ARGUMENT RELEVANCE, not by the length of a common
+  // word's occurrence list. The previous all-occurrences-first policy let
+  // junah (24 verses) displace dayn (3) and qarḍ references in Q 2:282.
+  // Conversely, a focal verse with a small number of content lemmas (e.g.
+  // Q 33:34, hikma) should still receive their complete occurrence sets.
+  const rankedResearch = researchReferences.slice(0, 12);
+  // Guarantee a small number of DIRECT citations from each restored research
+  // section, so an unrelated high-frequency vocabulary set cannot erase a
+  // distinct argument such as qarḍ while analyzing dayn.
+  const diverseResearch = researchUnits.flatMap(u =>
+    u.verseRefs.filter(r => r !== ref && Boolean(corpus[r])).slice(0, 2));
+  const conceptFamilies = lexical.filter(l => l.total >= 2 && l.total <= 24)
+    .map(l => {
+      const citations = l.references.reduce((sum, r) => sum + (researchCounts.get(r)?.count || 0), 0);
+      // Research co-citations are only a relevance signal, not authority.
+      const priority = citations * 3 + 20 / Math.sqrt(l.total);
+      return { ...l, priority };
+    }).sort((a,b) => b.priority-a.priority || a.total-b.total || a.lemma.localeCompare(b.lemma));
+  // An equalized two-pass allocation covers several distinct legal or
+  // conceptual terms before expanding any single term's full occurrence set.
+  const initialConceptRefs: string[] = [];
+  for (let round = 0; round < 3; round++) {
+    for (const family of conceptFamilies) {
+      const refs = family.references.filter(r => r !== ref);
+      if (refs[round]) initialConceptRefs.push(refs[round]);
+    }
+  }
+  // When there are only a few central concepts, finish their sets. When the
+  // focal verse has dozens of surface lemmas, cap expansion and give the
+  // referenced arguments space instead of exhausting a 36-verse budget.
+  const expandedConceptRefs = conceptFamilies.length <= 4
+    ? conceptFamilies.flatMap(l => l.references.filter(r => r !== ref))
+    : conceptFamilies.slice(0, 4).flatMap(l => l.references.filter(r => r !== ref).slice(3, 6));
   const majorRoot = candidates.filter(c => c.required).slice(0, 8).map(c => c.ref);
   const ranked = [...scored.entries()].sort((a,b) => b[1].score-a[1].score || compareRefs(a[0],b[0])).map(([r]) => r);
-  const order = [...new Set([...highResearch, ...conceptLemma, ...otherResearch, ...linkedResearch, ...rareLemma, ...ranked, ...majorRoot])];
+  const order = [...new Set([
+    ...rankedResearch.slice(0,6), ...diverseResearch,
+    ...initialConceptRefs, ...rankedResearch.slice(6), ...linkedResearch.slice(0,8),
+    ...expandedConceptRefs, ...ranked, ...majorRoot
+  ])];
   const references: string[] = [];
   let characters = 0;
   for (const r of order) {
@@ -398,7 +424,7 @@ const SYSTEM = `Analyze one Qurʾānic verse through grammar, immediate context,
 FOLLOW THE RECONSTRUCTED ARGUMENT: Before reaching a verdict examine the actual premises and comparative evidence in the supplied RESTORED research sections. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
 LOGICAL TEST: For each proposed objection, identify precisely which proposition it contradicts. Check that the contrary evidence makes the proposition false, rather than merely describing a different aspect. Transitive verbs may still describe self-directed or benefactive action; assess these dimensions separately, not through category confusion. A false allegation about a thing's origin or identity need not falsify an activity associated with it; nor does the allegation alone independently establish that activity happened. Apply this general distinction to ANY reported speech. Never infer that all associated clauses share the same truth status without argument.
 AFFIRMATIVE EVIDENCE: A competing interpretation requires specific affirmative Arabic evidence and transparent provenance. A hypothetical grammatical possibility is not evidence against a supported interpretation. Equally, a strong inferential preference does not establish absolute lexical impossibility. External linguistic claims must be labeled external; do not import them silently or pretend they cannot exist because a Qurʾānic word occurs once. No manufactured opposition, neutrality, or uncertainty. Identify demonstrated errors in any interpretation. Attribute certainty to the actual inferential strength.
-GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings.
+GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings. A morphological gender/number or verb-form tag does not itself prove a semantic age threshold, category exclusion, contractual ethic, or universally fixed meaning. When a corpus annotation and Arabic syntax disagree, report the conflict instead of asserting a tag is infallible.
 EVIDENCE PROVENANCE: Explicitly distinguish focal Arabic, full supplied comparison verses, tagged morphology, source-article arguments, and unsupplied material. The lexical manifest may list occurrences not supplied in full; do not claim exhaustive semantic evaluation where coverage is partial. Immediate context and cited passages have priority over weak root parallels. Treat any truncated research section as incomplete, not absent.
 OUTPUT: Respond only under the stage's prescribed headings. Stage 1 covers grammar and immediate context; stage 2 covers pan-textual comparison, CCC interpretation and conclusion. State (A) explicit wording, (B) cumulative inference and (C) genuinely undetermined matters. Assess correspondence only if external evidence was supplied; otherwise say not tested. Do not invent external evidence. Use Unicode Arabic, no HTML entities.`;
 
@@ -696,7 +722,7 @@ export async function POST(req: NextRequest) {
           const unresolved = [...parsed.unresolved.filter(x=>typeof x === "string").slice(0,2),
             ...coverageGaps.map(g=>`Central lemma incomplete: ${g}`)].slice(0,8);
           emit(controller, "audit", { findings: merged, unresolved, deterministicFindings: deterministic.length,
-            modelFindings: findings.length, grammarStatus: deterministic.length ? "flagged" : "checked-no-detected-conflict",
+            modelFindings: findings.length, grammarStatus: deterministic.length ? "token-aligned-flags" : "checked-no-detected-conflict",
             evidenceStatus: coverageGaps.length ? "partial" : "selected-lemmas-covered" });
           finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started,
             findings:merged.length, deterministicFindings:deterministic.length, evidenceGaps:coverageGaps.length });
