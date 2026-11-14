@@ -368,7 +368,7 @@ export default function QuranResearchPage() {
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
   const [aiResponse, setAiResponse] = useState("");
-  const [auditReport, setAuditReport] = useState<{ corrections: { old: string; new: string; reason: string }[]; unresolved: string[]; rejected: string[] } | null>(null);
+  const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[] } | null>(null);
   // Immutable identity of the request being streamed (independent of Reader navigation).
   const [analysisReference, setAnalysisReference] = useState<string | null>(null);
   const [readerStatus, setReaderStatus] = useState("");
@@ -780,16 +780,17 @@ export default function QuranResearchPage() {
     setResearchTab("analysis");
     setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null);
     let collected = "";
+    let discovered: string[] = [];
     try {
-      // Three independent requests: stream foundation/synthesis immediately, then
-      // audit the complete text with the same fast default model. Reader stays independent.
-      for (const stage of ["foundation", "synthesis", "audit"] as const) {
+      // Discovery precedes the two writing stages. Verification is advisory;
+      // the Reader remains independent throughout all four network calls.
+      for (const stage of ["discovery", "foundation", "synthesis", "audit"] as const) {
         if (run !== analysisRun.current || request.signal.aborted) return;
-        setStatus(stage === "foundation" ? "Analyzing wording, grammar and context (1/3)…" : stage === "synthesis" ? "Analyzing Qurʾānic parallels and interpretation (2/3)…" : "Verifying grammar and Qurʾānic coherence (3/3)…");
+        setStatus(stage === "discovery" ? "Searching the Qurʾān for substantive evidence (1/4)…" : stage === "foundation" ? "Analyzing grammar and context (2/4)…" : stage === "synthesis" ? "Evaluating pan-textual evidence (3/4)…" : "Checking material claims (4/4)…");
         const foundation = collected;
         const response = await fetch("/api/verse-analysis?protocol=sse-v1", {
           method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "Accept": "text/event-stream", "x-ccc-passcode": password },
-          body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse, stage, ...(stage !== "foundation" ? { prior: foundation } : {}) }),
+          body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse, stage, ...(stage === "synthesis" || stage === "audit" ? { prior: foundation } : {}), ...(stage !== "discovery" ? { evidence: discovered } : {}) }),
           signal: request.signal,
         });
         const type = (response.headers.get("content-type") || "").toLowerCase();
@@ -802,7 +803,7 @@ export default function QuranResearchPage() {
           }
           throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
         }
-        if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: deploy both matching v7.6 files and hard-refresh the Reader.");
+        if (protocol !== "sse-v1") throw new Error("Analysis endpoint version mismatch: deploy both matching v7.7 files and hard-refresh the Reader.");
         if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -815,21 +816,20 @@ export default function QuranResearchPage() {
           const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
           const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
           if (!data) return;
-          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; correctedText?: string; corrections?: { old: string; new: string; reason: string }[]; rejected?: string[]; unresolved?: string[] };
+          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
           try { value = JSON.parse(data); } catch { return; }
           if (event === "delta") {
             const chunk = value.text || "";
             if (stage === "synthesis" && collected === foundation && chunk) collected += "\n\n";
             collected += chunk;
             if (Date.now() - lastRender >= 125) { setAiResponse(collected); lastRender = Date.now(); }
+          } else if (event === "evidence") {
+            discovered = (value.references || []).filter(r => /^\d{1,3}:\d{1,3}$/.test(r));
+            setStatus(`Selected ${discovered.length} pan-textual evidence passages.`);
           } else if (event === "audit") {
-            // Only the server's audited, exact-substring revisions are accepted.
-            // Keep a visible audit trail and preserve the six-section result.
-            if (typeof value.correctedText === "string" && value.correctedText) {
-              collected = value.correctedText;
-              setAiResponse(collected);
-              setAuditReport({ corrections: value.corrections || [], unresolved: value.unresolved || [], rejected: value.rejected || [] });
-            }
+            // Advisory findings only: the verifier may identify errors but
+            // cannot silently replace an interpretation with another guess.
+            setAuditReport({ findings: value.findings || [], unresolved: value.unresolved || [] });
           } else if (event === "status") {
             setStatus(value.message || "Analyzing…");
           } else if (event === "done") {
@@ -837,7 +837,7 @@ export default function QuranResearchPage() {
             stageIncomplete = Boolean(value.incomplete);
             setAiResponse(collected);
             const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
-            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "foundation" ? "Foundation complete. Continuing with synthesis…" : stage === "synthesis" ? "Six sections generated. Running verification…" : "Verification complete.") + warnings);
+            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "discovery" ? "Evidence selected. Beginning grammar and context…" : stage === "foundation" ? "Grammar and context complete. Beginning synthesis…" : stage === "synthesis" ? "Five sections generated. Checking material claims…" : "Verification complete.") + warnings);
           } else if (event === "error") {
             completed = true;
             failed = true;
@@ -870,7 +870,7 @@ export default function QuranResearchPage() {
           return;
         }
       }
-      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all six sections, verification finished."); }
+      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections, evidence review finished."); }
     } catch (e) {
       if (run === analysisRun.current && !request.signal.aborted) {
         setAiResponse(collected); setIncomplete(Boolean(collected));
@@ -1214,7 +1214,7 @@ export default function QuranResearchPage() {
             <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? `Analyzing ${analysisReference || "verse"}…` : `Analyze ${analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "selected verse"}`}</button>
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.corrections.length > 0 || auditReport.rejected.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Verification record: {auditReport.corrections.length} correction(s), {auditReport.unresolved.length} unresolved question(s)</summary><ul>{auditReport.corrections.map((item, i) => <li key={`correction-${i}`}>Corrected: {item.reason}</li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}{auditReport.rejected.map((item, i) => <li key={`rejected-${i}`}>Rejected suggested edit: {item}</li>)}</ul></details>}</div>}
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} grounded finding(s), {auditReport.unresolved.length} unresolved question(s)</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
