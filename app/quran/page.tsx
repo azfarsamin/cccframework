@@ -371,11 +371,19 @@ export default function QuranResearchPage() {
   const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[] } | null>(null);
   const [evidenceAudit, setEvidenceAudit] = useState<{
     references: string[];
-    researchSources: { id: string; title: string; section: string }[];
+    researchSources: { id: string; title: string; section: string; complete?: boolean; parts?: number }[];
+    focalReference?: string;
+    contextReferences?: string[];
+    researchSections?: { section: string; article: string; complete: boolean; parts: number }[];
     researchReferences: string[];
     lexical: { lemma: string; total: number; supplied: number }[];
     sources: Record<string, string[]>;
   } | null>(null);
+  const [argumentAudit, setArgumentAudit] = useState<{
+    issue: string; claims: { claim: string; source: string; premises: string[]; evidenceRefs: string[]; status: string }[];
+    disputed: string[]; notNecessarilyDisputed: string[];
+  } | null>(null);
+  const [unsuppliedReferences, setUnsuppliedReferences] = useState<string[]>([]);
   // Immutable identity of the request being streamed (independent of Reader navigation).
   const [analysisReference, setAnalysisReference] = useState<string | null>(null);
   const [readerStatus, setReaderStatus] = useState("");
@@ -785,19 +793,20 @@ export default function QuranResearchPage() {
     const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
     setAnalysisReference(reference);
     setResearchTab("analysis");
-    setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null); setEvidenceAudit(null);
+    setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null); setEvidenceAudit(null); setArgumentAudit(null); setUnsuppliedReferences([]);
     let collected = "";
     let discovered: string[] = [];
+    let reconstruction = "";
     try {
       // Discovery precedes the two writing stages. Verification is advisory;
       // the Reader remains independent throughout all four network calls.
-      for (const stage of ["discovery", "foundation", "synthesis", "audit"] as const) {
+      for (const stage of ["discovery", "reconstruction", "foundation", "synthesis", "audit"] as const) {
         if (run !== analysisRun.current || request.signal.aborted) return;
-        setStatus(stage === "discovery" ? "Searching the Qurʾān for substantive evidence (1/4)…" : stage === "foundation" ? "Analyzing grammar and context (2/4)…" : stage === "synthesis" ? "Evaluating pan-textual evidence (3/4)…" : "Checking material claims (4/4)…");
+        setStatus(stage === "discovery" ? "Selecting evidence (1/5)…" : stage === "reconstruction" ? "Reconstructing article arguments (2/5)…" : stage === "foundation" ? "Analyzing grammar and context (3/5)…" : stage === "synthesis" ? "Evaluating evidence and logic (4/5)…" : "Checking material claims (5/5)…");
         const foundation = collected;
         const response = await fetch("/api/verse-analysis?protocol=sse-v1", {
           method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "Accept": "text/event-stream", "x-ccc-passcode": password },
-          body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse, stage, ...(stage === "synthesis" || stage === "audit" ? { prior: foundation } : {}), ...(stage !== "discovery" ? { evidence: discovered } : {}) }),
+          body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse, stage, ...(stage === "synthesis" || stage === "audit" ? { prior: foundation } : {}), ...(stage !== "discovery" ? { evidence: discovered } : {}), ...(reconstruction ? { argument: reconstruction } : {}) }),
           signal: request.signal,
         });
         const type = (response.headers.get("content-type") || "").toLowerCase();
@@ -823,7 +832,10 @@ export default function QuranResearchPage() {
           const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
           const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
           if (!data) return;
-          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string }[]; researchReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
+          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string; complete?: boolean; parts?: number }[]; researchReferences?: string[];
+            focalReference?: string; contextReferences?: string[]; researchSections?: { section: string; article: string; complete: boolean; parts: number }[];
+            reconstruction?: { issue: string; claims: { claim: string; source: string; premises: string[]; evidenceRefs: string[]; status: string }[]; disputed: string[]; notNecessarilyDisputed: string[] };
+            unsuppliedReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[] };
           try { value = JSON.parse(data); } catch { return; }
           if (event === "delta") {
             const chunk = value.text || "";
@@ -834,8 +846,14 @@ export default function QuranResearchPage() {
             discovered = (value.references || []).filter(r => /^\d{1,3}:\d{1,3}$/.test(r));
             setEvidenceAudit({ references: discovered, researchSources: value.researchSources || [],
               researchReferences: value.researchReferences || [], lexical: value.lexical || [],
-              sources: value.sources || {} });
+              sources: value.sources || {}, focalReference: value.focalReference,
+              contextReferences: value.contextReferences || [], researchSections: value.researchSections || [] });
             setStatus(`Selected ${discovered.length} pan-textual evidence passages.`);
+          } else if (event === "argument") {
+            if (value.reconstruction) {
+              reconstruction = JSON.stringify(value.reconstruction);
+              setArgumentAudit(value.reconstruction);
+            }
           } else if (event === "audit") {
             // Advisory findings only: the verifier may identify errors but
             // cannot silently replace an interpretation with another guess.
@@ -846,8 +864,9 @@ export default function QuranResearchPage() {
             completed = true;
             stageIncomplete = Boolean(value.incomplete);
             setAiResponse(collected);
+            if (value.unsuppliedReferences?.length) setUnsuppliedReferences(value.unsuppliedReferences);
             const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
-            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "discovery" ? "Evidence selected. Beginning grammar and context…" : stage === "foundation" ? "Grammar and context complete. Beginning synthesis…" : stage === "synthesis" ? "Five sections generated. Checking material claims…" : "Verification complete.") + warnings);
+            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "discovery" ? "Evidence selected. Reconstructing arguments…" : stage === "reconstruction" ? "Argument reconstruction complete. Beginning grammar…" : stage === "foundation" ? "Grammar and context complete. Beginning synthesis…" : stage === "synthesis" ? "Five sections generated. Checking material claims…" : "Verification complete.") + warnings);
           } else if (event === "error") {
             completed = true;
             failed = true;
@@ -1225,14 +1244,27 @@ export default function QuranResearchPage() {
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
             {evidenceAudit && <details className={styles.note}>
-              <summary>Evidence audit: {evidenceAudit.references.length} Qurʾānic passages supplied; {evidenceAudit.researchSources.length} research excerpts</summary>
+              <summary>Evidence audit: {evidenceAudit.references.length} comparison passages; {evidenceAudit.researchSources.length} restored research sections</summary>
               <p className={styles.hint}>These are search leads verified against the local Qurʾān, not independent proof of an article's conclusion. Evidence remains fixed across the analysis stages.</p>
-              <p><strong>Full Arabic passages supplied:</strong> {evidenceAudit.references.join(", ")}</p>
-              <p><strong>Indexed research excerpts used:</strong></p>
-              <ul>{evidenceAudit.researchSources.map(src => <li key={src.id}>{src.title} — {src.section}</li>)}</ul>
+              <p><strong>Focal verse:</strong> {evidenceAudit.focalReference || analysisReference}</p>
+              <p><strong>Immediate context (full Arabic):</strong> {(evidenceAudit.contextReferences || []).join(", ")}</p>
+              <p><strong>Additional full-Arabic comparisons:</strong> {evidenceAudit.references.join(", ")}</p>
+              <p><strong>Restored indexed research sections:</strong></p>
+              <ul>{evidenceAudit.researchSources.map(src => <li key={src.id}>{src.title} — {src.section} ({src.parts || 1} indexed parts; {src.complete ? "complete" : "truncated"})</li>)}</ul>
               <p><strong>Corpus lemma coverage:</strong></p>
               <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{entry.lemma}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
             </details>}
+            {argumentAudit && <details className={styles.note}>
+              <summary>Argument reconstruction: {argumentAudit.claims.length} claim(s) tested before interpretation</summary>
+              <p><strong>Issue:</strong> {argumentAudit.issue}</p>
+              <ul>{argumentAudit.claims.map((item,i)=><li key={`argument-${i}`}><strong>{item.claim}</strong> ({item.status}; {item.source})
+                {item.premises.length > 0 && <ul>{item.premises.map((premise,j)=><li key={`premise-${j}`}>{premise}</li>)}</ul>}
+                <span>Evidence references: {item.evidenceRefs.join(", ") || "none verified"}</span>
+              </li>)}</ul>
+              {argumentAudit.disputed.length > 0 && <p><strong>Disputed:</strong> {argumentAudit.disputed.join(" · ")}</p>}
+              {argumentAudit.notNecessarilyDisputed.length > 0 && <p><strong>Not automatically negated:</strong> {argumentAudit.notNecessarilyDisputed.join(" · ")}</p>}
+            </details>}
+            {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
             {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} grounded finding(s), {auditReport.unresolved.length} unresolved question(s)</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
