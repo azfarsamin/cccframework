@@ -1,584 +1,703 @@
 import { NextRequest, NextResponse } from "next/server";
-import { planQuranQuery, parseVerseReferences, isRetrievalOnly } from "../../../lib/ccc-query-planner";
-import { resolveLexicalQuery } from "../../../lib/ccc-lexical-resolver";
-import { collectEvidence, versesForReferences, formatExactEvidence } from "../../../lib/ccc-evidence-engine";
 import { timingSafeEqual } from "node:crypto";
-import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } from "../../../lib/ccc-corpus";
-import { discoverQuranCandidates } from "../../../lib/ccc-conceptual";
-import { parseVerifiedThematicList, formatVerifiedThematicList } from "../../../lib/ccc-thematic-list";
-import { curatedThemeForQuestion } from "../../../lib/ccc-theme-packs";
-import { resolveDeterministicListing, resolveLexicalResearchAnchor, isReferenceOnlyQuestion, isListingQuestion } from "../../../lib/ccc-ai-intents";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { searchResearch, expandResearchEvidence, neighboringResearchReferences, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
 
 export const runtime = "nodejs";
-export const maxDuration = 150;
+export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
+// Fail before the platform's 150-second limit, preserving any streamed text.
+// A shorter response and leaner evidence payload should normally finish well before this.
+const UPSTREAM_LIMIT_MS = 132000;
+const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
+const AUDIT_OUTPUT_TOKENS = 1600;
+const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
 
-// Model duties are independent. A slow reasoning model should not be used
-// to discover and classify references for a Qur'an corpus search.
-const DISCOVERY_MODEL = process.env.CCC_DISCOVERY_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
-const ANALYSIS_MODEL = process.env.CCC_AI_MODEL || "deepseek-ai/DeepSeek-V3.2-TEE";
+const HEARTBEAT_MS = 12000;
+const EVIDENCE_LIMIT = 24;
+const EVIDENCE_TEXT_BUDGET = 18000;
+const RESEARCH_TEXT_BUDGET = 15500;
+// User-authored research excerpts enrich discovery but never override Qur'anic wording.
 
-// Diagnostics are metadata-only: no private prompts, passcodes, API keys, or model reasoning.
-const FINAL_TIMEOUT_MS = 65000;
-const MAX_FINAL_THEMATIC_VERSES = 18; // thematic candidate searches only; NEVER exact lexical anchors
-const MAX_FINAL_THEMATIC_CHARS = 6800;
-const MAX_FINAL_RETRIEVAL_CHARS = 5500;
+type MorphSegment = [string, string, string];
+type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
+type Morphology = Record<string, MorphWord[]>;
+type Corpus = Record<string, string>;
+let textCache: Corpus | null = null;
+let morphCache: Morphology | null = null;
+let reverseCache: { roots: Map<string, Set<string>>; frequencies: Map<string, number> } | null = null;
 
-function elapsed(start: number) { return Date.now() - start; }
-function safeError(error: unknown) {
-  if (error instanceof Error) return { name: error.name, message: error.message };
-  return { name: "UnknownError", message: "Unknown failure" };
-}
-function compactThematicEvidence(verses: { reference: string; arabic: string }[]) {
-  const selected: string[] = [];
-  let chars = 0;
-  for (const item of verses) {
-    const next = `${item.reference} ${item.arabic}`;
-    if (selected.length >= MAX_FINAL_THEMATIC_VERSES || chars + next.length > MAX_FINAL_THEMATIC_CHARS) break;
-    selected.push(next);
-    chars += next.length;
+async function getCorpus(): Promise<Corpus> {
+  if (!textCache) {
+    const parsed = JSON.parse(await readFile(path.join(process.cwd(), "public/data/ccc-quran-arabic.json"), "utf8")) as Corpus;
+    if (Object.keys(parsed).length !== 6236 || !parsed["1:1"] || !parsed["114:6"])
+      throw new Error("The local Qurʾān text is incomplete.");
+    textCache = parsed;
   }
-  return {
-    text: selected.join("\n"),
-    sent: selected.length,
-    omitted: Math.max(0, verses.length - selected.length),
+  return textCache;
+}
+async function getMorphology(): Promise<Morphology> {
+  if (!morphCache) {
+    const parsed = JSON.parse(await readFile(path.join(process.cwd(), "public/data/morphology.json"), "utf8")) as Morphology;
+    if (!parsed["6:1"] || !parsed["2:282"] || !parsed["114:6"])
+      throw new Error("The local morphology index is incomplete.");
+    morphCache = parsed;
+  }
+  return morphCache;
+}
+function secureMatch(a: string, b: string): boolean {
+  const x = Buffer.from(a); const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+function verifyReference(ref: string, corpus: Corpus): boolean {
+  return Boolean(corpus[ref]);
+}
+function getTags(raw: string): string[] {
+  return raw.split("|").filter(Boolean);
+}
+function extractWordFacts(word: MorphWord, index: number): string {
+  // Transcribe the corpus annotations, not a model-inferred morphological parse.
+  const pieces = word.s.map(([surface, pos, raw]) => {
+    const tags = getTags(raw);
+    const core = tags.filter(t =>
+      t === "PERF" || t === "IMPF" || t === "IMPV" || t === "PASS" || t === "ACT" ||
+      t === "NOM" || t === "ACC" || t === "GEN" || t === "MS" || t === "MP" ||
+      t === "FS" || t === "FP" || t === "M" || t === "F" || t === "DU" ||
+      t === "INDEF" || t === "DEF" || t === "PCPL" || /^\([IVX]+\)$/.test(t) ||
+      t.startsWith("MOOD:") || /^\d[MF](?:S|P|D)$/.test(t)
+    );
+    const type = tags.some(t => t.startsWith("STEM")) ? "stem" : tags.some(t => t.startsWith("PREFIX")) ? "prefix" : "suffix";
+    return `${surface}{${pos};${type}${core.length ? ";" + core.join(",") : ""}}`;
+  }).join("+");
+  return `${index + 1} [root=${word.r ?? "—"};lemma=${word.l ?? "—"}] ${pieces}`;
+}
+function contextWindow(chapter: number, verse: number, corpus: Corpus): string[] {
+  // Nearest verses first; retain extended backward context when the passage is short enough.
+  const refs: string[] = [];
+  for (let v = Math.max(1, verse - 9); v <= verse + 4; v++) {
+    const ref = `${chapter}:${v}`;
+    if (corpus[ref]) refs.push(ref);
+  }
+  const selected = new Set<string>([`${chapter}:${verse}`]);
+  // Preserve local context first; add nearby earlier verses within an 8k-character budget.
+  for (const ref of refs) {
+    const v = Number(ref.split(":")[1]);
+    if (Math.abs(v - verse) <= 3) selected.add(ref);
+  }
+  let total = [...selected].reduce((n, r) => n + corpus[r].length, 0);
+  for (const ref of [...refs].reverse()) {
+    if (selected.has(ref)) continue;
+    const cost = corpus[ref].length;
+    if (total + cost > 8000) continue;
+    selected.add(ref); total += cost;
+  }
+  return refs.filter(ref => selected.has(ref)).map(ref => `${ref} ${corpus[ref]}`);
+}
+function buildReverse(morph: Morphology) {
+  if (reverseCache) return reverseCache;
+  const roots = new Map<string, Set<string>>();
+  const frequencies = new Map<string, number>();
+  for (const [ref, words] of Object.entries(morph)) {
+    const unique = new Set(words.map(w => w.r).filter((r): r is string => Boolean(r)));
+    for (const root of unique) {
+      if (!roots.has(root)) roots.set(root, new Set());
+      roots.get(root)!.add(ref);
+      frequencies.set(root, (frequencies.get(root) || 0) + 1);
+    }
+  }
+  reverseCache = { roots, frequencies };
+  return reverseCache;
+}
+type EvidenceCandidate = { ref: string; score: number; reasons: string[]; required: boolean };
+// Corpus-wide *candidate generation*, not proof of semantic relevance. Never
+// substitute matching roots for a contextual investigation.
+function discoveryCandidates(ref: string, corpus: Corpus, morph: Morphology): EvidenceCandidate[] {
+  const focal = morph[ref] || [];
+  const { roots, frequencies } = buildReverse(morph);
+  const focalRoots = [...new Set(focal.map(w => w.r).filter((x): x is string => Boolean(x)))];
+  const candidates = new Map<string, EvidenceCandidate>();
+  const [chapter, verse] = ref.split(":").map(Number);
+  function add(target: string, score: number, reason: string, required = false) {
+    if (!corpus[target] || target === ref) return;
+    const item = candidates.get(target) || { ref: target, score: 0, reasons: [], required: false };
+    item.score += score;
+    if (!item.reasons.includes(reason)) item.reasons.push(reason);
+    item.required ||= required;
+    candidates.set(target, item);
+  }
+  // Search every annotated verse for focal roots. Rare concept roots are
+  // high-recall anchors, while frequent grammatical roots have low weight.
+  for (const root of focalRoots) {
+    const count = frequencies.get(root) || 0;
+    if (!count || count > 450) continue;
+    const concept = count <= 35;
+    const weight = Math.log(1 + 6236 / count);
+    for (const candidate of roots.get(root) || []) {
+      add(candidate, concept ? 18 + weight : weight, `shared root ${root} (${count} verses)`, concept);
+      if (concept) {
+        const [c, v] = candidate.split(":").map(Number);
+        // Neighboring statements may clarify a repeated concept without
+        // repeating its root (e.g. 2:276 and 2:279 around ribā).
+        for (const step of [-2, -1, 1, 2]) add(`${c}:${v + step}`, 5 / Math.abs(step), `context around ${candidate}`);
+      }
+    }
+  }
+  // Always retain the immediate surrounding text as candidate evidence.
+  for (let step = -4; step <= 4; step++) if (step !== 0) {
+    add(`${chapter}:${verse + step}`, 7 / Math.abs(step), "immediate context");
+  }
+  // Additional semantic leads are found through roots co-occurring within
+  // anchored verses. This is deliberately bounded and never treated as proof.
+  const anchors = [...candidates.values()].filter(c => c.required).sort((a,b) => b.score-a.score).slice(0, 32);
+  const neighborRoots = new Map<string, number>();
+  for (const candidate of anchors) {
+    for (const root of new Set((morph[candidate.ref] || []).map(w => w.r).filter((x): x is string => Boolean(x)))) {
+      if (focalRoots.includes(root) || (frequencies.get(root) || 0) > 100 || (frequencies.get(root) || 0) < 2) continue;
+      neighborRoots.set(root, (neighborRoots.get(root) || 0) + 1);
+    }
+  }
+  for (const [root, shared] of [...neighborRoots].sort((a,b)=>b[1]-a[1]).slice(0, 6)) {
+    if (shared < 2) continue;
+    for (const candidate of roots.get(root) || []) add(candidate, Math.min(4, shared), `co-occurs with subject anchor: ${root}`);
+  }
+  return [...candidates.values()].sort((a,b) => Number(b.required)-Number(a.required) || b.score-a.score || a.ref.localeCompare(b.ref));
+}
+function evidenceText(refs: string[], corpus: Corpus): string {
+  return refs.filter(ref => corpus[ref]).map(ref => `${ref} ${corpus[ref]}`).join("\n");
+}
+// v7.8: evidence selection is deterministic, corpus-backed, and independent of GLM.
+// Indexed authorship is used to DISCOVER references, never as textual authority.
+type LexicalCoverage = { lemma: string; total: number; references: string[]; supplied: number };
+type EvidencePlan = {
+  references: string[];
+  lexical: LexicalCoverage[];
+  researchSources: { id: string; title: string; section: string; complete: boolean; parts: number }[];
+  researchUnits: ResearchEvidenceUnit[];
+  researchContext: string;
+  researchReferences: string[];
+  sources: Record<string, string[]>;
+  candidateCount: number;
+};
+let lemmaReverseCache: Map<string, Set<string>> | null = null;
+function lemmaReverse(morph: Morphology): Map<string, Set<string>> {
+  if (lemmaReverseCache) return lemmaReverseCache;
+  const lookup = new Map<string, Set<string>>();
+  for (const [ref, words] of Object.entries(morph)) {
+    for (const lemma of new Set(words.map(w => w.l).filter((v): v is string => Boolean(v)))) {
+      if (!lookup.has(lemma)) lookup.set(lemma, new Set());
+      lookup.get(lemma)!.add(ref);
+    }
+  }
+  lemmaReverseCache = lookup;
+  return lookup;
+}
+function isContentWord(word: MorphWord): boolean {
+  return word.s.some(([, pos]) => pos === "N" || pos === "PN" || pos === "V" || pos === "ADJ");
+}
+async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology): Promise<EvidencePlan> {
+  const candidates = discoveryCandidates(ref, corpus, morph);
+  const scored = new Map<string, { score: number; sources: string[] }>();
+  const offer = (target: string, score: number, source: string) => {
+    if (!corpus[target] || target === ref) return;
+    const old = scored.get(target) || { score: 0, sources: [] };
+    old.score += score;
+    if (!old.sources.includes(source)) old.sources.push(source);
+    scored.set(target, old);
   };
-}
-// Full reference membership is always retained independently of the LLM.
-// Compress each Arabic excerpt around the lexical occurrence, rather than
-// deleting references when some verses are long.
-function lexicalEvidenceExcerpts(
-  verses: { reference: string; arabic: string }[], references: string[],
-): string {
-  const byRef = new Map(verses.map(v => [v.reference, v.arabic]));
-  const anchor = /ح[\u064B-\u065F\u0670]*ك[\u064B-\u065F\u0670]*م[\u064B-\u065F\u0670]*(?:ة|ت)[\u064B-\u065F\u0670]*/;
-  return references.map(ref => {
-    const arabic = byRef.get(ref) || "";
-    if (!arabic) return `${ref} [Verse text unavailable; reference verified by morphology]`;
-    const match = anchor.exec(arabic);
-    const at = match ? match.index : Math.min(90, arabic.length);
-    const start = Math.max(0, at - 100);
-    const end = Math.min(arabic.length, at + 155);
-    const excerpt = `${start ? "…" : ""}${arabic.slice(start, end)}${end < arabic.length ? "…" : ""}`;
-    return `${ref} ${excerpt}`;
-  }).join("\n");
-}
-
-// Optional, tightly-bounded immediate Qur'anic context for 17:39. No hadith,
-// commentary, or thematic inference is imported. Missing context must not
-// make the complete lexical concordance fail.
-async function getWisdomContext(): Promise<string> {
-  try {
-    const response = await fetch("https://api.alquran.cloud/v1/surah/17/quran-uthmani", {
-      signal: AbortSignal.timeout(7000), next: { revalidate: 86400 },
-    });
-    if (!response.ok) return "";
-    const json = await response.json() as { data?: { number?: number; ayahs?: { numberInSurah: number; text: string }[] } };
-    if (json.data?.number !== 17 || !Array.isArray(json.data.ayahs)) return "";
-    const sample = new Set([22,23,26,29,31,32,33,34,35,36,37,38,39]);
-    return json.data.ayahs.filter(v => sample.has(v.numberInSurah)).map(v =>
-      `17:${v.numberInSurah} ${v.text.slice(0, 190)}${v.text.length > 190 ? "…" : ""}`
-    ).join("\n");
-  } catch { return ""; }
-}
-
-function verifiedEvidenceFallback(args: {
-  concordance: { term: string; totalOccurrences: number; unit: string; references: { reference: string; count: number }[] } | null;
-  candidates: { reference: string; arabic: string }[];
-  error: string;
-  referencesOnly: boolean;
-}) {
-  if (args.concordance) {
-    const references = args.concordance.references.map(r => r.reference);
-    return args.referencesOnly ? references.join(", ") :
-      `Final AI analysis was unavailable (${args.error}). The complete, independently indexed lexical concordance is preserved: ${args.concordance.totalOccurrences} ${args.concordance.unit} occurrences of ${args.concordance.term} in ${references.length} verses.\n\n${references.join(", ")}`;
+  // Root matches are leads, not automatic proof; downweight them below a
+  // corroborated direct citation or an exact content-lemma occurrence.
+  for (const c of candidates.slice(0, 125)) offer(c.ref, Math.min(c.score, 25) / 5, c.reasons[0] || "corpus-root lead");
+  const lemmaLookup = lemmaReverse(morph);
+  const focalLemmas = [...new Set((morph[ref] || []).filter(isContentWord)
+    .map(w => w.l).filter((v): v is string => Boolean(v)))];
+  const lexical: LexicalCoverage[] = [];
+  for (const lemma of focalLemmas) {
+    const occurrences = [...(lemmaLookup.get(lemma) || [])].filter(r => corpus[r]).sort(compareRefs);
+    if (occurrences.length < 2) continue;
+    lexical.push({ lemma, total: occurrences.length, references: occurrences, supplied: 0 });
+    // Exhaustive for rare lemmas. For common terms keep the *full inventory*
+    // visible, but do not swamp the interpretation prompt with dozens of verses.
+    const n = occurrences.length <= 16 ? occurrences.length : Math.min(12, occurrences.length);
+    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 16 ? 38 : 11, `same lemma ${lemma}`));
   }
-  const refs = [...new Set(args.candidates.map(v => v.reference))];
-  if (!refs.length) return `Final AI analysis was unavailable (${args.error}). No verified verse evidence was available to return.`;
-  // Corpus verification confirms the verse exists, NOT that it supports the theme.
-  const displayed = refs.slice(0, 35);
-  const headline = `Final AI analysis was unavailable (${args.error}). These ${displayed.length} Qurʾānic references were verified to exist, but their thematic relevance has NOT been classified or established.`;
-  return args.referencesOnly ? `${displayed.join(", ")}\n\nPartial, unclassified candidate references; not a thematic answer.` :
-    `${headline}\n\n${displayed.join(", ")}${refs.length > displayed.length ? `\n\n${refs.length - displayed.length} further retrieved candidates omitted.` : ""}`;
+  lexical.sort((a,b) => a.total-b.total || a.lemma.localeCompare(b.lemma));
+  // Search 12 rather than 4 passages. Only a subset of high-relevance
+  // non-external excerpts is included as prose; references from all 12 count.
+  // This makes cited evidence discoverable even when the excerpt is too long.
+  let researchContext = "No directly relevant indexed research excerpts were found.";
+  let researchSources: EvidencePlan["researchSources"] = [];
+  let researchUnits: ResearchEvidenceUnit[] = [];
+  let linkedResearch: string[] = [];
+  const researchCounts = new Map<string, { count: number; sections: Set<string> }>();
+  try {
+    // Expand each relevant research SECTION before requesting a model opinion.
+    // This restores tables and premises that were split across indexed chunks.
+    const hits = await searchResearch("", ref, 12);
+    const onTopic = hits.filter(h => !h.externalDiscussion);
+    researchUnits = await expandResearchEvidence(onTopic.length ? onTopic : hits, 7, RESEARCH_TEXT_BUDGET);
+    researchContext = researchUnits.length
+      ? researchUnits.map(u =>
+          `[Research unit ${u.key}; ${u.complete ? "complete section" : "TRUNCATED SECTION"}; ${u.chunkIds.length} indexed parts; verses: ${u.verseRefs.join(", ")}]\n${u.title} — ${u.section}\n${u.text}`
+        ).join("\n\n")
+      : "No directly relevant indexed research sections were found.";
+    researchSources = researchUnits.map(u => ({ id:u.key,title:u.title,section:u.section,
+      complete:u.complete,parts:u.chunkIds.length }));
+    linkedResearch = (await neighboringResearchReferences(researchUnits)).filter(r => r !== ref && Boolean(corpus[r]));
+    for (const r of linkedResearch) offer(r, 20, "related research section citation lead");
+    // Include citations from the complete restored sections, not just from
+    // individually retrieved snippets. Parsing in-text references catches
+    // references that were omitted from an individual chunk's metadata.
+    for (const u of researchUnits) {
+      const citations = new Set([...u.verseRefs, ...[...u.text.matchAll(/\b(\d{1,3}:\d{1,3})\b/g)].map(m=>m[1])]);
+      for (const cited of citations) {
+        if (cited === ref || !corpus[cited]) continue;
+        const old = researchCounts.get(cited) || { count:0, sections:new Set<string>() };
+        old.count += Math.min(4, u.citationFrequency[cited] || 1);
+        old.sections.add(u.key);
+        researchCounts.set(cited,old);
+      }
+    }
+    // High recurrence across independently indexed passages/sections carries
+    // ranking weight, but not epistemic authority. The Arabic is fetched below.
+    for (const [r, v] of researchCounts) {
+      offer(r, 12 + Math.min(v.count, 8) * 8 + Math.min(v.sections.size, 5) * 3,
+        `research co-citation (${v.count} excerpts)`);
+    }
+  } catch (error) {
+    console.warn("Research index unavailable; using Qur'an-only corpus", error instanceof Error ? error.message : error);
+  }
+  const researchReferences = [...researchCounts.keys()].sort((a,b) =>
+    (researchCounts.get(b)!.count-researchCounts.get(a)!.count) || compareRefs(a,b));
+  const highResearch = researchReferences.filter(r => (researchCounts.get(r)?.count || 0) >= 2).slice(0, 15);
+  const otherResearch = researchReferences.filter(r => !highResearch.includes(r)).slice(0, 12);
+  // Prevent one polysemous lemma from consuming the entire evidence budget.
+  const rareLemma = lexical.filter(l => l.total <= 16).flatMap(l => l.references.filter(r => r !== ref).slice(0, 2)).slice(0, 6);
+  const majorRoot = candidates.filter(c => c.required).slice(0, 8).map(c => c.ref);
+  const ranked = [...scored.entries()].sort((a,b) => b[1].score-a[1].score || compareRefs(a[0],b[0])).map(([r]) => r);
+  const order = [...new Set([...highResearch, ...otherResearch, ...linkedResearch, ...rareLemma, ...ranked, ...majorRoot])];
+  const references: string[] = [];
+  let characters = 0;
+  for (const r of order) {
+    const len = corpus[r]?.length || 0;
+    if (!len || r === ref || references.length >= EVIDENCE_LIMIT || characters + len > EVIDENCE_TEXT_BUDGET) continue;
+    references.push(r); characters += len;
+  }
+  for (const entry of lexical) entry.supplied = entry.references.filter(r => references.includes(r) || r === ref).length;
+  const sources = Object.fromEntries(references.map(r => [r, scored.get(r)?.sources || []]));
+  return { references, lexical, researchSources, researchUnits, researchContext,
+    researchReferences, sources, candidateCount: candidates.length };
+}
+function compareRefs(a: string, b: string): number {
+  const [ca, va] = a.split(":").map(Number); const [cb, vb] = b.split(":").map(Number);
+  return ca-cb || va-vb;
+}
+function lexicalManifest(items: LexicalCoverage[]): string {
+  return items.slice(0, 14).map(l => {
+    const refs = l.references.length <= 70 ? l.references.join(", ") : l.references.slice(0, 70).join(", ") + ", ...";
+    return `${l.lemma}: ${l.total} verse occurrences; ${l.supplied} supplied as full Arabic; complete/previewed refs: ${refs}`;
+  }).join("\n") || "No recurring content lemmas found in the local annotations.";
+}
+// Comparative morphology is relevant across roots and subject matters. Supply
+// annotation facts for cited patterns, not merely the focal word's tag.
+function comparativeMorphology(units: ResearchEvidenceUnit[], morph: Morphology, refs: string[]): string {
+  const patterns = new Set<string>();
+  for (const unit of units) {
+    if (!/\b(?:form|pattern|stem)\s+(?:VIII|VII|VI|V|IV|III|II|IX|X)\b/i.test(unit.text)) continue;
+    for (const match of unit.text.matchAll(/\b(?:form|pattern|stem)\s+(VIII|VII|VI|V|IV|III|II|IX|X)\b/gi)) {
+      patterns.add(`(${match[1].toUpperCase()})`);
+    }
+  }
+  if (!patterns.size) return "No comparative verbal-form argument was retrieved.";
+  const ordered = [...new Set(units.flatMap(u=>u.verseRefs).filter(r=>refs.includes(r)))];
+  const lines: string[] = [];
+  for (const ref of ordered) {
+    for (const [i,word] of (morph[ref] || []).entries()) {
+      if (!word.s.some(([,pos,tags])=> pos === "V" && [...patterns].some(p=>getTags(tags).includes(p)))) continue;
+      lines.push(`${ref}, word ${extractWordFacts(word,i)}`);
+      if (lines.length >= 24) break;
+    }
+    if (lines.length >= 24) break;
+  }
+  return lines.join("\n") || "Relevant form patterns were named, but no matching annotated word was found in the selected full-text verses.";
 }
 
-type InputVerse = { chapter?: number; verse: number; arabic: string };
-type Input = { chapter?: number; verses?: InputVerse[]; question?: string };
-
-function equal(a: string, b: string) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
+type ReconstructedClaim = {
+  claim: string; source: string; premises: string[]; evidenceRefs: string[];
+  status: "textual" | "inference" | "external";
+};
+type Reconstruction = { claims: ReconstructedClaim[]; issue: string; disputed: string[]; notNecessarilyDisputed: string[] };
+function parseReconstruction(raw: string, allowed: Set<string>): Reconstruction | null {
+  let data: unknown;
+  try { data = JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
+  catch { return null; }
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+  if (!Array.isArray(obj.claims) || !obj.claims.length || typeof obj.issue !== "string") return null;
+  const claims: ReconstructedClaim[] = [];
+  for (const value of obj.claims.slice(0, 4)) {
+    if (!value || typeof value !== "object") continue;
+    const c = value as Record<string, unknown>;
+    if (typeof c.claim !== "string" || !c.claim.trim() || typeof c.source !== "string" || !c.source.trim()) continue;
+    const premises = Array.isArray(c.premises) ? c.premises.filter((x): x is string => typeof x === "string").slice(0,5) : [];
+    const evidenceRefs = Array.isArray(c.evidenceRefs) ? c.evidenceRefs.filter((x): x is string => typeof x === "string" && allowed.has(x)).slice(0,12) : [];
+    const status = c.status === "textual" || c.status === "external" ? c.status : "inference";
+    claims.push({claim:c.claim.slice(0,600),source:c.source.slice(0,260),premises,evidenceRefs,status});
+  }
+  if (!claims.length) return null;
+  const clean = (v:unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0,5) : [];
+  return {claims,issue:obj.issue.slice(0,800),disputed:clean(obj.disputed),notNecessarilyDisputed:clean(obj.notNecessarilyDisputed)};
 }
 
-export async function POST(request: NextRequest) {
-  const key = process.env.CHUTES_API_KEY || "";
+const RECONSTRUCTION_SYSTEM = `Reconstruct a Qurʾān-centric research argument accurately, BEFORE evaluating it. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use only supplied text and verified references. No hadith or tafsīr.
+Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, up to 3 concise premises per claim and 6 evidenceRefs per claim; up to 3 brief items in each disputed list. Each claim <= 35 words; each premise <= 20 words. Keep all JSON compact (ideally under 1300 output tokens). Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
+
+const AUDIT_SYSTEM = `You are a Qurʾān-centric proof-checker. The Qurʾān's text is the primary calibration standard; indexed articles are researched arguments and do not inherit authority merely from authorship. Evaluate ALL claims using identical proof obligations, without artificial balance or defensive objections.
+Check the completed analysis against FULL Arabic, annotated morphology, contextual passages, restored full research sections, and the prior neutral argument reconstruction. Audit the strongest ACTUAL supporting argument before claiming a contradiction. To label a claim contradicted, identify (1) the exact proposition, (2) the exact affirmative contrary evidence, and (3) why both propositions cannot be true simultaneously. Mere alternatives, absence of a second identical lemma, transitivity versus self-directed semantics, or an unsupported possibility do not by themselves prove a contradiction. A rebuttal of one aspect of reported speech does not automatically rebut every associated activity; separate WHAT is contested from WHAT is established. Do not promote the converse mistake of treating the unchallenged portion of hostile speech as independently verified history. Cross-root examples are relevant to pattern-level morphology; a representative set cannot prove a universal rule. Distinguish provenance: supplied full Arabic, research assertions, and model background knowledge. Never invent verses, lexical evidence, or external citations. Findings are advisory only.
+Return ONLY JSON {"findings":[{"quote":"exact unique substring from analysis","issue":"specific material error and actual logical relationship","evidence_kind":"quran|research|reconstruction","evidence_ref":"chapter:verse OR source unit key OR reconstruction","evidence_quote":"contiguous exact text from that source","suggestion":"evidence-grounded correction"}],"unresolved":[]}. Max 4 findings and 2 unresolved. Valid evidence is (a) verbatim Arabic from a supplied Qurʾānic verse, (b) verbatim quoted text from a RESTORED research section, or (c) verbatim text of the VALIDATED reconstruction. An objection to the article's actual claim can cite research evidence; do not falsely assert its table was absent. Use empty arrays when there are no substantiated material errors.`;
+
+const SYSTEM = `Analyze one Qurʾānic verse through grammar, immediate context, complete relevant Qurʾānic comparisons, and CCC (coherence, correspondence, calibration). Qurʾān-centric: no hadith, tafsīr, inherited reconstruction, or privileged mainstream doctrines. The Qurʾān is the reference standard; authored articles are evidence-bearing arguments, not scripture.
+FOLLOW THE RECONSTRUCTED ARGUMENT: Before reaching a verdict examine the actual premises and comparative evidence in the supplied RESTORED research sections. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
+LOGICAL TEST: For each proposed objection, identify precisely which proposition it contradicts. Check that the contrary evidence makes the proposition false, rather than merely describing a different aspect. Transitive verbs may still describe self-directed or benefactive action; assess these dimensions separately, not through category confusion. A false allegation about a thing's origin or identity need not falsify an activity associated with it; nor does the allegation alone independently establish that activity happened. Apply this general distinction to ANY reported speech. Never infer that all associated clauses share the same truth status without argument.
+AFFIRMATIVE EVIDENCE: A competing interpretation requires specific affirmative Arabic evidence and transparent provenance. A hypothetical grammatical possibility is not evidence against a supported interpretation. Equally, a strong inferential preference does not establish absolute lexical impossibility. External linguistic claims must be labeled external; do not import them silently or pretend they cannot exist because a Qurʾānic word occurs once. No manufactured opposition, neutrality, or uncertainty. Identify demonstrated errors in any interpretation. Attribute certainty to the actual inferential strength.
+GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings.
+EVIDENCE PROVENANCE: Explicitly distinguish focal Arabic, full supplied comparison verses, tagged morphology, source-article arguments, and unsupplied material. The lexical manifest may list occurrences not supplied in full; do not claim exhaustive semantic evaluation where coverage is partial. Immediate context and cited passages have priority over weak root parallels. Treat any truncated research section as incomplete, not absent.
+OUTPUT: Respond only under the stage's prescribed headings. Stage 1 covers grammar and immediate context; stage 2 covers pan-textual comparison, CCC interpretation and conclusion. State (A) explicit wording, (B) cumulative inference and (C) genuinely undetermined matters. Assess correspondence only if external evidence was supplied; otherwise say not tested. Do not invent external evidence. Use Unicode Arabic, no HTML entities.`;
+
+export async function POST(req: NextRequest) {
   const passcode = process.env.CCC_RESEARCH_PASSCODE;
-  if (!passcode) {
-    return NextResponse.json({ error: "Research passcode is not configured." }, { status: 503 });
-  }
-  if (!equal(request.headers.get("x-ccc-passcode") || "", passcode)) {
-    return NextResponse.json({ error: "Invalid research passcode." }, { status: 401 });
-  }
+  const key = process.env.CHUTES_API_KEY;
+  if (!passcode) return NextResponse.json({ error: "Analysis passcode not configured." }, { status: 503 });
+  if (!secureMatch(req.headers.get("x-ccc-passcode") || "", passcode))
+    return NextResponse.json({ error: "Invalid analysis passcode." }, { status: 401 });
+  if (!key) return NextResponse.json({ error: "Chutes API key not configured." }, { status: 503 });
 
-  let input: Input;
-  try { input = await request.json() as Input; }
+  let data: { chapter?: unknown; verse?: unknown; stage?: unknown; prior?: unknown; evidence?: unknown; argument?: unknown };
+  try { data = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  if (!Array.isArray(input.verses) || input.verses.length > 12 ||
-      typeof input.question !== "string" || !input.question.trim() || input.question.length > 3500) {
-    return NextResponse.json({ error: "Supply a research question and optionally select up to 12 verses." }, { status: 400 });
+  const { chapter, verse } = data;
+  const stage = data.stage === "reconstruction" ? "reconstruction" : data.stage === "discovery" ? "discovery" : data.stage === "audit" ? "audit" : data.stage === "synthesis" ? "synthesis" : data.stage === "foundation" ? "foundation" : null;
+  if (!stage) return NextResponse.json({ error: "Invalid analysis stage. Update both v7.7 files." }, { status: 400 });
+  const prior = typeof data.prior === "string" ? data.prior.slice(0, 30000) : "";
+  const argumentText = typeof data.argument === "string" ? data.argument.slice(0, 15000) : "";
+  if (stage === "synthesis" && !prior.includes("## 2. Immediate context"))
+    return NextResponse.json({ error: "Foundation analysis is missing. Cannot synthesize an incomplete analysis." }, { status: 400 });
+  if (stage === "audit" && ![1, 2, 3, 4, 5].every(n => prior.includes(`## ${n}.`)))
+    return NextResponse.json({ error: "Audit requires all five sections. Preserve the existing analysis and retry." }, { status: 400 });
+  if (typeof chapter !== "number" || !Number.isInteger(chapter) || chapter < 1 || chapter > 114 ||
+      typeof verse !== "number" || !Number.isInteger(verse) || verse < 1)
+    return NextResponse.json({ error: "Select a valid Qurʾānic verse." }, { status: 400 });
+
+  const ref = `${chapter}:${verse}`;
+  let corpus: Corpus, morph: Morphology;
+  try { [corpus, morph] = await Promise.all([getCorpus(), getMorphology()]); }
+  catch (err) {
+    console.error("Verse analysis local evidence failure", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Local Qurʾānic evidence unavailable; analysis was not attempted." }, { status: 503 });
   }
-  const verses = input.verses.map(v => ({ chapter: v.chapter ?? input.chapter, verse: v.verse, arabic: v.arabic }));
-  if (verses.some(v => !Number.isInteger(v.chapter) || (v.chapter ?? 0) < 1 || (v.chapter ?? 0) > 114 ||
-      !Number.isInteger(v.verse) || v.verse < 1 || v.verse > 286 ||
-      typeof v.arabic !== "string" || !v.arabic.trim() || v.arabic.length > 2500)) {
-    return NextResponse.json({ error: "Invalid verse data." }, { status: 400 });
+  if (!verifyReference(ref, corpus))
+    return NextResponse.json({ error: `Verse ${ref} not found.` }, { status: 400 });
+  const focalMorph = morph[ref];
+  if (!focalMorph?.length)
+    return NextResponse.json({ error: `Morphological evidence for ${ref} is unavailable. Analysis was not attempted.` }, { status: 503 });
+
+  const grammar = focalMorph.map(extractWordFacts).join("\n");
+  const plan = await buildEvidencePlan(ref, corpus, morph);
+  // Never let the browser or a generative selector erase critical references.
+  // Every stage recomputes the same corpus-verified, ordered reference list.
+  const evidenceRefs = plan.references;
+  if (!evidenceRefs.length)
+    return NextResponse.json({ error: "Insufficient verified Qur'anic evidence for analysis." }, { status: 503 });
+  const evidence = evidenceText(evidenceRefs, corpus);
+  const researchContext = plan.researchContext;
+  const occurrenceInventory = lexicalManifest(plan.lexical);
+  const requiredSections = stage === "foundation" ? [1, 2] : stage === "synthesis" ? [3, 4, 5] : [];
+  const stageInstructions = stage === "reconstruction" ? "Reconstruct the argument only, in the JSON schema. Do not reach a verdict." : stage === "foundation"
+    ? `Write ONLY these headings: \n## 1. Grammar and morphology\n## 2. Immediate context\nCover 3–9 consequential grammatical constructions, especially conditionals, prohibitions, and exceptions. Describe the immediate logical context without reproducing the verse or translation. Aim for 250–450 words. Finish section 2.`
+    : `Write ONLY these headings: \n## 3. Pan-textual evidence\n## 4. Interpretation and CCC\n## 5. Conclusion\nIn section 3 group evidence as direct subject-matter passages, context/qualifications, then structural comparisons; examine corroboration, scope, tensions and differences. Prioritize all essential supplied verses, not merely 4. Reconstruct and test any article comparative table from the supplied evidence; do not discard cross-root morphology examples because they have different subject matter. For each competing reading identify positive evidence and its provenance, otherwise do not present it as a coequal alternative. Section 4 separate explicit focal wording, cumulative evidence-supported implications, and plausible alternatives; discuss coherence, correspondence if externally verifiable evidence was actually supplied, and calibration. Never invent external correspondence. Aim for 450–750 words and finish section 5.`;
+  const context = contextWindow(chapter, verse, corpus);
+  const contextRefs = context.map(line => line.split(" ")[0]);
+  const allSupplied = new Set([ref,...contextRefs,...evidenceRefs]);
+  const reconstruction = stage === "foundation" || stage === "synthesis" || stage === "audit"
+    ? parseReconstruction(argumentText,allSupplied) : null;
+  if ((stage === "foundation" || stage === "synthesis" || stage === "audit") && !reconstruction) {
+    return NextResponse.json({error:"A validated argument reconstruction is required. Update the Reader and route together to v7.9."},{status:400});
   }
-  // Detailed grammar requests require more response space than short CCC summaries.
-  // This is a deterministic budget choice, not a guarantee of completion.
-  const detailedGrammar = /(?:grammatical|grammar|morpholog(?:y|ical)|syntax|syntactic|i[ʿ']?r[aā]b|na[hḥ]w|صرف|نحو|إعراب|صرفي)/i.test(input.question!);
-  const outputTokenBudget = detailedGrammar ? 4000 : 2400;
-  const selected = verses as ResearchVerse[];
-  const excerpt = selected.map(v => `${v.chapter}:${v.verse} ${v.arabic}`).join("\n");
-  const requestStarted = Date.now();
-  let stage = "begin";
-  try {
-    // Resolve explicit listing requests BEFORE broad conceptual discovery and
-    // BEFORE any remote corpus fetch or LLM use. This is an index-only route.
-    const q = input.question!.trim();
-    // V6: global query planner. Exact reference/phrase/lemma/root operations
-    // are corpus-determined and run before any thematic discovery or AI.
-    const parsedRefs = parseVerseReferences(q);
-    if (parsedRefs.invalid) return NextResponse.json({ error: parsedRefs.invalid }, {status:400});
-    let queryPlan = planQuranQuery(q);
-    // Generic indexed lexical resolution precedes conceptual AI retrieval.
-    // If a lexical target cannot be resolved, NEVER fabricate a zero count.
-    if (queryPlan.kind === "semantic") {
-      const resolution = await resolveLexicalQuery(q);
-      if (resolution.status === "resolved") queryPlan = resolution.plan;
-      if (resolution.status === "unresolved") {
-        return NextResponse.json({
-          answer: `Could not resolve the lexical term **${resolution.term}** uniquely in the Qurʾānic morphology index. This is NOT evidence of zero occurrences. ${resolution.reason}.${resolution.suggestions.length ? `\n\nCorpus-derived candidates: ${resolution.suggestions.join("; ")}` : ""}\n\nTry the Arabic spelling or specify the lemma versus root.`,
-          incomplete: true, finishReason: "lexical_resolution_required", queryClass: "lexical-unresolved", evidenceComplete: false,
-        });
-      }
-    }
-    console.info("CCC query planner", {kind:queryPlan.kind, analysis:queryPlan.analysis, scope:queryPlan.scope});
-    if (queryPlan.kind !== "semantic") {
-      stage = "planned_evidence";
-      let evidence;
-      try { evidence = await collectEvidence(queryPlan); }
-      catch (error) { return NextResponse.json({error:error instanceof Error?error.message:"Evidence lookup failed"},{status:400}); }
-      const listing = isRetrievalOnly(q,queryPlan);
-      const referencesOnly = isReferenceOnlyQuestion(q);
-      // Text is only needed for listing verse bodies or AI analysis.
-      const source = listing && referencesOnly ? {rows:[],textAvailable:false} :
-        await versesForReferences(listing ? evidence.references : evidence.references.slice(0, 40));
-      const certified = formatExactEvidence(evidence, source, listing && !referencesOnly &&
-        (queryPlan.kind === "verse" || /\b(?:text|arabic|full\s+verses?|quote|recite)\b/i.test(q)));
-      if (listing) return NextResponse.json({answer:referencesOnly ? evidence.references.join(", ") : certified,incomplete:false,
-        finishReason:"deterministic_"+queryPlan.kind, evidenceComplete:true,
-        references:evidence.references, occurrences:evidence.occurrences, queryClass:queryPlan.kind});
-      // The AI is a downstream analyst, not an arbiter of exact matches.
-      // Bound the explanatory context, but NEVER the certified concordance.
-      const contextRefs = evidence.narrativeReferences.slice(0,28);
-      const context = contextRefs.length ? await versesForReferences(contextRefs) : {rows:[],textAvailable:false};
-      const primaryRows = source.rows.filter(v=>v.arabic);
-      // Keep every retrieved verse identifiable in the model evidence.
-      // For large sets, abbreviate each passage rather than deleting tail verses.
-      const maxEach = Math.max(140,Math.floor(8500/Math.max(1,primaryRows.length))-12);
-      const primary = primaryRows.map(v=>`${v.reference} ${v.arabic.length>maxEach?v.arabic.slice(0,maxEach)+"…":v.arabic}`).join("\n");
-      const extraRows = context.rows.filter(v=>v.arabic);
-      const maxContextEach = Math.max(100,Math.floor(4600/Math.max(1,extraRows.length))-12);
-      const extra = extraRows.map(v=>`${v.reference} ${v.arabic.length>maxContextEach?v.arabic.slice(0,maxContextEach)+"…":v.arabic}`).join("\n");
-      const system = "Qur'an-only research. Explain the user's question with explicit wording separated from inference. The server-verified exact reference list is authoritative and must not be modified. Focus on the immediate context of requested verses; do not infer that semantic parallels are complete. No hadith or tafsir. Be concise (maximum 450 words) and avoid duplicating the reference list.";
-      const prompt = `Question: ${q}\n\nCOMPLETE EXACT REFERENCE LIST (${evidence.references.length}; ${evidence.occurrences} occurrences): ${evidence.references.join(", ")}\n\nPRIMARY VERSE EVIDENCE:\n${primary || "Arabic verse text temporarily unavailable"}\n\nADJACENT CONTEXT (not a complete narrative):\n${extra || "None supplied"}`;
-      stage = "planned_analysis";
-      if (!key) return NextResponse.json({answer:`${certified}\n\nAI analysis is not configured.`,
-        incomplete:true,evidenceComplete:true,queryClass:queryPlan.kind,references:evidence.references});
-      try {
-        const started = Date.now();
-        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
-          method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
-          signal:AbortSignal.timeout(FINAL_TIMEOUT_MS),
-          body:JSON.stringify({model:ANALYSIS_MODEL,temperature:0.2,max_tokens:3200,
-            messages:[{role:"system",content:system},{role:"user",content:prompt}]})});
-        if (!response.ok) throw new Error(`Model HTTP ${response.status}`);
-        const json = await response.json();
-        const choice = json?.choices?.[0];
-        const content = choice?.message?.content;
-        console.info("CCC planned analysis",{kind:queryPlan.kind,elapsedMs:elapsed(started),
-          finishReason:choice?.finish_reason,promptTokens:json?.usage?.prompt_tokens,
-          outputTokens:json?.usage?.completion_tokens});
-        if (typeof content!=="string" || !content.trim()) throw new Error("No final model answer");
-        return NextResponse.json({answer:`${certified}\n\n---\n\n${content}`,
-          incomplete:choice?.finish_reason==="length",finishReason:choice?.finish_reason,
-          evidenceComplete:true,queryClass:queryPlan.kind,references:evidence.references});
-      } catch(error) {
-        console.error("CCC planned analysis unavailable",{kind:queryPlan.kind,error:error instanceof Error?error.message:"unknown"});
-        return NextResponse.json({answer:`${certified}\n\nAI interpretation unavailable; complete verified references are retained.`,
-          incomplete:true,finishReason:"planned_evidence_fallback",evidenceComplete:true,
-          queryClass:queryPlan.kind,references:evidence.references});
-      }
-    }
-    if (!key) return NextResponse.json({error:"AI is not configured for conceptual research; exact corpus lookup remains available."},{status:503});
-    stage = "deterministic_retrieval";
-    const exactStart = Date.now();
-    const exact = await resolveDeterministicListing(q);
-    console.info("CCC AI stage", { stage, elapsedMs: elapsed(exactStart), hit: Boolean(exact) });
-    if (exact) {
-      console.log("CCC deterministic listing:", { scope: exact.scope, label: exact.label,
-        occurrences: exact.occurrences, references: exact.references.length });
-      return NextResponse.json({ answer: exact.answer, incomplete: false,
-        finishReason: "deterministic_" + exact.scope + "_listing" });
-    }
-    // Interpret a known lexical concept from its COMPLETE lemma evidence,
-    // not from the broad thematic discovery stage (which may suggest 1,188
-    // candidates and truncate the actual 19 verses).
-    stage = "lexical_anchor";
-    const lexicalAnchor = await resolveLexicalResearchAnchor(q);
-    stage = "corpus_retrieval";
-    const retrievalStart = Date.now();
-    const retrieval = await retrieveQuranContext(selected, lexicalAnchor ? "حكمة" : q);
-    console.info("CCC AI stage", { stage, elapsedMs: elapsed(retrievalStart), retrievedCharacters: retrieval.text.length });
-    console.log("CCC corpus retrieval:", retrieval.diagnostics);
-    if (lexicalAnchor && (
-      !retrieval.concordance ||
-      retrieval.concordance.references.length !== lexicalAnchor.references.length ||
-      lexicalAnchor.references.some((ref, i) => retrieval.concordance!.references[i]?.reference !== ref)
-    )) {
-      console.warn("CCC lexical context mismatch", { anchored: lexicalAnchor.references.length,
-        retrievalCount: retrieval.concordance?.references.length ?? 0 });
-      // Lexical index is authoritative. Never silently downgrade its results.
-    }
-    const wantsListing = isListingQuestion(q);
-    const referencesOnly = isReferenceOnlyQuestion(q);
-    const wantsAnalysis = /(?:\banalys(?:is|es|e|ed|ing)\b|\binterpret(?:ation|ations|ed|ing)?\b|\bexplain\b|\bcompare\b|\bmeaning\b|\bwhy\b|\bcoherence\b|\bcorrespondence\b|\bcalibration\b|\bfalsif)/i.test(q);
-    if (lexicalAnchor) {
-      // The full reference list is deterministic and is returned even if the
-      // final model times out, generates no final content, or exceeds its budget.
-      const allReferences = lexicalAnchor.references;
-      const countLine = `${lexicalAnchor.occurrences} word occurrences across ${allReferences.length} verses`;
-      const certified = `**Complete ḥikmah lemma concordance** (${countLine}):\n${allReferences.join(", ")}`;
-      if (referencesOnly && !wantsAnalysis) {
-        return NextResponse.json({ answer: allReferences.join(", "), incomplete: false,
-          finishReason: "complete_lexical_references_only" });
-      }
-      const extracts = lexicalEvidenceExcerpts(retrieval.concordanceVerses, allReferences);
-      const context = await getWisdomContext();
-      const system = `You are a Qur'an-only linguistic research assistant. Answer the user's actual question in at most 400 words. The COMPLETE ḥikmah lemma references have already been verified by the server; do not change, omit, or add to that lexical list. Analyze the meaning through every supplied occurrence, distinguish wording from inference, and attend to the moral instructions preceding 17:39. The pairing of kitāb and ḥikmah alone does not establish separate revelation. Distinguish ḥikmah (حكمة) from ḥukm (حكم). No hadith or tafsir. Provide concise analysis, not a second verse list. No full Arabic quotations. Do not claim every conceptual synonym was retrieved.`;
-      const user = `Question: ${q}\n\nEXHAUSTIVE LEXICAL REFERENCES (${countLine}):\n${allReferences.join(", ")}\n\nArabic excerpts for every indexed occurrence (may be abbreviated, but NO reference omitted):\n${extracts}\n\nSelected surrounding Qur'anic context from 17:22–39 (not an exhaustive passage transcription):\n${context || "Unavailable; do not infer the missing verse texts."}`;
+  const morphologyComparisons = comparativeMorphology(plan.researchUnits,morph,[ref,...contextRefs,...evidenceRefs]);
+  // A single default model drives discovery, writing and review, with optional overrides.
+  // This route does not control unrelated CCC discovery routes elsewhere in the repository.
+  const baseModel = process.env.VERSE_ANALYSIS_MODEL || "zai-org/GLM-5.2-Fast";
+  // Reconstruction must use the tested primary model, not the verification-model override.
+  // Otherwise an old VERSE_ANALYSIS_AUDIT_MODEL setting can accidentally select
+  // a thinking-heavy model for this short JSON stage and exhaust its token budget.
+  const model = (stage === "reconstruction" ? baseModel
+    : stage === "discovery" ? process.env.VERSE_ANALYSIS_DISCOVERY_MODEL
+    : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
+    : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
+    : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
+  // Evidence discovery is now a deterministic local operation: zero Chutes
+  // tokens, no JSON parsing/truncation failure, stable across repeated runs.
+  if (stage === "discovery") {
+    const payload = { references: evidenceRefs, candidateCount: plan.candidateCount,
+      coverageGaps: plan.lexical.filter(x => x.supplied < x.total && x.total <= 16)
+        .map(x => `Not every ${x.lemma} occurrence fits the evidence budget.`),
+      researchSources: plan.researchSources, researchReferences: plan.researchReferences,
+      focalReference: ref, contextReferences: contextRefs,
+      researchSections: plan.researchUnits.map(u=>({section:u.section,article:u.title,complete:u.complete,parts:u.chunkIds.length})),
+      lexical: plan.lexical.map(x => ({ lemma:x.lemma, total:x.total, supplied:x.supplied })),
+      sources: plan.sources };
+    const frames = [
+      `event: evidence\ndata: ${JSON.stringify(payload)}\n\n`,
+      `event: done\ndata: ${JSON.stringify({reference:ref, stage, finishReason:"deterministic", incomplete:false})}\n\n`
+    ].join("");
+    return new Response(frames, { status:200, headers: {
+      "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control":"no-cache, no-transform",
+      "X-Verse-Analysis-Protocol":"sse-v1" } });
+  }
+  // Stream immediately: this removes the 45-second all-at-once response constraint.
+  // Every event is JSON inside a Server-Sent Events frame (not arbitrary text).
+  const encoder = new TextEncoder();
+  const emit = (controller: ReadableStreamDefaultController<Uint8Array>, event: string, payload: unknown) =>
+    controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
       const started = Date.now();
-      stage = "lexical_final_analysis";
-      try {
-        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(FINAL_TIMEOUT_MS),
-          body: JSON.stringify({ model: ANALYSIS_MODEL, temperature: 0.2, max_tokens: 3200,
-            messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
-        });
-        if (!response.ok) throw new Error(`Final analysis HTTP ${response.status}`);
-        const json = await response.json();
-        const choice = json?.choices?.[0];
-        const answer = choice?.message?.content;
-        console.info("CCC AI lexical analysis", { elapsedMs: elapsed(started),
-          finishReason: choice?.finish_reason, chars: typeof answer === "string" ? answer.length : 0,
-          promptTokens: json?.usage?.prompt_tokens, completionTokens: json?.usage?.completion_tokens });
-        if (typeof answer !== "string" || !answer.trim()) throw new Error("Model returned no final content");
-        return NextResponse.json({ answer: `${certified}\n\n---\n\n${answer}`,
-          incomplete: choice?.finish_reason === "length", finishReason: choice?.finish_reason ?? "stop",
-          lexicalComplete: true });
-      } catch (error) {
-        console.error("CCC lexical analysis unavailable", { ...safeError(error), elapsedMs: elapsed(started) });
-        return NextResponse.json({ answer: `${certified}\n\nAI interpretation is currently unavailable; the complete lexical references above are unaffected.`,
-          incomplete: true, lexicalComplete: true, finishReason: "verified_lexical_fallback" });
-      }
-    }
-
-    // Curated, narrow thematic listing: verify references against the local
-    // indexed corpus before returning corpus-owned Arabic. This avoids a
-    // 597-verse expansion for questions such as "life is a test". The thematic
-    // categories are editorial labels, never an exhaustive semantic claim.
-    if (wantsListing && !wantsAnalysis && !retrieval.concordance) {
-      const pack = curatedThemeForQuestion(q);
-      if (pack) {
-        const verified = await retrieveConceptualContext(selected, {
-          references: pack.verses.map(v => v.reference), roots: [], queryConcept: pack.title,
-        });
-        const arabicByReference = new Map(verified.suppliedVerses.map(v => [v.reference, v.arabic]));
-        const items = pack.verses.filter(v => arabicByReference.has(v.reference));
-        const introduction = `**Research theme: ${pack.title}.** This is a curated Qur'ān-only set of directly relevant verses, not proof that every conceptual parallel has been found. Arabic quotations and references are corpus-verified; the explanatory categories are editorial interpretations.\n\n`;
-        return NextResponse.json({
-          answer: referencesOnly
-            ? items.map(v => v.reference).sort((a,b) => { const [as,av]=a.split(":").map(Number),[bs,bv]=b.split(":").map(Number);return as-bs || av-bv; }).join(", ")
-            : introduction + formatVerifiedThematicList(items, arabicByReference, items.length, false, "Life and worldly circumstances as a test"),
-          incomplete: false,
-          finishReason: "verified_curated_thematic_list",
-        });
-      }
-    }
-
-    // Natural-language thematic questions need a discovery -> local verification
-    // pass. Never trigger it for methodology-only questions, or where a
-    // deterministic lemma concordance already answers the question.
-    const methodologyOnly = /(?:chapter\s*1|ccc methodology|agrippa|epistemolog|methodological principle)/i.test(q)
-      && !/(?:qur.?an|quranic|verses?|surah|\b2:\d+\b)/i.test(q);
-    const thematic = !retrieval.concordance && !methodologyOnly &&
-      /(?:qur.?an|quranic|verses?|surah|god|allah|life|world|creation|test|trial|scripture)/i.test(q);
-    let thematicEvidence = "";
-    let thematicListing = false;
-    let verifiedThematic: Awaited<ReturnType<typeof retrieveConceptualContext>> | null = null;
-    if (thematic) {
-      try {
-        stage = "thematic_discovery";
-        const discoveryStart = Date.now();
-        const proposed = await discoverQuranCandidates(q, selected, key, DISCOVERY_MODEL);
-        console.info("CCC AI stage", { stage, elapsedMs: elapsed(discoveryStart), references: proposed.references.length, roots: proposed.roots.length });
-        stage = "thematic_verification";
-        const verificationStart = Date.now();
-        // Exact candidate references are checked against the corpus. Never
-        // expand a semantic discovery into 800+ root matches and classify
-        // only the first 56 as though that covered the user's topic.
-        const verified = await retrieveConceptualContext(selected, { ...proposed, roots: [] });
-        console.info("CCC AI stage", { stage, elapsedMs: elapsed(verificationStart), candidates: verified.suppliedVerses.length });
-        thematicEvidence = verified.text;
-        verifiedThematic = verified;
-        thematicListing = wantsListing && !wantsAnalysis;
-        console.log("CCC thematic retrieval:", verified.diagnostics);
-      } catch (error) {
-        console.error("CCC thematic discovery failed:", error);
-        return NextResponse.json({ error: "Thematic retrieval failed; no verified thematic answer was generated. Please retry." }, { status: 502 });
-      }
-    }
-    if (wantsListing && !wantsAnalysis && retrieval.concordance) {
-      const c = retrieval.concordance;
-      const verses = retrieval.concordanceVerses;
-      if (referencesOnly) return NextResponse.json({
-        answer: c.references.map(r => r.reference).join(", "), incomplete: false,
-        finishReason: "verified_concordance_references_only",
-      });
-      const lines = [
-        `## Verified Qurʾānic lexical concordance — ${c.term}`,
-        `**${c.totalOccurrences} ${c.unit} occurrences across ${c.references.length} numbered verses.**`,
-        "",
-      ];
-      if (verses.length === c.references.length) {
-        for (const v of verses) lines.push(`### ${v.reference} — ${v.count} occurrence${v.count === 1 ? "" : "s"}`, v.arabic, "");
-      } else {
-        for (const r of c.references) lines.push(`- ${r.reference}: ${r.count} occurrence${r.count === 1 ? "" : "s"}`);
-        lines.push("", "The full reference list is complete; Arabic verse quotations are omitted because the result is too large for this response.");
-      }
-      lines.push("**Scope:** Exhaustive matching of the identified morphological lemma in the locally indexed Qurʾānic corpus; not a complete conceptual/semantic search. Morphological annotations are a linguistic analysis layer.");
-      return NextResponse.json({ answer: lines.join("\n"), incomplete: false, finishReason: "verified_concordance" });
-    }
-
-    // For listing-only thematic requests, the model returns classifications
-    // as JSON. The server checks every reference against the exact candidate
-    // verses that were actually supplied, deduplicates it, and renders only
-    // corpus-owned Arabic. This prevents phantom citations, missing-list claims,
-    // and invented Arabic quotations in the final output.
-    if (thematicListing && verifiedThematic) {
-      const verified = verifiedThematic;
-      const candidates = verified.suppliedVerses;
-      if (!candidates.length) {
-        return NextResponse.json({ answer: "No valid Qurʾānic candidate verses were retrieved. Thematic coverage could not be assessed.", incomplete: false, finishReason: "no_thematic_candidates" });
-      }
-      // Prefer the direct candidate references proposed by the discovery model;
-      // root-expanded references follow them. Classify only as much evidence as
-      // the runtime can safely examine. Never represent bounded evidence as an
-      // exhaustive thematic search, and never fail solely on candidate count.
-      const MAX_BATCHES = 8;
-      const batches: typeof candidates[] = [];
-      let batch: typeof candidates = [];
-      let chars = 0;
-      let classifiedCount = 0;
-      for (const candidate of candidates) {
-        const size = candidate.reference.length + candidate.arabic.length + 2;
-        if (batch.length && (batch.length >= 7 || chars + size > 3600)) {
-          batches.push(batch);
-          batch = [];
-          chars = 0;
+      const abort = new AbortController();
+      let finished = false;
+      let upstreamReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+      // Disconnects, timeouts, and cancellation all stop the upstream request.
+      const onDisconnect = () => abort.abort();
+      req.signal.addEventListener("abort", onDisconnect, { once: true });
+      const deadline = setTimeout(() => abort.abort(), UPSTREAM_LIMIT_MS);
+      const heartbeat = setInterval(() => {
+        if (!finished) {
+          try { emit(controller, "heartbeat", { elapsedMs: Date.now() - started }); }
+          catch { abort.abort(); }
         }
-        if (batches.length >= MAX_BATCHES) break;
-        batch.push(candidate);
-        chars += size;
-        classifiedCount++;
-      }
-      if (batch.length && batches.length < MAX_BATCHES) batches.push(batch);
-      const bounded = classifiedCount < candidates.length;
-      console.log("CCC thematic bounded classification:", {
-        totalCandidates: candidates.length, classifiedCount, bounded, batches: batches.length,
-      });
-      const model = DISCOVERY_MODEL; // small JSON-only thematic classification batches
-      const classifyBatch = async (items: typeof candidates, index: number) => {
-        const allowed = new Set(items.map(v => v.reference));
+      }, HEARTBEAT_MS);
+
+      let answer = "";
+      let finishReason = "";
+      let reasoningTokensObserved = 0;
+      let reasoningCharactersObserved = 0;
+      let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
+      let invalid = new Set<string>();
+      const validateReferences = (text: string) => {
+        const matches = [...text.matchAll(/\b(\d{1,3}):(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?\b/g)];
+        for (const m of matches) {
+          const first = `${m[1]}:${m[2]}`;
+          if (!verifyReference(first, corpus) ||
+            (m[3] && (Number(m[3]) < Number(m[2]) || Number(m[3]) - Number(m[2]) > 100 || !verifyReference(`${m[1]}:${m[3]}`, corpus)))) {
+            invalid.add(m[0]);
+          }
+        }
+      };
+      const sectionCoverage = (value: string) => {
+        // Accept heading numbers only at the start of a Markdown heading / line.
+        const matched = new Set<number>();
+        for (const m of value.matchAll(/^\s{0,3}(?:#{1,4}\s*)?([1-6])[.)]\s+[^\n]+/gm)) matched.add(Number(m[1]));
+        return matched;
+      };
+      const finish = (event: "done" | "error", payload: Record<string, unknown>) => {
+        if (finished) return;
+        finished = true;
+        try { emit(controller, event, payload); controller.close(); }
+        catch { /* Client disconnected. */ }
+      };
+      try {
+        emit(controller, "status", { message: `${stage === "reconstruction" ? "Reconstructing article premises" : stage === "foundation" ? "Analyzing grammar and context" : stage === "synthesis" ? "Synthesizing Qurʾānic evidence" : "Checking material claims"} for ${ref}…`, reference: ref, stage });
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
           method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(45000),
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
+          signal: abort.signal,
           body: JSON.stringify({
-            model,
-            temperature: 0.1,
-            max_tokens: 2000,
+            model, temperature: 0, max_tokens: stage === "audit" ? AUDIT_OUTPUT_TOKENS : stage === "reconstruction" ? RECONSTRUCTION_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
+            // Both model families can default to extended reasoning, which uses
+            // completion tokens before final-answer text is produced. Apply the
+            // template option appropriate to the exact selected model family.
+            ...(model === "deepseek-ai/DeepSeek-V3.2-TEE"
+              ? { chat_template_kwargs: { thinking_mode: "chat" } }
+              : model === "zai-org/GLM-5.2-Fast" || model.startsWith("zai-org/GLM-5.2-")
+                ? { chat_template_kwargs: { enable_thinking: false } }
+                : {}),
             messages: [
-              { role: "system", content: `Classify Qur'anic passages for the user's thematic list based on their relevance to the question. Return EXACTLY ONE JSON object: {"verses":[{"reference":"67:2","category":"general","explanation":"Death and life were created to test deeds."}]}. Categories: general = broad statements about the purpose or nature of earthly testing; situational = a particular type of trial; historical = a specific past event or reported speech. For other research topics, apply the same general/situational/historical distinction sensibly. Judge EACH supplied verse independently; omit those not relevant to the question. For each relevant verse give a concise (maximum 22-word) explanation. Use ONLY references in the supplied batch. Do not invent quotations, references or assertions of exhaustiveness. No Markdown or prose outside JSON.` },
-              { role: "user", content: `Research question: ${q}\nBatch ${index + 1} of ${batches.length} — classify only the verses below:\n${items.map(v => `${v.reference} ${v.arabic}`).join("\n")}` },
+              { role: "system", content: stage === "audit" ? AUDIT_SYSTEM : stage === "reconstruction" ? RECONSTRUCTION_SYSTEM : SYSTEM },
+              { role: "user", content: stage === "audit"
+
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (attributed arguments, not Qur'anic authority):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `VALIDATED ARGUMENT RECONSTRUCTION (premises to test, not a conclusion to adopt):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
             ],
           }),
         });
-        if (!response.ok) throw new Error(`Thematic batch ${index + 1} HTTP ${response.status}`);
-        const json = await response.json();
-        const choice = json?.choices?.[0];
-        if (choice?.finish_reason === "length") throw new Error(`Thematic batch ${index + 1} reached the output-token limit`);
-        const raw = choice?.message?.content;
-        if (typeof raw !== "string" || !raw.trim()) throw new Error(`Empty thematic batch ${index + 1}`);
-        return parseVerifiedThematicList(raw, allowed);
-      };
-      // Use bounded concurrency: requests are independent but Vercel has a
-      // finite execution window. Any failed batch fails the WHOLE listing.
-      const allResults: Awaited<ReturnType<typeof classifyBatch>>[] = [];
-      let failedBatches = 0;
-      stage = "thematic_classification";
-      const classificationStart = Date.now();
-      for (let i = 0; i < batches.length; i += 4) {
-        const wave = await Promise.all(batches.slice(i, i + 4).map(async (items, offset) => {
-          try { return await classifyBatch(items, i + offset); }
-          catch (error) { console.error("CCC thematic batch failed:", error); failedBatches++; return []; }
-        }));
-        allResults.push(...wave);
+        if (!response.ok) {
+          console.error("Verse analysis upstream HTTP", { ref, model, status: response.status, ms: Date.now() - started });
+          finish("error", { message: `Chutes returned HTTP ${response.status}.`, partial: false });
+          return;
+        }
+        if (!response.body) {
+          finish("error", { message: "Chutes returned no streaming response body.", partial: false });
+          return;
+        }
+        emit(controller, "status", { message: "Connected to analysis model. Awaiting final-answer text…" });
+        upstreamReader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = "";
+        let providerDone = false;
+        const handleFrame = (frame: string) => {
+          const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n").trim();
+          if (!data) return;
+          if (data === "[DONE]") { providerDone = true; return; }
+          let msg: {
+            error?: { message?: string } | string;
+            choices?: { delta?: { content?: string | null; reasoning_content?: string | null }; finish_reason?: string | null }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
+          };
+          try { msg = JSON.parse(data); } catch { return; }
+          if (msg.error) throw new Error(typeof msg.error === "string" ? msg.error : msg.error.message || "Model stream error");
+          if (msg.usage) usage = msg.usage;
+          const choice = msg.choices?.[0];
+          if (choice?.finish_reason) finishReason = choice.finish_reason;
+          // Never show private reasoning. Count it to diagnose any ignored chat-mode flag.
+          const reasoning = choice?.delta?.reasoning_content;
+          if (typeof reasoning === "string" && reasoning) {
+            reasoningTokensObserved++;
+            reasoningCharactersObserved += reasoning.length;
+          }
+          const delta = choice?.delta?.content;
+          if (typeof delta === "string" && delta) {
+            answer += delta;
+            if (stage === "foundation" || stage === "synthesis") emit(controller, "delta", { text: delta }); // Structured reconstruction and audit stay internal until validated.
+          }
+        };
+        while (true) {
+          const { done, value } = await upstreamReader.read();
+          if (done) break;
+          pending += decoder.decode(value, { stream: true });
+          let boundary: number;
+          while (true) {
+            const match = /\r?\n\r?\n/.exec(pending);
+            if (!match) break;
+            boundary = match.index;
+            const frame = pending.slice(0, boundary).replace(/\r\n/g, "\n"); pending = pending.slice(boundary + match[0].length);
+            handleFrame(frame);
+          }
+          if (pending.length > 2_000_000) throw new Error("Oversized provider stream frame");
+        }
+        pending += decoder.decode();
+        if (pending.trim()) handleFrame(pending.replace(/\r\n/g, "\n"));
+        if (!answer.trim()) {
+          console.error("Verse analysis returned no final text", {
+            ref, model, finishReason, providerDone, durationMs: Date.now() - started,
+            completionTokens: usage?.completion_tokens, reasoningChunks: reasoningTokensObserved,
+            reasoningCharacters: reasoningCharactersObserved,
+          });
+          finish("error", { message: reasoningCharactersObserved
+            ? `Chutes generated reasoning but no final answer (model: ${model}; finish: ${finishReason || "unknown"}; reasoning characters: ${reasoningCharactersObserved}). Check whether this Chutes deployment honors its non-thinking setting.`
+            : `Chutes returned no final-answer text (model: ${model}; finish: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
+          return;
+        }
+        if (stage === "reconstruction") {
+          console.info("Verse argument reconstruction result", {
+            ref, model, finishReason, providerDone, durationMs: Date.now() - started,
+            promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+            reasoningChunks: reasoningTokensObserved, answerCharacters: answer.length,
+            maxOutputTokens: RECONSTRUCTION_OUTPUT_TOKENS,
+          });
+          if (finishReason === "length") {
+            finish("error", {message:`Argument reconstruction exceeded the ${RECONSTRUCTION_OUTPUT_TOKENS}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
+            return;
+          }
+          if (!providerDone) {
+            finish("error", {message:"Argument reconstruction stream ended without provider completion; no synthesis attempted.",partial:false});
+            return;
+          }
+          const parsed = parseReconstruction(answer,allSupplied);
+          if (!parsed) {
+            finish("error", {message:"Argument reconstruction JSON invalid or unsupported; no synthesis attempted.",partial:false});
+            return;
+          }
+          emit(controller,"argument",{reconstruction:parsed});
+          finish("done",{reference:ref,stage,finishReason,incomplete:false,claims:parsed.claims.length});
+          return;
+        }
+        if (stage === "audit") {
+          let parsed: { findings?: { quote?: string; issue?: string; evidence_kind?: string; evidence_ref?: string; evidence_quote?: string; suggestion?: string }[]; unresolved?: string[] };
+          try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
+          catch { finish("error", { message: "Verification JSON invalid; original analysis retained.", partial: false }); return; }
+          if (finishReason === "length" || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
+            finish("error", { message: "Verification incomplete; original analysis retained.", partial: false }); return;
+          }
+          // Validation requires a verbatim quote in an ACTUAL supplied verse.
+          // Never silently replace generated analytical text based on a model's
+          // self-certified verdict. Report grounded findings for human review.
+          const supplied = new Set([ref, ...context.map(line => line.split(" ")[0]), ...evidenceRefs]);
+          const normalize = (v: string) => v.normalize("NFKD").replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "");
+          const findings = (parsed.findings || []).slice(0,4).filter(item => {
+            if (!item.quote || !item.issue || !item.evidence_ref || !item.evidence_quote || !item.suggestion) return false;
+            if (!prior.includes(item.quote)) return false;
+            const kind = item.evidence_kind || "quran";
+            if (kind === "quran") return supplied.has(item.evidence_ref) &&
+              normalize(corpus[item.evidence_ref] || "").includes(normalize(item.evidence_quote));
+            if (kind === "research") return plan.researchUnits.some(u => u.key === item.evidence_ref &&
+              u.text.includes(item.evidence_quote!));
+            if (kind === "reconstruction") return item.evidence_ref === "reconstruction" &&
+              JSON.stringify(reconstruction).includes(item.evidence_quote);
+            return false;
+          }).map(item => ({ quote:item.quote!, issue:item.issue!, evidenceRef:item.evidence_ref!, evidenceQuote:item.evidence_quote!, suggestion:item.suggestion! }));
+          console.info("Verse analysis verification", { ref, model, durationMs: Date.now()-started,
+            proposed: parsed.findings.length, grounded: findings.length, finishReason });
+          emit(controller, "audit", { findings, unresolved: parsed.unresolved.filter(x=>typeof x === "string").slice(0,2) });
+          finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started, findings:findings.length });
+          return;
+        }
+        validateReferences(answer);
+        const outsideEvidence = [...new Set([...answer.matchAll(/\b(\d{1,3}:\d{1,3})\b/g)].map(m=>m[1]))]
+          .filter(verseRef=>verifyReference(verseRef,corpus) && !allSupplied.has(verseRef));
+        console.info("Verse analysis streamed", {
+          ref, model, durationMs: Date.now() - started, finishReason,
+          promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+          contentLength: answer.length, morphologyWords: focalMorph.length, evidenceVerses: evidenceRefs.length,
+          providerDone, reasoningChunks: reasoningTokensObserved,
+        });
+        finish("done", {
+          reference: ref, stage, finishReason, incomplete: finishReason === "length" || !providerDone || requiredSections.some(n => !sectionCoverage(answer).has(n)),
+          completedSections: [...sectionCoverage(answer)].sort(),
+          invalidReferences: [...invalid], unsuppliedReferences: outsideEvidence, durationMs: Date.now() - started,
+        });
+      } catch (err) {
+        const timedOut = abort.signal.aborted && !req.signal.aborted;
+        console.error("Verse analysis stream failed", {
+          ref, model, durationMs: Date.now() - started,
+          name: err instanceof Error ? err.name : "Unknown", message: err instanceof Error ? err.message : String(err),
+          partialLength: answer.length, timedOut,
+        });
+        if (!req.signal.aborted) finish("error", {
+          message: timedOut
+            ? `Analysis exceeded the ${Math.round(UPSTREAM_LIMIT_MS / 1000)}-second server limit. ${answer ? "Partial analysis preserved below." : "No final-answer text was received."}`
+            : (err instanceof Error ? err.message : "Analysis stream interrupted."),
+          partial: Boolean(answer.trim()),
+        });
+      } finally {
+        clearTimeout(deadline); clearInterval(heartbeat);
+        req.signal.removeEventListener("abort", onDisconnect);
+        try { await upstreamReader?.cancel(); } catch { /* upstream already closed */ }
+        if (!finished) { finished = true; try { controller.close(); } catch { /* disconnected */ } }
       }
-      console.info("CCC AI stage", { stage, elapsedMs: elapsed(classificationStart), batches: batches.length, failedBatches });
-      const merged = new Map<string, (typeof allResults)[number][number]>();
-      for (const item of allResults.flat()) if (!merged.has(item.reference)) merged.set(item.reference, item);
-      const rank = { general: 0, situational: 1, historical: 2 };
-      const items = [...merged.values()].sort((a, b) =>
-        rank[a.category] - rank[b.category] ||
-        Number(a.reference.split(":")[0]) - Number(b.reference.split(":")[0]) ||
-        Number(a.reference.split(":")[1]) - Number(b.reference.split(":")[1]));
-      const arabicByReference = new Map(candidates.map(v => [v.reference, v.arabic]));
-      console.log("CCC thematic batch coverage:", {
-        verifiedCandidates: candidates.length,
-        batchCount: batches.length,
-        classifiedCandidates: classifiedCount,
-        relevantUnique: items.length,
-        excerptTruncated: verified.diagnostics.truncated,
-      });
-      return NextResponse.json({
-        answer: referencesOnly
-          ? items.map(v => v.reference).sort((a,b) => { const [as,av]=a.split(":").map(Number),[bs,bv]=b.split(":").map(Number);return as-bs || av-bv; }).join(", ")
-          : ((bounded || failedBatches)
-            ? `**Coverage limit:** Up to ${classifiedCount} of ${candidates.length} verified candidate verses were considered; ${failedBatches} batches failed. This is a partial thematic result.\n\n`
-            : "") + formatVerifiedThematicList(items, arabicByReference, candidates.length, bounded || !!failedBatches, q),
-        incomplete: bounded || failedBatches > 0,
-        finishReason: failedBatches ? "verified_thematic_list_partial_batches" : "verified_thematic_list_batched",
-      });
-    }
+    },
+    cancel() { /* Request abort signal is handled above on disconnect. */ },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      "X-Verse-Analysis-Protocol": "sse-v1",
+    },
+  });
+}
 
-    const thematicInstruction = thematicListing
-      ? "THE USER REQUESTED A THEMATIC LIST, NOT AN ESSAY. Examine all supplied candidate Arabic verses. Return only directly relevant verified references with a brief faithful explanation of each. Do not impose categories from a different research theme; exclude unrelated root matches. Do not add unrelated commentary. Do not claim the thematic list is exhaustive."
-      : thematicEvidence
-        ? "Evaluate the retrieved thematic candidates; exclude irrelevant root matches. Do not claim the conceptual search is exhaustive. Include conceptual parallels beyond exact lexical matches."
-        : "";
-    // Pass a bounded, verified evidence excerpt to the expensive final model;
-    // NEVER silently interpret a truncated candidate excerpt as complete coverage.
-    const focused = verifiedThematic ? compactThematicEvidence(verifiedThematic.suppliedVerses) : null;
-    const evidence = focused
-      ? `VERIFIED CANDIDATE PASSAGES (${focused.sent} supplied; ${focused.omitted} not included):\n${focused.text}\n\nThese are candidates, not confirmed thematic matches. Do not assert exhaustiveness.`
-      : retrieval.text.slice(0, MAX_FINAL_RETRIEVAL_CHARS);
-    const scopedSelected = excerpt.slice(0, 2200);
-    const analysisUserContent = `Optional user-selected Qur'anic starting verses:\n${scopedSelected || "None selected."}\n\nSERVER-RETRIEVED CORPUS EVIDENCE:\n${evidence}\n\nResearch question: ${q}`;
-    const analysisSystemContent = `You are a Qur'an research assistant. Answer the question directly and reason from the supplied Qur'anic evidence. Distinguish explicit wording from interpretation. No hadith or tafsir. Never invent verses or Arabic quotations. If evidence was truncated, do not claim conceptual completeness. Do not add irrelevant headings. If analysis cannot be completed from supplied verses, state the limitation succinctly. ${thematicInstruction} ${referencesOnly ? "Return only references for verified relevant verses when possible; never describe an unclassified candidate list as exhaustive." : ""}`;
-    const finalBudget = Math.min(outputTokenBudget, 2200);
-    const finalStart = Date.now();
-    stage = "final_analysis";
-    console.info("CCC final analysis request", {
-      model: ANALYSIS_MODEL, systemCharacters: analysisSystemContent.length,
-      userCharacters: analysisUserContent.length, finalBudget,
-      thematicCandidates: verifiedThematic?.suppliedVerses.length ?? 0,
-      thematicSent: focused?.sent ?? 0, thematicOmitted: focused?.omitted ?? 0,
-    });
-    let response: Response;
-    try {
-      response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: ANALYSIS_MODEL,
-          temperature: 0.3,
-          max_tokens: finalBudget,
-          messages: [
-            { role: "system", content: analysisSystemContent },
-            { role: "user", content: analysisUserContent },
-          ],
-        }),
-        signal: AbortSignal.timeout(FINAL_TIMEOUT_MS),
-      });
-    } catch (error) {
-      console.error("CCC final analysis transport failure", { stage, ...safeError(error), elapsedMs: elapsed(finalStart), totalMs: elapsed(requestStarted) });
-      return NextResponse.json({
-        answer: verifiedEvidenceFallback({
-          concordance: retrieval.concordance,
-          candidates: verifiedThematic?.suppliedVerses ?? [],
-          referencesOnly,
-          error: error instanceof Error && /timeout|abort/i.test(error.name + " " + error.message) ? "model request timed out" : "model request failed",
-        }),
-        incomplete: true, finishReason: "final_model_transport_fallback",
-      });
-    }
-    let json: {
-      model?: string;
-      error?: { code?: string; type?: string };
-      choices?: Array<{
-        finish_reason?: string | null;
-        message?: { content?: string | null; reasoning_content?: string | null };
-      }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number };
-    };
-    try { json = await response.json(); }
-    catch (error) {
-      console.error("CCC final analysis invalid response", { stage, ...safeError(error), elapsedMs: elapsed(finalStart) });
-      return NextResponse.json({ answer: verifiedEvidenceFallback({
-        concordance: retrieval.concordance, candidates: verifiedThematic?.suppliedVerses ?? [],
-        referencesOnly, error: "invalid upstream JSON",
-      }), incomplete: true, finishReason: "final_model_invalid_response_fallback" });
-    }
-    if (!response.ok) {
-      console.error("Chutes request failed", { status: response.status, errorCode: json?.error?.code, errorType: json?.error?.type });
-      return NextResponse.json({ answer: verifiedEvidenceFallback({
-        concordance: retrieval.concordance, candidates: verifiedThematic?.suppliedVerses ?? [],
-        referencesOnly, error: `upstream HTTP ${response.status}`,
-      }), incomplete: true, finishReason: "final_model_http_fallback" });
-    }
-    const choice = json?.choices?.[0];
-    const answer = choice?.message?.content;
-    console.log("Chutes diagnostic:", {
-      model: json?.model,
-      finishReason: choice?.finish_reason,
-      outputTokenBudget,
-      contentLength: typeof answer === "string" ? answer.length : 0,
-      reasoningLength: choice?.message?.reasoning_content?.length ?? 0,
-      usage: json?.usage,
-    });
-    if (typeof answer !== "string" || !answer.trim()) {
-      return NextResponse.json({ answer: verifiedEvidenceFallback({
-        concordance: retrieval.concordance, candidates: verifiedThematic?.suppliedVerses ?? [],
-        referencesOnly, error: `no final content (finish_reason=${choice?.finish_reason ?? "unknown"})`,
-      }), incomplete: true, finishReason: "final_model_empty_fallback" });
-    }
-    console.info("CCC AI stage", { stage, elapsedMs: elapsed(finalStart), totalMs: elapsed(requestStarted),
-      finishReason: choice?.finish_reason, outputCharacters: typeof answer === "string" ? answer.length : 0 });
-    const incomplete = choice?.finish_reason === "length" || Boolean(focused?.omitted);
-    // Lexical concordances come from the corpus index, not the model's recollection.
-    // Show them deterministically even if the model fails to enumerate all references.
-    const verifiedConcordance = retrieval.concordance
-      ? `Verified Qurʾānic morphology concordance — ${retrieval.concordance.term}: ${retrieval.concordance.totalOccurrences} ${retrieval.concordance.unit} occurrences in ${retrieval.concordance.references.length} verses.\n${retrieval.concordance.references.map(r => `${r.reference} (${r.count})`).join(", ")}\n\n---\n\n`
-      : "";
-    const thematicNotice = thematicEvidence
-      ? "**Thematic retrieval:** Candidate verses were checked against the Qurʾānic corpus, but conceptual completeness cannot be guaranteed.\n\n"
-      : "";
-    return NextResponse.json({ answer: thematicNotice + verifiedConcordance + answer, incomplete, finishReason: choice?.finish_reason ?? null });
-  } catch (error) {
-    console.error("CCC AI request failed:", { stage, ...safeError(error), totalMs: elapsed(requestStarted) });
-    return NextResponse.json({ error: "AI research request failed. Check Vercel logs for file or corpus retrieval errors." }, { status: 502 });
-  }
+// A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
+export async function GET() {
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.1" });
 }
