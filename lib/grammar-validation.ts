@@ -1,7 +1,8 @@
-/** Corpus-anchored, topic-neutral verification of *explicit* morphology claims.
- * This does not interpret Arabic grammar or certify an analysis as correct.
- * It flags contradictions only when the model names a recognizable word and
- * asserts a form/mood/voice that disagrees with a supplied morphological tag.
+/** Topic-neutral, corpus-anchored checking of explicit morphological claims.
+ * Detects a conflict only when a clause identifies a single verb unambiguously
+ * (or explicitly names the word number). Missing tags are not negative proof.
+ * Also catches one logically invalid rule: a relative pronoun by itself does
+ * not impose subjunctive or jussive mood on a subordinate finite verb.
  */
 export type MorphSegment = [string, string, string];
 export type MorphWord = { r: string | null; l: string | null; s: MorphSegment[] };
@@ -10,112 +11,95 @@ export type Corpus = Record<string, string>;
 export type GrammarFinding = {
   quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string;
 };
-const forms = ["XII", "XI", "VIII", "VII", "III", "VI", "IV", "IX", "II", "V", "X", "I"];
-const moodCodes: Record<string,string> = { IND:"indicative", SUBJ:"subjunctive", JUS:"jussive", ENG:"energetic" };
-const ignoreArabic = /[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
-function stripArabic(v: string) { return v.normalize("NFKD").replace(ignoreArabic, "").replace(/[إأآٱ]/g,"ا").replace(/ى/g,"ي"); }
-// Deliberately conservative romanization; never use this as a translation.
-const letters:Record<string,string> = {
-  ا:"a",أ:"a",إ:"i",آ:"a",ٱ:"a",ب:"b",ت:"t",ث:"th",ج:"j",ح:"h",خ:"kh",د:"d",ذ:"dh",
-  ر:"r",ز:"z",س:"s",ش:"sh",ص:"s",ض:"d",ط:"t",ظ:"z",ع:"",غ:"gh",ف:"f",ق:"q",ك:"k",ل:"l",
-  م:"m",ن:"n",ه:"h",و:"w",ي:"y",ى:"a",ة:"a",ء:"",ؤ:"w",ئ:"y", "َ":"a","ُ":"u","ِ":"i","ْ":"","ّ":"",
-};
-function romanize(v:string) {
-  return Array.from(v.normalize("NFC")).map(c=>letters[c] ?? "").join("")
-    .replace(/([aiu])\1+/g,"$1").replace(/y?a$/,"a");
+const formValues = ["XII","XI","VIII","VII","VI","IV","IX","III","II","V","X","I"];
+const moodNames:Record<string,string>={IND:"indicative",SUBJ:"subjunctive",JUS:"jussive",ENG:"energetic"};
+const diacritics=/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g;
+const normalizeArabic=(s:string)=>s.normalize("NFKD").replace(diacritics, "").replace(/[إأآٱ]/g,"ا").replace(/ى/g,"ي");
+const letters:Record<string,string>={ا:"a",ب:"b",ت:"t",ث:"th",ج:"j",ح:"h",خ:"kh",د:"d",ذ:"dh",ر:"r",ز:"z",س:"s",ش:"sh",ص:"s",ض:"d",ط:"t",ظ:"z",ع:"",غ:"gh",ف:"f",ق:"q",ك:"k",ل:"l",م:"m",ن:"n",ه:"h",و:"w",ي:"y",ة:"a",ء:"",ؤ:"w",ئ:"y",
+"َ":"a","ُ":"u","ِ":"i","ْ":"","ّ":""};
+function transliterate(s:string){
+  return [...s.normalize("NFC")].map(x=>letters[x]??"").join("").replace(/([aiu])\1+/g,"$1");
 }
-function plainLatin(v:string) {
-  return v.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
-    .replace(/[ʾʿ‘’'`ʔ]/g,"").replace(/ḫ/g,"kh").replace(/š/g,"sh").replace(/ḍ/g,"d")
-    .replace(/ṣ/g,"s").replace(/ṭ/g,"t").replace(/ẓ/g,"z").replace(/ġ/g,"gh");
+function latin(s:string){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
+  .replace(/[ʾʿ‘’'`ʔ]/g,"").replace(/ḫ/g,"kh").replace(/š/g,"sh").replace(/ḍ/g,"d")
+  .replace(/ṣ/g,"s").replace(/ṭ/g,"t").replace(/ẓ/g,"z").replace(/ġ/g,"gh");}
+function verbFacts(w:MorphWord){
+  const part=w.s.find(([,pos])=>pos==="V"); if(!part)return null;
+  const tags=part[2].split("|").filter(Boolean);
+  const form=formValues.find(f=>tags.includes(`(${f})`)) || "I";
+  const moodTag=tags.find(t=>t.startsWith("MOOD:"))?.slice(5);
+  const mood=moodTag?moodNames[moodTag]:undefined;
+  const voice=tags.includes("PASS")?"passive":tags.includes("ACT")?"active":undefined;
+  const aspect=tags.includes("IMPF")?"imperfect":tags.includes("PERF")?"perfect":tags.includes("IMPV")?"imperative":undefined;
+  return {form,mood,voice,aspect,tags};
 }
-function verbFacts(word:MorphWord) {
-  const verbal = word.s.find(([,pos]) => pos === "V");
-  if (!verbal) return null;
-  const tags = verbal[2].split("|").filter(Boolean);
-  const form = forms.find(f => tags.includes(`(${f})`)) || "I";
-  const moodRaw = tags.find(t=>t.startsWith("MOOD:"))?.slice(5) || tags.find(t=>Object.keys(moodCodes).includes(t));
-  const mood = moodRaw ? moodCodes[moodRaw] : undefined;
-  const voice = tags.includes("PASS") ? "passive" : tags.includes("ACT") ? "active" : undefined;
-  const aspect = tags.includes("IMPF") ? "imperfect" : tags.includes("PERF") ? "perfect" : tags.includes("IMPV") ? "imperative" : undefined;
-  return { form, mood, voice, aspect, tags };
-}
-export function deterministicGrammarSheet(ref:string,morph:Morphology):string {
-  return (morph[ref] || []).flatMap((w,i)=> {
-    const f = verbFacts(w); if (!f) return [];
-    return [`${ref} word ${i+1}: ${w.s.map(x=>x[0]).join("")} [lemma=${w.l||"?"}; root=${w.r||"?"}] ` +
+export function deterministicGrammarSheet(ref:string,morph:Morphology):string{
+  return (morph[ref]||[]).flatMap((w,i)=>{
+    const f=verbFacts(w);if(!f)return [];
+    return [`${ref} word ${i+1}: ${w.s.map(x=>x[0]).join("")} [lemma=${w.l||"?"}; root=${w.r||"?"}] `+
       `FORM=${f.form}; ASPECT=${f.aspect||"not annotated"}; VOICE=${f.voice||"not annotated"}; MOOD=${f.mood||"NOT ANNOTATED — do not infer"}`];
-  }).join("\n") || "No annotated verb forms in the focal verse.";
+  }).join("\n")||"No annotated verbs in the focal verse.";
 }
-function candidateSegments(text:string) { return text.split(/(?<=[.;\n])\s+|\n+/).filter(Boolean); }
-function wordAliases(word:MorphWord, wordNumber:number, verse:string) {
-  const pieces=word.s.map(x=>x[0]);
-  const textToken=verse.trim().split(/\s+/)[wordNumber] || "";
-  const surface=pieces.join("");
-  const aliases = [textToken, surface].filter(Boolean);
-  const arabic = aliases.filter(a=>/[\u0600-\u06FF]/.test(a));
-  const roman = arabic.map(romanize).filter(a=>a.length>=4);
-  return {arabic:arabic.map(stripArabic), roman:[...new Set(roman.map(plainLatin))]};
+// Split on sentence and clause delimiters. Do NOT take a grammar label from
+// another verb elsewhere in a long sentence (the cause of Q 2:282 false flags).
+function units(text:string){return text.split(/(?:[.?!](?=\s|$)|;|\n|[—–])\s*/).map(s=>s.trim()).filter(Boolean);}
+function aliases(w:MorphWord){
+  const surface=w.s.map(x=>x[0]).join("");
+  const stem=w.s.find(([,pos])=>pos==="V")?.[0]||surface;
+  const arabic=[surface,stem].map(normalizeArabic).filter(x=>x.length>=3);
+  const roman=[surface,stem].map(x=>latin(transliterate(x))).filter(x=>x.length>=4);
+  return {arabic:[...new Set(arabic)],roman:[...new Set(roman)]};
 }
-function containsAlias(segment:string,aliases:ReturnType<typeof wordAliases>) {
-  const arabic=stripArabic(segment);
-  if (aliases.arabic.some(a=>a.length>=3 && arabic.includes(a))) return true;
-  const roman=plainLatin(segment);
-  return aliases.roman.some(a=>a.length>=4 && new RegExp(`(^|[^a-z])${a}(?=$|[^a-z])`).test(roman));
+function matches(unit:string, set:ReturnType<typeof aliases>){
+  const ar=normalizeArabic(unit),r=latin(unit);
+  return set.arabic.some(x=>ar.includes(x))||set.roman.some(x=>new RegExp(`(^|[^a-z])${x}(?=$|[^a-z])`).test(r));
 }
-function claimedMood(segment:string):string|undefined {
-  const matches=plainLatin(segment).match(/\b(indicative|subjunctive|jussive|energetic)\b/g) || [];
-  return [...new Set(matches)].length===1 ? matches[0] : undefined;
-}
-function claimedForm(segment:string):string|undefined {
-  const formsInText=[...plainLatin(segment).matchAll(/\bform\s+(xii|xi|viii|vii|vi|iv|ix|iii|ii|v|x|i)\b/g)].map(m=>m[1].toUpperCase());
-  return [...new Set(formsInText)].length===1 ? formsInText[0] : undefined;
-}
-function claimedVoice(segment:string):string|undefined {
-  const m=plainLatin(segment).match(/\b(active|passive)\s+(?:voice|verb|imperfect|perfect)\b|\b(?:verb|voice|imperfect|perfect)\s+(active|passive)\b/);
-  return m ? (m[1]||m[2]) : undefined;
-}
-export function validateGrammarClaims(analysis:string, refs:string|string[], morph:Morphology, corpus:Corpus):GrammarFinding[] {
-  const results:GrammarFinding[]=[];
-  const selected = Array.isArray(refs) ? refs : [refs];
-  const paragraphs = candidateSegments(analysis);
-  for (const ref of selected) {
-    const words=morph[ref]||[]; const text=corpus[ref]||"";
-    for (const [i,word] of words.entries()) {
-      const fact=verbFacts(word); if (!fact) continue;
-      const alias=wordAliases(word,i,text);
-      if (!alias.arabic.length && !alias.roman.length) continue;
-      for (const phrase of paragraphs) {
-        // For comparison verses require an explicit reference in the same
-        // sentence; otherwise a shared word could falsely borrow its tags.
-        if (ref !== selected[0] && !phrase.includes(ref)) continue;
-        if (!containsAlias(phrase,alias)) continue;
-        const normalized=plainLatin(phrase);
-        if (/\b(not|incorrect(?:ly)?|wrong(?:ly)?|rather than|isn't|doesn't)\b/.test(normalized) && normalized.length<170) continue;
-        const assertedMood=claimedMood(phrase);
-        const assertedForm=claimedForm(phrase);
-        const assertedVoice=claimedVoice(phrase);
-        let kind="", asserted="", correct="";
-        // Absence of a mood tag is NOT evidence of the indicative.
-        if (assertedMood && fact.mood && assertedMood!==fact.mood) {
-          kind="mood"; asserted=assertedMood; correct=fact.mood;
-        } else if (assertedForm && assertedForm!==fact.form) {
-          kind="verb form"; asserted=`Form ${assertedForm}`; correct=`Form ${fact.form}`;
-        } else if (assertedVoice && fact.voice && assertedVoice!==fact.voice) {
-          kind="voice"; asserted=assertedVoice; correct=fact.voice;
-        }
-        if (!kind) continue;
-        // Avoid authoritatively matching a paragraph with multiple verb forms.
-        // If the paragraph lists multiple possible labels, only flag when a
-        // short single-claim segment identifies exactly one target verb.
-        if (phrase.length>310 || (phrase.match(/\bform\s+(?:I|V|X)/gi)||[]).length>1) continue;
-        const source=word.s.map(s=>s[0]).join("");
-        results.push({quote:phrase.slice(0,240),issue:`Corpus ${kind} mismatch: claimed ${asserted}; annotated ${correct}.`,
-          evidenceRef:`${ref} word ${i+1}`,evidenceQuote:`${source}: ${fact.tags.join("|")}`,
-          suggestion:`Recheck ${kind} against the local morphological annotation before treating this grammatical claim as established.`});
-        if(results.length>=6) return results;
-      }
+function claimed(unit:string,pattern:RegExp){const result=[...latin(unit).matchAll(pattern)].map(x=>x[1].toLowerCase());return new Set(result).size===1?result[0]:undefined;}
+const formRe=/\bform\s+(xii|xi|viii|vii|vi|iv|ix|iii|ii|v|x|i)\b/gi;
+const moodRe=/\b(indicative|subjunctive|jussive|energetic)\b/gi;
+const voiceRe=/\b(passive|active)\s+(?:voice|verb|imperfect|perfect)\b/gi;
+export function validateGrammarClaims(analysis:string,refs:string|string[],morph:Morphology,corpus:Corpus):GrammarFinding[]{
+  const selected=Array.isArray(refs)?refs:[refs];
+  const findings:GrammarFinding[]=[];
+  const paragraphs=units(analysis);
+  const seen=new Set<string>();
+  for(const ref of selected){
+    const words=morph[ref]||[];
+    for(const unit of paragraphs){
+      // Comparison-verse properties must name the comparison reference.
+      if(ref!==selected[0] && !unit.includes(ref))continue;
+      const explicit=unit.match(/\bword\s+(\d{1,3})\b/i);
+      const cited=words.flatMap((word,index)=>verbFacts(word)&&matches(unit,aliases(word))?[index]:[]);
+      const target=explicit?Number(explicit[1])-1:cited.length===1?cited[0]:-1;
+      if(target<0||target>=words.length||!verbFacts(words[target]))continue;
+      // No claim may be inherited from neighboring clauses or a list of verbs.
+      if(!explicit && cited.length!==1)continue;
+      const f=verbFacts(words[target])!;
+      const assertedMood=claimed(unit,moodRe);
+      const assertedForm=claimed(unit,formRe)?.toUpperCase();
+      const assertedVoice=claimed(unit,voiceRe);
+      let kind="",asserted="",correct="";
+      if(assertedMood && f.mood && assertedMood!==f.mood){kind="mood";asserted=assertedMood;correct=f.mood;}
+      else if(assertedForm && assertedForm!==f.form){kind="verb form";asserted=`Form ${assertedForm}`;correct=`Form ${f.form}`;}
+      else if(assertedVoice && f.voice && assertedVoice!==f.voice){kind="voice";asserted=assertedVoice;correct=f.voice;}
+      if(!kind)continue;
+      const key=`${ref}:${target+1}:${kind}`;if(seen.has(key))continue;seen.add(key);
+      findings.push({quote:unit.slice(0,240),issue:`Token-aligned ${kind} mismatch: claimed ${asserted}; corpus tag ${correct}.`,
+        evidenceRef:`${ref} word ${target+1}`,evidenceQuote:`${words[target].s.map(x=>x[0]).join("")}: ${f.tags.join("|")}`,
+        suggestion:"Verify the named token against the corpus annotation and the governing Arabic syntax; a tag alone does not establish an interpretation."});
+      if(findings.length>=6)return findings;
     }
   }
-  return results;
+  // Structural grammar guard. Relative mā/allaḏī does not itself license
+  // subjunctive or jussive. This is a claim about the stated RULE, not an
+  // attempt to override a potentially disputable corpus mood annotation.
+  const relativeRule=/\b(?:relative\s+clause|relative\s+pronoun|after\s+ma)\b.{0,110}\b(?:automatically|normally|ordinarily|standard|commonly|apodosis.less|mood)\b.{0,85}\b(?:subjunctive|jussive)\b|\b(?:subjunctive|jussive)\b.{0,65}\b(?:after\s+ma|relative\s+clause)\b/gi;
+  for(const m of analysis.matchAll(relativeRule)){
+    const quote=m[0];if(seen.has(quote))continue;seen.add(quote);
+    findings.push({quote:quote.slice(0,240),issue:"Unsupported syntactic rule: a relative pronoun by itself does not govern subjunctive or jussive mood.",
+      evidenceRef:selected[0],evidenceQuote:"Relative clause mood depends on a licensing construction, not relative status alone.",
+      suggestion:"Identify the actual governing particle or construction, and verify the finite verb's mood independently."});
+    if(findings.length>=6)break;
+  }
+  return findings;
 }
