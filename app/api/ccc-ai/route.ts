@@ -4,7 +4,7 @@ import { retrieveQuranContext, retrieveConceptualContext, type ResearchVerse } f
 import { discoverQuranCandidates } from "../../../lib/ccc-conceptual";
 import { parseVerifiedThematicList, formatVerifiedThematicList } from "../../../lib/ccc-thematic-list";
 import { curatedThemeForQuestion } from "../../../lib/ccc-theme-packs";
-import { resolveDeterministicListing, isReferenceOnlyQuestion, isListingQuestion } from "../../../lib/ccc-ai-intents";
+import { resolveDeterministicListing, resolveLexicalResearchAnchor, isReferenceOnlyQuestion, isListingQuestion } from "../../../lib/ccc-ai-intents";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
@@ -16,7 +16,7 @@ const ANALYSIS_MODEL = process.env.CCC_AI_MODEL || "deepseek-ai/DeepSeek-V3.2-TE
 
 // Diagnostics are metadata-only: no private prompts, passcodes, API keys, or model reasoning.
 const FINAL_TIMEOUT_MS = 65000;
-const MAX_FINAL_THEMATIC_VERSES = 18;
+const MAX_FINAL_THEMATIC_VERSES = 18; // thematic candidate searches only; NEVER exact lexical anchors
 const MAX_FINAL_THEMATIC_CHARS = 6800;
 const MAX_FINAL_RETRIEVAL_CHARS = 5500;
 
@@ -40,6 +40,44 @@ function compactThematicEvidence(verses: { reference: string; arabic: string }[]
     omitted: Math.max(0, verses.length - selected.length),
   };
 }
+// Full reference membership is always retained independently of the LLM.
+// Compress each Arabic excerpt around the lexical occurrence, rather than
+// deleting references when some verses are long.
+function lexicalEvidenceExcerpts(
+  verses: { reference: string; arabic: string }[], references: string[],
+): string {
+  const byRef = new Map(verses.map(v => [v.reference, v.arabic]));
+  const anchor = /ح[\u064B-\u065F\u0670]*ك[\u064B-\u065F\u0670]*م[\u064B-\u065F\u0670]*(?:ة|ت)[\u064B-\u065F\u0670]*/;
+  return references.map(ref => {
+    const arabic = byRef.get(ref) || "";
+    if (!arabic) return `${ref} [Verse text unavailable; reference verified by morphology]`;
+    const match = anchor.exec(arabic);
+    const at = match ? match.index : Math.min(90, arabic.length);
+    const start = Math.max(0, at - 100);
+    const end = Math.min(arabic.length, at + 155);
+    const excerpt = `${start ? "…" : ""}${arabic.slice(start, end)}${end < arabic.length ? "…" : ""}`;
+    return `${ref} ${excerpt}`;
+  }).join("\n");
+}
+
+// Optional, tightly-bounded immediate Qur'anic context for 17:39. No hadith,
+// commentary, or thematic inference is imported. Missing context must not
+// make the complete lexical concordance fail.
+async function getWisdomContext(): Promise<string> {
+  try {
+    const response = await fetch("https://api.alquran.cloud/v1/surah/17/quran-uthmani", {
+      signal: AbortSignal.timeout(7000), next: { revalidate: 86400 },
+    });
+    if (!response.ok) return "";
+    const json = await response.json() as { data?: { number?: number; ayahs?: { numberInSurah: number; text: string }[] } };
+    if (json.data?.number !== 17 || !Array.isArray(json.data.ayahs)) return "";
+    const sample = new Set([22,23,26,29,31,32,33,34,35,36,37,38,39]);
+    return json.data.ayahs.filter(v => sample.has(v.numberInSurah)).map(v =>
+      `17:${v.numberInSurah} ${v.text.slice(0, 190)}${v.text.length > 190 ? "…" : ""}`
+    ).join("\n");
+  } catch { return ""; }
+}
+
 function verifiedEvidenceFallback(args: {
   concordance: { term: string; totalOccurrences: number; unit: string; references: { reference: string; count: number }[] } | null;
   candidates: { reference: string; arabic: string }[];
@@ -114,14 +152,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ answer: exact.answer, incomplete: false,
         finishReason: "deterministic_" + exact.scope + "_listing" });
     }
+    // Interpret a known lexical concept from its COMPLETE lemma evidence,
+    // not from the broad thematic discovery stage (which may suggest 1,188
+    // candidates and truncate the actual 19 verses).
+    stage = "lexical_anchor";
+    const lexicalAnchor = await resolveLexicalResearchAnchor(q);
     stage = "corpus_retrieval";
     const retrievalStart = Date.now();
-    const retrieval = await retrieveQuranContext(selected, q);
+    const retrieval = await retrieveQuranContext(selected, lexicalAnchor ? "حكمة" : q);
     console.info("CCC AI stage", { stage, elapsedMs: elapsed(retrievalStart), retrievedCharacters: retrieval.text.length });
     console.log("CCC corpus retrieval:", retrieval.diagnostics);
+    if (lexicalAnchor && (
+      !retrieval.concordance ||
+      retrieval.concordance.references.length !== lexicalAnchor.references.length ||
+      lexicalAnchor.references.some((ref, i) => retrieval.concordance!.references[i]?.reference !== ref)
+    )) {
+      console.warn("CCC lexical context mismatch", { anchored: lexicalAnchor.references.length,
+        retrievalCount: retrieval.concordance?.references.length ?? 0 });
+      // Lexical index is authoritative. Never silently downgrade its results.
+    }
     const wantsListing = isListingQuestion(q);
     const referencesOnly = isReferenceOnlyQuestion(q);
     const wantsAnalysis = /(?:\banalys(?:is|es|e|ed|ing)\b|\binterpret(?:ation|ations|ed|ing)?\b|\bexplain\b|\bcompare\b|\bmeaning\b|\bwhy\b|\bcoherence\b|\bcorrespondence\b|\bcalibration\b|\bfalsif)/i.test(q);
+    if (lexicalAnchor) {
+      // The full reference list is deterministic and is returned even if the
+      // final model times out, generates no final content, or exceeds its budget.
+      const allReferences = lexicalAnchor.references;
+      const countLine = `${lexicalAnchor.occurrences} word occurrences across ${allReferences.length} verses`;
+      const certified = `**Complete ḥikmah lemma concordance** (${countLine}):\n${allReferences.join(", ")}`;
+      if (referencesOnly && !wantsAnalysis) {
+        return NextResponse.json({ answer: allReferences.join(", "), incomplete: false,
+          finishReason: "complete_lexical_references_only" });
+      }
+      const extracts = lexicalEvidenceExcerpts(retrieval.concordanceVerses, allReferences);
+      const context = await getWisdomContext();
+      const system = `You are a Qur'an-only linguistic research assistant. Answer the user's actual question in at most 400 words. The COMPLETE ḥikmah lemma references have already been verified by the server; do not change, omit, or add to that lexical list. Analyze the meaning through every supplied occurrence, distinguish wording from inference, and attend to the moral instructions preceding 17:39. The pairing of kitāb and ḥikmah alone does not establish separate revelation. Distinguish ḥikmah (حكمة) from ḥukm (حكم). No hadith or tafsir. Provide concise analysis, not a second verse list. No full Arabic quotations. Do not claim every conceptual synonym was retrieved.`;
+      const user = `Question: ${q}\n\nEXHAUSTIVE LEXICAL REFERENCES (${countLine}):\n${allReferences.join(", ")}\n\nArabic excerpts for every indexed occurrence (may be abbreviated, but NO reference omitted):\n${extracts}\n\nSelected surrounding Qur'anic context from 17:22–39 (not an exhaustive passage transcription):\n${context || "Unavailable; do not infer the missing verse texts."}`;
+      const started = Date.now();
+      stage = "lexical_final_analysis";
+      try {
+        const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(FINAL_TIMEOUT_MS),
+          body: JSON.stringify({ model: ANALYSIS_MODEL, temperature: 0.2, max_tokens: 3200,
+            messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+        });
+        if (!response.ok) throw new Error(`Final analysis HTTP ${response.status}`);
+        const json = await response.json();
+        const choice = json?.choices?.[0];
+        const answer = choice?.message?.content;
+        console.info("CCC AI lexical analysis", { elapsedMs: elapsed(started),
+          finishReason: choice?.finish_reason, chars: typeof answer === "string" ? answer.length : 0,
+          promptTokens: json?.usage?.prompt_tokens, completionTokens: json?.usage?.completion_tokens });
+        if (typeof answer !== "string" || !answer.trim()) throw new Error("Model returned no final content");
+        return NextResponse.json({ answer: `${certified}\n\n---\n\n${answer}`,
+          incomplete: choice?.finish_reason === "length", finishReason: choice?.finish_reason ?? "stop",
+          lexicalComplete: true });
+      } catch (error) {
+        console.error("CCC lexical analysis unavailable", { ...safeError(error), elapsedMs: elapsed(started) });
+        return NextResponse.json({ answer: `${certified}\n\nAI interpretation is currently unavailable; the complete lexical references above are unaffected.`,
+          incomplete: true, lexicalComplete: true, finishReason: "verified_lexical_fallback" });
+      }
+    }
+
     // Curated, narrow thematic listing: verify references against the local
     // indexed corpus before returning corpus-owned Arabic. This avoids a
     // 597-verse expansion for questions such as "life is a test". The thematic
