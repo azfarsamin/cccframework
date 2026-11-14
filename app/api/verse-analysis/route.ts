@@ -362,5 +362,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.4.1" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.5" });
 }
