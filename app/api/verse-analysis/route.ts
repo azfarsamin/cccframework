@@ -480,8 +480,6 @@ export async function POST(req: NextRequest) {
   // tokens, no JSON parsing/truncation failure, stable across repeated runs.
   if (stage === "discovery") {
     const payload = { references: evidenceRefs, candidateCount: plan.candidateCount,
-      coverageGaps: plan.lexical.filter(x => x.supplied < x.total && x.total <= 16)
-        .map(x => `Not every ${x.lemma} occurrence fits the evidence budget.`),
       researchSources: plan.researchSources, researchReferences: plan.researchReferences,
       focalReference: ref, contextReferences: contextRefs,
       researchSections: plan.researchUnits.map(u=>({section:u.section,article:u.title,complete:u.complete,parts:u.chunkIds.length})),
