@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { deterministicGrammarSheet, validateGrammarClaims } from "../../../lib/grammar-validation";
 import { searchResearch, expandResearchEvidence, neighboringResearchReferences, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
 
 export const runtime = "nodejs";
@@ -14,9 +15,9 @@ const AUDIT_OUTPUT_TOKENS = 3000; // Structured verification needs headroom; out
 const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
 
 const HEARTBEAT_MS = 12000;
-const EVIDENCE_LIMIT = 24;
-const EVIDENCE_TEXT_BUDGET = 18000;
-const RESEARCH_TEXT_BUDGET = 15500;
+const EVIDENCE_LIMIT = 36;
+const EVIDENCE_TEXT_BUDGET = 24000;
+const RESEARCH_TEXT_BUDGET = 21000;
 // User-authored research excerpts enrich discovery but never override Qur'anic wording.
 
 type MorphSegment = [string, string, string];
@@ -217,8 +218,8 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     lexical.push({ lemma, total: occurrences.length, references: occurrences, supplied: 0 });
     // Exhaustive for rare lemmas. For common terms keep the *full inventory*
     // visible, but do not swamp the interpretation prompt with dozens of verses.
-    const n = occurrences.length <= 16 ? occurrences.length : Math.min(12, occurrences.length);
-    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 16 ? 38 : 11, `same lemma ${lemma}`));
+    const n = occurrences.length <= 24 ? occurrences.length : Math.min(12, occurrences.length);
+    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 24 ? 38 : 11, `same lemma ${lemma}`));
   }
   lexical.sort((a,b) => a.total-b.total || a.lemma.localeCompare(b.lemma));
   // Search 12 rather than 4 passages. Only a subset of high-relevance
@@ -271,10 +272,19 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
   const highResearch = researchReferences.filter(r => (researchCounts.get(r)?.count || 0) >= 2).slice(0, 15);
   const otherResearch = researchReferences.filter(r => !highResearch.includes(r)).slice(0, 12);
   // Prevent one polysemous lemma from consuming the entire evidence budget.
+  // Reserve substantial capacity for an interrogated concept before loose root parallels.
+  // For a manageable lemma (<=24 verse occurrences), include the WHOLE occurrence
+  // set when the character/verse budget permits. This is generic, not a hardcoded
+  // gloss of hikma, nisāʾ, or any other word. Prioritize broad but finite content
+  // lemmas (8–24) before shorter sets and allow research cross-citations priority
+  // where they have affirmative textual support. Exclude heavily polysemous roots.
+  const conceptLemma = lexical.filter(l => l.total >= 2 && l.total <= 24)
+    .sort((a,b) => (b.total >= 8 ? 1 : 0) - (a.total >= 8 ? 1 : 0) || b.total-a.total)
+    .flatMap(l => l.references.filter(r => r !== ref));
   const rareLemma = lexical.filter(l => l.total <= 16).flatMap(l => l.references.filter(r => r !== ref).slice(0, 2)).slice(0, 6);
   const majorRoot = candidates.filter(c => c.required).slice(0, 8).map(c => c.ref);
   const ranked = [...scored.entries()].sort((a,b) => b[1].score-a[1].score || compareRefs(a[0],b[0])).map(([r]) => r);
-  const order = [...new Set([...highResearch, ...otherResearch, ...linkedResearch, ...rareLemma, ...ranked, ...majorRoot])];
+  const order = [...new Set([...highResearch, ...conceptLemma, ...otherResearch, ...linkedResearch, ...rareLemma, ...ranked, ...majorRoot])];
   const references: string[] = [];
   let characters = 0;
   for (const r of order) {
@@ -437,6 +447,9 @@ export async function POST(req: NextRequest) {
   if (!evidenceRefs.length)
     return NextResponse.json({ error: "Insufficient verified Qur'anic evidence for analysis." }, { status: 503 });
   const evidence = evidenceText(evidenceRefs, corpus);
+  const grammarConstraints = deterministicGrammarSheet(ref, morph);
+  const coverageGaps = plan.lexical.filter(l => l.total <= 24 && l.supplied < l.total)
+    .map(l => `${l.lemma}: ${l.supplied}/${l.total} full Arabic`).slice(0,12);
   const researchContext = plan.researchContext;
   const occurrenceInventory = lexicalManifest(plan.lexical);
   const requiredSections = stage === "foundation" ? [1, 2] : stage === "synthesis" ? [3, 4, 5] : [];
@@ -473,6 +486,7 @@ export async function POST(req: NextRequest) {
       focalReference: ref, contextReferences: contextRefs,
       researchSections: plan.researchUnits.map(u=>({section:u.section,article:u.title,complete:u.complete,parts:u.chunkIds.length})),
       lexical: plan.lexical.map(x => ({ lemma:x.lemma, total:x.total, supplied:x.supplied })),
+      coverageGaps,
       sources: plan.sources };
     const frames = [
       `event: evidence\ndata: ${JSON.stringify(payload)}\n\n`,
@@ -553,8 +567,8 @@ export async function POST(req: NextRequest) {
               { role: "system", content: stage === "audit" ? AUDIT_SYSTEM : stage === "reconstruction" ? RECONSTRUCTION_SYSTEM : SYSTEM },
               { role: "user", content: stage === "audit"
 
-                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
-                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (attributed arguments, not Qur'anic authority):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `VALIDATED ARGUMENT RECONSTRUCTION (premises to test, not a conclusion to adopt):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nDETERMINISTIC MORPHOLOGY CHECK SHEET (authoritative tags; do not guess an absent mood):\n${grammarConstraints}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION ANALYSIS:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nDETERMINISTIC MORPHOLOGY CHECK SHEET (authoritative tags; do not guess an absent mood):\n${grammarConstraints}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (attributed arguments, not Qur'anic authority):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `VALIDATED ARGUMENT RECONSTRUCTION (premises to test, not a conclusion to adopt):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nUse evidence to test interpretations, not decorate a predetermined conclusion.` }
             ],
           }),
         });
@@ -679,8 +693,15 @@ export async function POST(req: NextRequest) {
           }).map(item => ({ quote:item.quote!, issue:item.issue!, evidenceRef:item.evidence_ref!, evidenceQuote:item.evidence_quote!, suggestion:item.suggestion! }));
           console.info("Verse analysis verification", { ref, model, durationMs: Date.now()-started,
             proposed: parsed.findings.length, grounded: findings.length, finishReason });
-          emit(controller, "audit", { findings, unresolved: parsed.unresolved.filter(x=>typeof x === "string").slice(0,2) });
-          finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started, findings:findings.length });
+          const deterministic = validateGrammarClaims(prior, [ref, ...evidenceRefs], morph, corpus);
+          const merged = [...deterministic, ...findings].slice(0,8);
+          const unresolved = [...parsed.unresolved.filter(x=>typeof x === "string").slice(0,2),
+            ...coverageGaps.map(g=>`Central lemma incomplete: ${g}`)].slice(0,8);
+          emit(controller, "audit", { findings: merged, unresolved, deterministicFindings: deterministic.length,
+            modelFindings: findings.length, grammarStatus: deterministic.length ? "flagged" : "checked-no-detected-conflict",
+            evidenceStatus: coverageGaps.length ? "partial" : "selected-lemmas-covered" });
+          finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started,
+            findings:merged.length, deterministicFindings:deterministic.length, evidenceGaps:coverageGaps.length });
           return;
         }
         validateReferences(answer);
