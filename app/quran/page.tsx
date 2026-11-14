@@ -281,6 +281,8 @@ export default function QuranResearchPage() {
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
   const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "analysis" | "notes">("grammar");
   const [researchExpanded, setResearchExpanded] = useState(false);
+  const analysisAbort = useRef<AbortController | null>(null);
+  const analysisRun = useRef(0);
   const [rootQuery, setRootQuery] = useState("");
   const [rootInitial, setRootInitial] = useState("");
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
@@ -736,43 +738,109 @@ export default function QuranResearchPage() {
   const currentSurah = surahs.find(s => s.number === chapter);
   function toggleAyah(n: number) {
     setSelected(old => old.length === 1 && old[0] === n ? [] : [n]);
+    analysisRun.current++; analysisAbort.current?.abort(); analysisAbort.current = null; setLoading(false);
     setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
   }
   function toggleSearchVerse(result: SearchResult) {
     setSelectedSearch(old => old.length === 1 && old[0].chapter === result.chapter && old[0].verse === result.verse ? [] : [result]);
+    analysisRun.current++; analysisAbort.current?.abort(); analysisAbort.current = null; setLoading(false);
     setAiResponse(""); setIncomplete(false); setStatus(""); setResearchTab("analysis");
   }
   const analysisVerse = analysisVerses[0] || null;
+  function cancelAnalysis() {
+    analysisRun.current++;
+    analysisAbort.current?.abort();
+    analysisAbort.current = null;
+    setLoading(false);
+    setStatus("Analysis stopped. Any text already received is retained.");
+    setIncomplete(true);
+  }
   async function analyze() {
     if (!analysisVerse) { setStatus("Select a verse in the Reader first."); return; }
-    setLoading(true); setStatus(""); setAiResponse(""); setIncomplete(false);
+    analysisAbort.current?.abort();
+    const request = new AbortController();
+    analysisAbort.current = request;
+    const run = ++analysisRun.current;
+    const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
+    setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false);
+    let collected = "";
+    let completed = false;
     try {
       const response = await fetch("/api/verse-analysis", {
         method: "POST", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
         body: JSON.stringify({ chapter: analysisVerse.chapter, verse: analysisVerse.verse }),
+        signal: request.signal,
       });
-      // A Vercel gateway, middleware or missing route can return HTML rather than JSON.
-      // Read as text first so we show the actual HTTP failure instead of a JSON parse error.
-      const contentType = response.headers.get("content-type") || "";
-      const payload = await response.text();
-      if (!contentType.toLowerCase().includes("application/json")) {
-        const hint = response.status === 404
-          ? "The /api/verse-analysis route was not found on this deployment."
-          : response.status === 401 || response.status === 403
-          ? "The server or access-control layer rejected this request."
-          : response.status === 504 || response.status === 502
-          ? "The deployment gateway returned an error, possibly a function timeout."
-          : "The analysis endpoint returned a non-JSON response.";
-        throw new Error(`${hint} HTTP ${response.status}. Check Vercel Runtime Logs for /api/verse-analysis.`);
+      const type = (response.headers.get("content-type") || "").toLowerCase();
+      if (!response.ok || !type.includes("text/event-stream")) {
+        const payload = await response.text();
+        let message: string | undefined;
+        if (type.includes("application/json")) {
+          try { message = (JSON.parse(payload) as { error?: string }).error; } catch { /* invalid response */ }
+        }
+        throw new Error(message || `Analysis endpoint HTTP ${response.status}; expected a live stream. Check Vercel Runtime Logs.`);
       }
-      let json: { answer?: string; incomplete?: boolean; error?: string };
-      try { json = JSON.parse(payload); }
-      catch { throw new Error(`Analysis endpoint returned invalid JSON (HTTP ${response.status}).`); }
-      if (!response.ok) throw new Error(json.error || `Analysis service failed (HTTP ${response.status}).`);
-      setAiResponse(json.answer || "No analysis returned.");
-      setIncomplete(Boolean(json.incomplete));
-    } catch (e) { setStatus(e instanceof Error ? e.message : "Unexpected problem"); }
-    finally { setLoading(false); }
+      if (!response.body) throw new Error("Analysis endpoint returned no response stream.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let lastRender = 0;
+      const processFrame = (frame: string) => {
+        const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
+        const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+        if (!data) return;
+        let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[] };
+        try { value = JSON.parse(data); } catch { return; }
+        if (event === "delta") {
+          collected += value.text || "";
+          if (Date.now() - lastRender >= 125) { setAiResponse(collected); lastRender = Date.now(); }
+        } else if (event === "status") {
+          setStatus(value.message || "Analyzing…");
+        } else if (event === "done") {
+          completed = true;
+          setAiResponse(collected);
+          setIncomplete(Boolean(value.incomplete));
+          const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
+          setStatus((value.incomplete ? "Analysis may be incomplete." : "Analysis complete.") + warnings);
+        } else if (event === "error") {
+          completed = true;
+          setAiResponse(collected);
+          setIncomplete(Boolean(collected));
+          setStatus(value.message || "Analysis stream failed.");
+        }
+      };
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (run !== analysisRun.current) return;
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let boundary: number;
+          while (true) {
+            const match = /\r?\n\r?\n/.exec(buffer);
+            if (!match) break;
+            boundary = match.index;
+            const frame = buffer.slice(0, boundary).replace(/\r\n/g, "\n"); buffer = buffer.slice(boundary + match[0].length);
+            processFrame(frame);
+          }
+          if (buffer.length > 2_000_000) throw new Error("Invalid oversized analysis event.");
+        }
+        if (buffer.trim()) processFrame(buffer.replace(/\r\n/g, "\n"));
+      } finally { reader.releaseLock(); }
+      if (run === analysisRun.current && !completed) {
+        setAiResponse(collected); setIncomplete(Boolean(collected));
+        setStatus("The analysis stream ended unexpectedly. Partial text is retained.");
+      }
+    } catch (e) {
+      if (run === analysisRun.current && !request.signal.aborted) {
+        setAiResponse(collected); setIncomplete(Boolean(collected));
+        setStatus(e instanceof Error ? e.message : "Unexpected streaming error");
+      }
+    } finally {
+      if (run === analysisRun.current) {
+        setAiResponse(collected); setLoading(false); analysisAbort.current = null;
+      }
+    }
   }
   function saveNote() {
     if (!analysisVerse) { setStatus("Select a verse before saving an analysis note."); return; }
@@ -1094,13 +1162,14 @@ export default function QuranResearchPage() {
           <div className={styles.tabBody}>
             <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "No verse selected"}</span></div>
             <div className={styles.selection}>{analysisVerse ? <span>{refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select one verse in the Reader."}</div>
-            <p className={styles.hint}>DeepSeek analyzes the selected verse, its grammar, immediate context, and potentially related Qurʾānic verses. No research question is required.</p>
+            <p className={styles.hint}>The selected model analyzes grammar, immediate context, and related Qurʾānic verses. Results appear progressively as the model responds.</p>
             <label className={styles.label}>Private analysis passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
             <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? "Analyzing verse…" : "Analyze verse"}</button>
+            {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The model reached its output limit. This analysis may be incomplete.</p>}<ResearchMarkdown source={aiResponse}/></div>}
+            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={aiResponse}/></div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
           </div>
               </>}
