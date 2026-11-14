@@ -899,11 +899,13 @@ export default function QuranResearchPage() {
         if (!completed || failed || stageIncomplete) {
           setAiResponse(collected);
           setIncomplete(true);
+          // Preserve generated text, but do not describe an unverified analysis as completed.
+          if (stage === "audit" && !failed && !stageIncomplete) setStatus("Verification did not finish. Analysis retained as UNVERIFIED.");
           if (!completed) setStatus(`Stage ${stage} ended unexpectedly. Partial text retained.`);
           return;
         }
       }
-      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections, evidence review finished."); }
+      if (run === analysisRun.current) { setAiResponse(collected); setIncomplete(false); setStatus("Analysis complete — all five sections; structured verification passed."); }
     } catch (e) {
       if (run === analysisRun.current && !request.signal.aborted) {
         setAiResponse(collected); setIncomplete(Boolean(collected));
