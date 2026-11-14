@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import bundledResearchIndex from "../research/index.json";
 
 type Chunk = {
   id: string; article_id: string; title: string; section: string;
@@ -8,16 +7,15 @@ type Chunk = {
   external_discussion: boolean;
 };
 type ResearchIndex = { schema_version: number; chunks: Chunk[]; articles: { id: string; title: string; source_path: string }[] };
-let cached: ResearchIndex | undefined;
+// Static import ensures the index is bundled into the Vercel serverless function.
+// Avoid process.cwd()/fs lookup: files not statically referenced may be excluded.
+const researchIndex = bundledResearchIndex as unknown as ResearchIndex;
 
 async function index(): Promise<ResearchIndex> {
-  if (!cached) {
-    const raw = await readFile(path.join(process.cwd(), "research/index.json"), "utf8");
-    const value = JSON.parse(raw) as ResearchIndex;
-    if (value.schema_version !== 1 || !Array.isArray(value.chunks)) throw new Error("Unsupported research index");
-    cached = value;
+  if (researchIndex.schema_version !== 1 || !Array.isArray(researchIndex.chunks)) {
+    throw new Error("Unsupported research index");
   }
-  return cached;
+  return researchIndex;
 }
 
 const aliases: Record<string, string[]> = {
