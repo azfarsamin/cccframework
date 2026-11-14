@@ -18323,7 +18323,6 @@ const aliases: Record<string, string[]> = {
   "98:2": ["suhuf", "pages", "written revelation", "reciting"],
   "80:13": ["suhuf", "safarah", "scribes", "written revelation"],
   "52:2": ["kitab", "masṭūr", "raqq", "parchment", "writing"],
-  "75:17": ["collection", "recitation", "preservation", "explanation"],
   "65:4": ["nisa", "nisāʾ", "marriage", "maturity", "waiting period", "menstruation", "iddah"],
   "4:6": ["rushd", "maturity", "balaghu", "nikah", "orphans", "marriage"],
   "4:19": ["consent", "marriage", "women"],
