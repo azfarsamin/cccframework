@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "dataset_name": "CCC Quran Morphology Correction Register",
   "reviewed_utc": "2026-11-15",
   "purpose": "Evidence-backed localized correction candidates for use by the CCC model. Treat supported corrections as reviewed annotations; preserve source disagreements.",
@@ -160,6 +160,143 @@
         "al-maḥīḍ",
         "mahid",
         "mahīd"
+      ]
+    },
+    {
+      "id": "28:10:6",
+      "arabic": "إِنْ",
+      "category": "particle_syntax",
+      "status": "correction_supported",
+      "original": {
+        "particle": "conditional",
+        "tag": "COND"
+      },
+      "recommended": {
+        "particle": "lightened emphatic inna (إِنَّ المخففة من الثقيلة)",
+        "role": "non-governing emphatic particle",
+        "following_lam": "distinguishing lam (اللام الفارقة), not conditional apodosis"
+      },
+      "confidence": "high",
+      "reason": "The construction إِنْ كَادَتْ لَتُبْدِي بِهِ uses the lightened emphatic inna followed by the distinguishing lām. The Quranic Arabic Corpus word tag COND conflicts with independent verse-level iʿrāb. Lawlā later in the verse is the separate counterfactual conditional particle.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(28:10:6)",
+          "supports": "COND label for إِنْ"
+        },
+        {
+          "kind": "independent_iraab",
+          "url": "https://tafsir.app/iraab-daas/28/10",
+          "supports": "إن مخففة من الثقيلة لا عمل لها; اللام الفارقة"
+        },
+        {
+          "kind": "independent_iraab",
+          "url": "https://quranpedia.net/book/316/2/422",
+          "supports": "lightened emphatic inna and distinguishing lām"
+        }
+      ],
+      "comment_status": "Reviewed against two independent grammatical analyses; upstream tag not altered.",
+      "roman_aliases": [
+        "in kādat",
+        "in kadat"
+      ]
+    },
+    {
+      "id": "28:10:14",
+      "arabic": "قَلْبِهَا",
+      "category": "noun_gender",
+      "status": "correction_supported",
+      "original": {
+        "noun_gender": "feminine singular",
+        "possessive_pronoun": "3FS"
+      },
+      "recommended": {
+        "noun_gender": "masculine singular",
+        "possessive_pronoun": "3FS",
+        "note": "The possessive suffix -hā refers to Moses’ mother, not to the grammatical gender of qalb."
+      },
+      "confidence": "high",
+      "reason": "The lexical noun qalb is grammatically masculine in singular; the feminine suffix is the possessor. The corpus annotates the noun segment FS and the pronoun separately as 3FS; do not collapse those facts. Feminine agreement for nonhuman broken plurals qulūb is not evidence that singular qalb is intrinsically feminine.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(28:10:14)",
+          "supports": "FS label applied to noun segment and separate 3FS possessive pronoun"
+        },
+        {
+          "kind": "lexical_usage",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(2:260:16)",
+          "supports": "singular qalb usage with masculine agreement context"
+        }
+      ],
+      "comment_status": "Local grammatical correction; source corpus remains unchanged.",
+      "roman_aliases": [
+        "qalbihā",
+        "qalbiha"
+      ]
+    },
+    {
+      "id": "28:10:15",
+      "arabic": "لِتَكُونَ",
+      "category": "verb_root",
+      "status": "original_annotation_supported",
+      "original": {
+        "root": "ك و ن",
+        "aspect": "imperfect",
+        "person": "3FS",
+        "mood": "subjunctive"
+      },
+      "recommended": {
+        "root": "ك و ن",
+        "lemma": "كَانَ",
+        "not_root": "ك و د",
+        "not_lemma": "كَادَ",
+        "explanation": "purpose lām + subjunctive takūna; its root is k-w-n, not k-w-d"
+      },
+      "confidence": "high",
+      "reason": "The source corpus already correctly tags litakūna as an imperfect of kāna (k-w-n). Run #2 wrongly named kāda as its root/lemma; this is generated-model error, not a corpus data error.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(28:10:15)",
+          "supports": "k-w-n root, purpose lām, subjunctive imperfect"
+        }
+      ],
+      "comment_status": "Original annotation verified; regression guard added.",
+      "roman_aliases": [
+        "litakūna",
+        "litakuna"
+      ]
+    },
+    {
+      "id": "28:10:8",
+      "arabic": "لَتُبْدِي",
+      "category": "particle_syntax",
+      "status": "correction_supported",
+      "original": {
+        "lam": "emphasis/apodosis (model inference)"
+      },
+      "recommended": {
+        "lam": "distinguishing lām (اللام الفارقة) after lightened emphatic inna"
+      },
+      "confidence": "high",
+      "reason": "The lām distinguishes affirmative lightened inna from negative in and does not mark a conditional apodosis in this passage.",
+      "sources": [
+        {
+          "kind": "independent_iraab",
+          "url": "https://tafsir.app/iraab-daas/28/10",
+          "supports": "اللام الفارقة"
+        },
+        {
+          "kind": "independent_iraab",
+          "url": "https://quranpedia.net/book/316/2/422",
+          "supports": "اللام الفارقة"
+        }
+      ],
+      "comment_status": "Paired with 28:10:6 grammatical correction.",
+      "roman_aliases": [
+        "latubdī",
+        "latubdi"
       ]
     }
   ]
