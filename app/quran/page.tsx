@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { ResearchMarkdown } from "./research-markdown";
+import { linkVerseReferencesInMarkdown, parseReaderCitationHash } from "./analysis-verse-links";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 import audioStyles from "./verse-audio.module.css";
@@ -476,7 +477,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [researchTab, morph]);
 
-  const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
+  const pendingJump = useRef<{ chapter: number; verse: number; selectForAnalysis?: boolean } | null>(null);
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
   const [publicationDraft, setPublicationDraft] = useState("");
@@ -530,7 +531,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
         if (pendingJump.current?.chapter === chapter) {
           const verse = pendingJump.current.verse;
           if (verse <= j.data.ayahs.length) {
-            setSelected([verse]);
+            setSelected(pendingJump.current.selectForAnalysis === false ? [] : [verse]);
             scrollTarget.current = refOf(chapter, verse);
           } else {
             setGlobalError(`Surah ${chapter} has only ${j.data.ayahs.length} verses.`);
@@ -583,7 +584,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     }
   }, [ayahs, search, selected]);
 
-  function goToReference(targetChapter: number, targetVerse: number) {
+  function goToReference(targetChapter: number, targetVerse: number, selectForAnalysis = true) {
     const target = refOf(targetChapter, targetVerse);
     setSearch(String(targetVerse));
     scrollTarget.current = target;
@@ -591,11 +592,25 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     setGlobalTotal(null);
     setShowSearchResults(false);
     if (chapter === targetChapter && ayahs.some(a => a.numberInSurah === targetVerse)) {
-      setSelected([targetVerse]);
+      setSelected(selectForAnalysis ? [targetVerse] : []);
     } else {
-      pendingJump.current = { chapter: targetChapter, verse: targetVerse };
+      pendingJump.current = { chapter: targetChapter, verse: targetVerse, selectForAnalysis };
+      setSelected([]);
       setChapter(targetChapter);
     }
+  }
+
+  // An analysis citation is a reader-only jump: the active DeepSeek stream,
+  // its focal verse, and the published analysis on the right remain unchanged.
+  function onAnalysisCitationClick(event: MouseEvent<HTMLDivElement>) {
+    const element = event.target;
+    if (!(element instanceof Element)) return;
+    const anchor = element.closest('a[href^="#ccc-quran-ref-"]');
+    if (!(anchor instanceof HTMLAnchorElement)) return;
+    const citation = parseReaderCitationHash(anchor.hash);
+    if (!citation) return;
+    event.preventDefault();
+    goToReference(citation.chapter, citation.verse, false);
   }
 
   // Deep link from Corpus Search: /quran?verse=25:5&word=4.
@@ -1422,9 +1437,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               {publicLoadState === "loading" && <p role="status" className={styles.hint}>Loading published analysis…</p>}
               {publicLoadState === "missing" && <p role="status" className={styles.hint}>Detailed analysis for this verse has not yet been published.</p>}
               {publicLoadState === "error" && <p role="alert" className={styles.hint}>Unable to retrieve published analysis.</p>}
-              {publicAnalysis && <div className={styles.answer}>
+              {publicAnalysis && <div className={styles.answer} onClick={onAnalysisCitationClick}>
                 <p className={styles.hint}>Published v{publicAnalysis.version} · {new Date(publicAnalysis.publishedAt).toLocaleDateString()}</p>
-                <ResearchMarkdown source={publicAnalysis.content}/>
+                <ResearchMarkdown source={linkVerseReferencesInMarkdown(publicAnalysis.content)}/>
               </div>}
             </> : <>
             <p className={styles.hint}>Browse and search on the left without interrupting this analysis. A new request begins only when you press Analyze verse; Stop cancels it explicitly. Keep this browser tab open while streaming.</p>
@@ -1456,7 +1471,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               {argumentAudit.notNecessarilyDisputed.length > 0 && <p><strong>Not automatically negated:</strong> {argumentAudit.notNecessarilyDisputed.join(" · ")}</p>}
             </details>}
             {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
-            {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
+            {aiResponse && <div className={styles.answer} onClick={onAnalysisCitationClick}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={linkVerseReferencesInMarkdown(cleanAnalysisText(aiResponse))}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <div className={styles.note} style={{ marginTop: 24 }}>
               <h3>Saved drafts</h3>
               <p className={styles.hint}>Drafts are private to this browser; they are not published and do not sync across devices. Select one to reopen and edit it.</p>
