@@ -223,8 +223,19 @@ export function VerseAudioDock({ audio, goToVerse }: {
   return <section className={styles.dock} aria-label="Qurʾān verse recitation">
     <audio ref={audio.audioRef} preload="none" aria-label="Mishary Rashid Alafasy verse recitation" />
     <div className={styles.topLine}>
-      <div className={styles.identity}><strong>Verse recitation</strong><span aria-label="Reciter">— Mishary Rashid Alafasy</span></div>
-      <div className={styles.nowPlaying} aria-live="polite">{current ? `Now playing ${current.chapter}:${current.verse}` : "Choose ▶ beside any verse"}</div>
+      <div className={styles.identity}>
+        <strong>Verse recitation</strong>
+        <span aria-label="Reciter">— Mishary Rashid Alafasy</span>
+        {current && <span className={styles.nowPlaying} aria-live="polite">· {current.chapter}:{current.verse}</span>}
+      </div>
+      <div className={styles.options}>
+        <label>Speed <select aria-label="Recitation playback speed" value={audio.speed} onChange={event => audio.changeSpeed(Number(event.target.value))}>
+          <option value={0.75}>0.75×</option><option value={1}>1×</option><option value={1.25}>1.25×</option>
+        </select></label>
+        <button type="button" className={audio.repeat ? styles.enabled : ""} aria-pressed={audio.repeat} onClick={() => audio.setRepeat(!audio.repeat)} title="Repeat this verse">Repeat verse {audio.repeat ? "✓" : ""}</button>
+        <button type="button" className={audio.continuous ? styles.enabled : ""} aria-pressed={audio.continuous} onClick={() => audio.setContinuous(!audio.continuous)} title="Continue to the next verse automatically">Continuous {audio.continuous ? "✓" : ""}</button>
+        {current && <button type="button" onClick={() => goToVerse(current.chapter, current.verse)} title="Open the playing verse in the Reader">Open {current.chapter}:{current.verse}</button>}
+      </div>
     </div>
     <div className={styles.transport}>
       <button type="button" aria-label="Previous verse" title="Previous verse" onClick={() => audio.move(-1)} disabled={!current || !audio.ready}>⏮</button>
@@ -236,14 +247,6 @@ export function VerseAudioDock({ audio, goToVerse }: {
         value={audio.duration > 0 ? Math.min(audio.position, audio.duration) : 0}
         disabled={!current || audio.duration <= 0} onChange={event => audio.seek(Number(event.target.value))} />
       <span className={styles.timer}>{formatTime(audio.duration)}</span>
-    </div>
-    <div className={styles.options}>
-      <label>Speed <select aria-label="Recitation playback speed" value={audio.speed} onChange={event => audio.changeSpeed(Number(event.target.value))}>
-        <option value={0.75}>0.75×</option><option value={1}>1×</option><option value={1.25}>1.25×</option>
-      </select></label>
-      <button type="button" className={audio.repeat ? styles.enabled : ""} aria-pressed={audio.repeat} onClick={() => audio.setRepeat(!audio.repeat)} title="Repeat this verse">Repeat verse {audio.repeat ? "✓" : ""}</button>
-      <button type="button" className={audio.continuous ? styles.enabled : ""} aria-pressed={audio.continuous} onClick={() => audio.setContinuous(!audio.continuous)} title="Continue to the next verse automatically">Continuous {audio.continuous ? "✓" : ""}</button>
-      {current && <button type="button" onClick={() => goToVerse(current.chapter, current.verse)} title="Open the playing verse in the Reader">Open {current.chapter}:{current.verse}</button>}
     </div>
     {audio.error && <p className={styles.error} role="alert">{audio.error}</p>}
     <p className={styles.credit}>Streamed on demand from <a href="https://alquran.cloud/cdn" target="_blank" rel="noreferrer">Al Quran Cloud</a> · <code>ar.alafasy</code>. Playback needs internet access. Verse audio and translation remain separate.</p>
