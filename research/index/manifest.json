@@ -1,0 +1,118 @@
+{
+  "schema_version": 2,
+  "index_type": "full_source_paragraph_and_section",
+  "generated_at": "2026-11-15",
+  "article_count": 10,
+  "articles": [
+    {
+      "id": "architecture-of-debt-money-and-interest",
+      "title": "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis",
+      "source_path": "research/articles/architecture-of-debt-money-and-interest.md",
+      "source_sha256": "df131f34d0a0eeaaeab7c36b9343ef8a036f92eb27d4a54e49e3ea8438a74007",
+      "bytes": 166720,
+      "lines": 1942,
+      "section_count": 85,
+      "paragraph_count": 971,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "does-the-quran-endorse-hadith-literature",
+      "title": "Does the Qur'an Endorse Hadith Literature",
+      "source_path": "research/articles/does-the-quran-endorse-hadith-literature.md",
+      "source_sha256": "133f9bfa9103aa452a31d08f55fab8398604768e84c23bb5beadc6ea06bc909b",
+      "bytes": 42157,
+      "lines": 237,
+      "section_count": 20,
+      "paragraph_count": 24,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "hadith-based-post-facto-distortions",
+      "title": "Hadith-Based Post-facto Distortions",
+      "source_path": "research/articles/hadith-based-post-facto-distortions.md",
+      "source_sha256": "ced559cc97d2460b40e2039a5ad2299901ea781f1c94fab53306e299b73b2d82",
+      "bytes": 49378,
+      "lines": 677,
+      "section_count": 27,
+      "paragraph_count": 335,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "source_sha256": "dfe8b81991d170430989c800063bdf57e571e400e2882c0e590c9f0ce42bfc6a",
+      "bytes": 19263,
+      "lines": 178,
+      "section_count": 9,
+      "paragraph_count": 83,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "is-the-quran-preserved",
+      "title": "Is the Qur’an Preserved?",
+      "source_path": "research/articles/is-the-quran-preserved.md",
+      "source_sha256": "b06916fc64563b6efe97010b7b5974add43f4e6e68edaf7a9abda2beac90c108",
+      "bytes": 47156,
+      "lines": 366,
+      "section_count": 22,
+      "paragraph_count": 176,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "moral-reasoning-in-the-quran",
+      "title": "Moral Reasoning in the Qurʾān: A Pan-Textual Architecture of Reflection, Perception, and Human Judgement",
+      "source_path": "research/articles/moral-reasoning-in-the-quran.md",
+      "source_sha256": "a9c5d2cafc462e9fd6b31844d51709a3fd47bc045b18b5a727af7f1ba2b1d9ee",
+      "bytes": 18835,
+      "lines": 262,
+      "section_count": 10,
+      "paragraph_count": 123,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "quran-hadith-marriageable-age-textual-analysis",
+      "title": "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "source_path": "research/articles/quran-hadith-marriageable-age-textual-analysis.md",
+      "source_sha256": "6d385a58fd3046bcd73530b897fee9054698f3b49b22677feeea2961d06a2b63",
+      "bytes": 37125,
+      "lines": 203,
+      "section_count": 12,
+      "paragraph_count": 102,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "reason-revelation-and-the-architecture-of-truth",
+      "title": "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews",
+      "source_path": "research/articles/reason-revelation-and-the-architecture-of-truth.md",
+      "source_sha256": "12522cc9bb274c3ed805c68daa0af0a9bb82cac7e372a1df80a7a1fab6c49f82",
+      "bytes": 382832,
+      "lines": 4718,
+      "section_count": 154,
+      "paragraph_count": 2359,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "reassessing-prophetic-literacy-written-revelation",
+      "title": "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+      "source_path": "research/articles/reassessing-prophetic-literacy-written-revelation.md",
+      "source_sha256": "0f58e4ae459535c5757390cdb867e2d167a8a3a75c84fd39b4a2bca963828774",
+      "bytes": 44277,
+      "lines": 439,
+      "section_count": 24,
+      "paragraph_count": 220,
+      "indexed_entire_source": true
+    },
+    {
+      "id": "surah-al-shams-the-self-and-the-balance-of-creation",
+      "title": "Surah Al-Shams (The Sun): The Self and the Balance of Creation",
+      "source_path": "research/articles/surah-al-shams-the-self-and-the-balance-of-creation.md",
+      "source_sha256": "36b22dbbcc3af2ebce78e909562c8fbc33170e43bcf0c5ded1c2c69d2a718967",
+      "bytes": 9116,
+      "lines": 173,
+      "section_count": 12,
+      "paragraph_count": 78,
+      "indexed_entire_source": true
+    }
+  ]
+}
