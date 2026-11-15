@@ -1,3 +1,4 @@
+import { correctionRecords } from "./corpus-corrections";
 /** Topic-neutral, corpus-anchored checking of explicit morphological claims.
  * Detects a conflict only when a clause identifies a single verb unambiguously
  * (or explicitly names the word number). Missing tags are not negative proof.
@@ -69,12 +70,23 @@ export function validateGrammarClaims(analysis:string,refs:string|string[],morph
       // Comparison-verse properties must name the comparison reference.
       if(ref!==selected[0] && !unit.includes(ref))continue;
       const explicit=unit.match(/\bword\s+(\d{1,3})\b/i);
-      const cited=words.flatMap((word,index)=>verbFacts(word)&&matches(unit,aliases(word))?[index]:[]);
+      const cited=words.flatMap((word,index)=>{
+        if(!verbFacts(word)) return [];
+        const knownAliases=correctionRecords([ref]).filter(e=>e.id===`${ref}:${index+1}`).flatMap(e=>e.roman_aliases||[]);
+        const romanUnit=latin(unit);
+        const matchedKnown=knownAliases.some(alias=>{
+          const token=latin(alias).replace(/[^a-z]/g,"");
+          return token.length>=4 && new RegExp(`(^|[^a-z])${token}(?=$|[^a-z])`).test(romanUnit);
+        });
+        return matches(unit,aliases(word))||matchedKnown?[index]:[];
+      });
       const target=explicit?Number(explicit[1])-1:cited.length===1?cited[0]:-1;
       if(target<0||target>=words.length||!verbFacts(words[target]))continue;
       // No claim may be inherited from neighboring clauses or a list of verbs.
       if(!explicit && cited.length!==1)continue;
       const f=verbFacts(words[target])!;
+      const matchedCorrection = correctionRecords([ref]).find(e=>e.id===`${ref}:${target+1}` && e.status==="correction_supported" && e.category==="morphology_mood");
+      if (matchedCorrection && typeof matchedCorrection.recommended.mood==="string") f.mood=matchedCorrection.recommended.mood;
       const assertedMood=claimed(unit,moodRe);
       const assertedForm=claimed(unit,formRe)?.toUpperCase();
       const assertedVoice=claimed(unit,voiceRe);
