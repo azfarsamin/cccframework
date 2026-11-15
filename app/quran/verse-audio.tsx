@@ -55,7 +55,7 @@ export function useQuranVerseAudio(surahs: AudioSurah[]) {
   const [status, setStatus] = useState<PlaybackStatus>("idle");
   const [error, setError] = useState("");
   const [repeat, setRepeat] = useState(false);
-  const [continuous, setContinuous] = useState(true);
+  const [continuous, setContinuous] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -223,7 +223,7 @@ export function VerseAudioDock({ audio, goToVerse }: {
   return <section className={styles.dock} aria-label="Qurʾān verse recitation">
     <audio ref={audio.audioRef} preload="none" aria-label="Mishary Rashid Alafasy verse recitation" />
     <div className={styles.topLine}>
-      <div className={styles.identity}><strong>Verse recitation</strong><span>Mishary Rashid Alafasy</span></div>
+      <div className={styles.identity}><strong>Verse recitation</strong><span aria-label="Reciter">— Mishary Rashid Alafasy</span></div>
       <div className={styles.nowPlaying} aria-live="polite">{current ? `Now playing ${current.chapter}:${current.verse}` : "Choose ▶ beside any verse"}</div>
     </div>
     <div className={styles.transport}>
