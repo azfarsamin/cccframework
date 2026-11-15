@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "dataset_name": "CCC Quran Morphology Correction Register",
+  "reviewed_utc": "2026-11-15",
+  "purpose": "Evidence-backed localized correction candidates for use by the CCC model. Treat supported corrections as reviewed annotations; preserve source disagreements.",
+  "review_policy": {
+    "correction_supported": "Surface as supported correction with provenance; source annotation stays intact on disk.",
+    "original_annotation_supported": "Explain that apparent model error is not corpus DQ.",
+    "requires_adjudication": "Display as unresolved hypothesis; never silently override morphology."
+  },
+  "entries": [
+    {
+      "id": "33:34:3",
+      "arabic": "يُتْلَىٰ",
+      "category": "morphology_mood",
+      "status": "correction_supported",
+      "original": {
+        "mood": "subjunctive"
+      },
+      "recommended": {
+        "mood": "indicative",
+        "voice": "passive",
+        "aspect": "imperfect",
+        "person": "3MS"
+      },
+      "confidence": "high",
+      "reason": "The relative pronoun mā is an object of udhkurna and introduces the relative clause; it does not license subjunctive. The defective-final imperfect is ordinarily indicative here with a non-overt estimated damma. The visible form alone is not diagnostic.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(33:34:3)",
+          "supports": "subjunctive annotation still displayed"
+        },
+        {
+          "kind": "independent_iraab",
+          "url": "https://surahquran.com/e3rab-aya-34-sora-33.html",
+          "supports": "مرفوع بالضمة المقدرة على الألف للتعذر"
+        },
+        {
+          "kind": "corpus_verse_grammar",
+          "url": "https://corpus.quran.com/grammar.jsp?chapter=33&verse=34",
+          "supports": "mā relative; no subjunctive governor supplied"
+        }
+      ],
+      "comment_status": "No word-specific correction comment found on the publicly viewed word page; supported independently, not attributed to a message-board decision.",
+      "roman_aliases": [
+        "yutlā",
+        "yutla",
+        "yut'la"
+      ]
+    },
+    {
+      "id": "22:46:16",
+      "arabic": "تَعْمَىٰ",
+      "category": "morphology_mood",
+      "status": "correction_supported",
+      "original": {
+        "mood": "jussive"
+      },
+      "recommended": {
+        "mood": "indicative",
+        "aspect": "imperfect",
+        "person": "3FS"
+      },
+      "confidence": "high",
+      "reason": "In wa-lākin taʿmā al-qulūb the imperfect is the predicate in a coordinate declarative clause; the earlier lā is negative (lā taʿmā al-abṣār), not a jussive governor, and lākin does not govern jussive. Final alif hides the case/mood vowel.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(22:46:16)",
+          "supports": "jussive annotation displayed"
+        },
+        {
+          "kind": "public_corpus_comment",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(22:46:16)",
+          "supports": "Mazhar A. Nurani, 26 July 2017: Mood: Indicative"
+        },
+        {
+          "kind": "verse_grammar",
+          "url": "https://corpus.quran.com/grammar.jsp?chapter=22&verse=46",
+          "supports": "wa-lākin taʿmā coordinated with lā taʿmā clause"
+        }
+      ],
+      "comment_status": "Public correction suggestion visible; no evidence that moderators accepted or applied it.",
+      "roman_aliases": [
+        "taʿmā",
+        "tama",
+        "ta'ma"
+      ]
+    },
+    {
+      "id": "2:78:8",
+      "arabic": "وَإِنْ",
+      "category": "particle_syntax",
+      "status": "original_annotation_supported",
+      "original": {
+        "particle": "negative"
+      },
+      "recommended": {
+        "particle": "negative",
+        "not": "conditional"
+      },
+      "confidence": "high",
+      "reason": "Wa-in hum illā yaẓunnūna is a negative restriction construction: in ... illā. This is not a conditional protasis. The source corpus is already correct; the error occurred in generated model reasoning.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(2:78:8)",
+          "supports": "NEG negative particle"
+        }
+      ],
+      "comment_status": "No correction required to the source data.",
+      "roman_aliases": [
+        "wa-in",
+        "wa in"
+      ]
+    },
+    {
+      "id": "65:4:4",
+      "arabic": "الْمَحِيضِ",
+      "category": "lexical_morphology",
+      "status": "correction_supported",
+      "original": {
+        "classification": "passive participle"
+      },
+      "recommended": {
+        "classification": "maṣdar mīmī (mīm-form verbal noun; menstruation), rather than a passive participle"
+      },
+      "confidence": "high",
+      "reason": "The nominal pattern maḥīḍ (mafʿil) denotes the event/condition of menstruation; Arabic lexicographical and morphological scholarship explicitly classifies it as maṣdar mīmī. A passive-participle designation is not supported by the word’s usage as the menstruation process in 2:222 or 65:4. The same surface template can be ambiguous in isolation, so explain the contextual resolution.",
+      "sources": [
+        {
+          "kind": "original_corpus",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(65:4:4)",
+          "supports": "passive participle tag displayed"
+        },
+        {
+          "kind": "corpus_dictionary",
+          "url": "https://corpus.quran.com/qurandictionary.jsp?q=HyD",
+          "supports": "all three occurrences grouped as passive participle"
+        },
+        {
+          "kind": "lexicographical",
+          "url": "https://www.arabdict.com/ar/عربي-عربي/المحيض",
+          "supports": "معجم اللغة العربية المعاصرة: محيض مصدر ميمي من حاض"
+        },
+        {
+          "kind": "morphological_grammar",
+          "url": "https://www.alukah.net/books/files/book_13766/bookfile/tasreefarab.pdf",
+          "supports": "Arabic nominal morphology lists محيض among examples of masdar mimi"
+        },
+        {
+          "kind": "scholarly_linguistic_analysis",
+          "url": "https://azhar.eg/scholars-tarajum/books/2019/1-%20أثر%20الدرس%20اللغوي.pdf",
+          "supports": "Discussion of al-maḥīḍ as maṣdar mīmī; distinguishes contexts in 2:222"
+        }
+      ],
+      "comment_status": "No verified Corpus-board resolution found; correction supported by independent lexicon and grammar references.",
+      "roman_aliases": [
+        "al-maḥīḍ",
+        "mahid",
+        "mahīd"
+      ]
+    }
+  ]
+}
