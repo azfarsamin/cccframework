@@ -6,6 +6,7 @@ import { validateCalibrationClaims } from "../../../lib/calibration-validation";
 import { deterministicGrammarSheet, validateGrammarClaims } from "../../../lib/grammar-validation";
 import { correctionPrompt, correctedGrammarSheet } from "../../../lib/corpus-corrections";
 import { searchResearch, expandResearchEvidence, neighboringResearchReferences, rankRelevantResearch, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
+import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, readOriginalResearchSection } from "../../../lib/full-research-index";
 
 export const runtime = "nodejs";
 export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
@@ -250,6 +251,50 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
       : "No directly relevant indexed research sections were found.";
     researchSources = researchUnits.map(u => ({ id:u.key,title:u.title,section:u.section,
       complete:u.complete,parts:u.chunkIds.length }));
+    // Complete-article linkage (schema v2): the *whole* indexed source is
+    // available, even when only several sections fit the inference context.
+    // Cross-section citations are discovery leads, NEVER proof of author claims.
+    // This prevents the focal-verse citation gate from severing related premises.
+    // Add newly indexed sources without editing the legacy chunk index.
+    // An article enters by an explicit focal reference, never a doctrine bonus.
+    const fullIds=[...new Set([...researchUnits.map(u => u.articleId),
+      ...findFullArticleIdsForVerse(ref,2)])];
+    const fullEvidence = fullArticleEvidenceForVerse(ref,fullIds,36);
+    // Source-aware inclusion for new works: never claim the content was read
+    // when only its citations/headings were included. Keep sections together.
+    for(const id of fullIds.filter(id=>!researchUnits.some(u=>u.articleId===id))){
+      const article=readFullResearchArticle(id);
+      if(!article)continue;
+      for(const sectionId of (article.verse_to_sections[ref]||[]).slice(0,2)){
+        const original=readOriginalResearchSection(id,sectionId);
+        if(!original)continue;
+        const allowance=4500;
+        const complete=original.originalText.length<=allowance;
+        const text=complete?original.originalText:original.originalText.slice(0,allowance);
+        const citationFrequency:Record<string,number>={};
+        for(const verse of original.section.verse_refs)citationFrequency[verse]=1;
+        researchUnits.push({key:sectionId,articleId:id,title:article.title,
+          section:original.section.heading,text,verseRefs:original.section.verse_refs,
+          citationFrequency,chunkIds:[sectionId],complete,score:20});
+        researchContext += `\n\n[Complete-source section ${sectionId}; ${complete?'complete':'TRUNCATED'}; verses: ${original.section.verse_refs.join(', ')}]\n${text}`;
+        researchSources.push({id:sectionId,title:article.title,section:original.section.heading,complete,parts:1});
+      }
+    }
+    const sectionNavigation = fullEvidence.articles.map(a => {
+      const anchors = a.sections.filter(s => a.directSections.includes(s.id));
+      return `[COMPLETE SOURCE INDEX: ${a.title}; ${a.totalSections} sections, source hash ${a.sourceSha256.slice(0,12)}; focal sections: ${anchors.map(s=>s.heading).join(' | ') || 'none'}; additional headings/verse citations remain indexed for retrieval. A citation lead is not a fully read section.]`;
+    });
+    researchContext += "\n\n" + sectionNavigation.join("\n");
+    for (const entry of fullEvidence.references) {
+      if (!corpus[entry.ref] || entry.ref === ref) continue;
+      offer(entry.ref, Math.min(36, 3 + entry.score * 2),
+        `full-article cross-section citation (${entry.sections.length} sections)`);
+      const old = researchCounts.get(entry.ref) || {count:0,sections:new Set<string>()};
+      old.count += Math.min(3,entry.score);
+      entry.sections.forEach(s=>old.sections.add(s));
+      researchCounts.set(entry.ref,old);
+    }
+
     // Adjacent sections may be useful leads but cannot override directly cited
     // passages. They never supply claims to the argument reconstruction.
     linkedResearch = (await neighboringResearchReferences(researchUnits, 1, 6)).filter(r => r !== ref && Boolean(corpus[r]));
