@@ -16,3 +16,31 @@
 @media (max-width: 520px) { .dialog { max-height: 85dvh; } .header { padding: .7rem .8rem .7rem 1rem; } .body { padding: .3rem 1rem 1rem; font-size: .91rem; } }
 /* Audio component versions that use a dedicated credit class instead of <p>. */
 .audioHost :global([class*="credit" i]) { display: none; }
+
+/* Equal-width study tabs: prevents the active button from monopolizing a column. */
+.balancedStudyTabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.35rem;
+}
+.balancedStudyTabs > button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 3.1rem;
+  margin: 0;
+  padding: 0.65rem 0.35rem;
+  text-align: center;
+  line-height: 1.2;
+  white-space: normal;
+}
+@media (max-width: 520px) {
+  .balancedStudyTabs { gap: 0.2rem; padding: 0.25rem; }
+  .balancedStudyTabs > button { padding: 0.55rem 0.2rem; min-height: 2.9rem; }
+}
