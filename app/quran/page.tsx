@@ -363,6 +363,12 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [rootMatches, setRootMatches] = useState<RootHit[]>([]);
   const [rootTotal, setRootTotal] = useState<number | null>(null);
   const [rootGroupShown, setRootGroupShown] = useState<Record<string, number>>({});
+  // The word inspector already retrieves the corpus-backed word-by-word gloss
+  // from /api/quran-word. Reuse that authoritative per-verse source in the Roots
+  // concordance; never invent a meaning from the Arabic root.
+  const rootGlossCache = useRef(new Map<string, string[] | null>());
+  const rootGlossPending = useRef(new Set<string>());
+  const [rootGlossRevision, setRootGlossRevision] = useState(0);
   const [globalQuery, setGlobalQuery] = useState("");
   const [globalLanguage, setGlobalLanguage] = useState<"arabic" | "english">("arabic");
   const [globalResults, setGlobalResults] = useState<SearchResult[]>([]);
@@ -405,6 +411,36 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
         return a.name.localeCompare(b.name);
       });
   }, [rootMatches]);
+
+  // Load English word glosses only for rows currently shown in Roots. Each
+  // request returns all word meanings for one verse, so adjacent occurrences
+  // share a cached response. Concurrency stays bounded on large root searches.
+  useEffect(() => {
+    if (researchTab !== "roots" || !rootGroups.length) return;
+    const visibleRefs = Array.from(new Set(rootGroups.flatMap(group =>
+      group.hits.slice(0, rootGroupShown[group.name] ?? 50).map(hit => hit.reference)
+    ))).filter(ref => !rootGlossCache.current.has(ref) && !rootGlossPending.current.has(ref));
+    if (!visibleRefs.length) return;
+    for (const ref of visibleRefs) rootGlossPending.current.add(ref);
+    let cursor = 0;
+    async function loadNext() {
+      while (cursor < visibleRefs.length) {
+        const ref = visibleRefs[cursor++];
+        try {
+          const response = await fetch(`/api/quran-word?verse=${encodeURIComponent(ref)}`);
+          if (!response.ok) throw new Error(`Gloss unavailable for ${ref}`);
+          const data = await response.json() as { meanings?: string[] };
+          rootGlossCache.current.set(ref, Array.isArray(data.meanings) ? data.meanings : null);
+        } catch {
+          rootGlossCache.current.set(ref, null); // Show unavailable, not a guessed gloss.
+        } finally {
+          rootGlossPending.current.delete(ref);
+          setRootGlossRevision(value => value + 1);
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(4, visibleRefs.length) }, () => loadNext()));
+  }, [researchTab, rootGroups, rootGroupShown]);
 
   // First-letter categories are generated from the same morphology index.
   // This keeps the two selectors in sync with the actual corpus roots.
@@ -1152,7 +1188,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               </div>
             </div>
             <div role="tablist" aria-label="Qurʾān study tools" className={styles.researchTabs}>
-              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis'], ['notes', 'Notes']] as const).map(([id, label]) => (
+              {(publicMode
+                ? ([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis']] as const)
+                : ([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis'], ['notes', 'Notes']] as const)
+              ).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
                   aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
                   className={researchTab === id ? styles.activeResearchTab : ''}>{label}</button>
@@ -1284,6 +1323,11 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                         {group.hits.slice(0, visibleCount).map(hit => {
                           const location = `${hit.reference}:${hit.index}`;
                           const morphologyUrl = `https://corpus.quran.com/wordmorphology.jsp?location=(${location})`;
+                          // Re-render after batch completion; the gloss remains
+                          // associated with the precise Qurʾānic word position.
+                          void rootGlossRevision;
+                          const wordGloss = rootGlossCache.current.get(hit.reference)?.[hit.index - 1]?.trim();
+                          const glossLoaded = rootGlossCache.current.has(hit.reference);
                           return <tr key={location}>
                             <td className={styles.rootLocation}>
                               <a href={morphologyUrl} target="_blank" rel="noreferrer" title="Open corpus word morphology">({location}) ↗</a>
@@ -1291,7 +1335,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                               <span dir="rtl" lang="ar">{hit.surface}</span>
                             </td>
                             <td className={styles.rootMeaning}>
-                              <a href={morphologyUrl} target="_blank" rel="noreferrer" title="View word analysis and translation at Qurʾānic Arabic Corpus">View word gloss ↗</a>
+                              <a href={morphologyUrl} target="_blank" rel="noreferrer"
+                                title={`Open the source word analysis for ${location}`}>
+                                {wordGloss || (glossLoaded ? "Gloss unavailable" : "Loading gloss…")} ↗
+                              </a>
                             </td>
                             <td>
                               <button type="button" className={styles.rootVerseAction} onClick={() => openRootHit(hit)} aria-label={`Open Qur'an ${hit.reference}, word ${hit.index}`}>
