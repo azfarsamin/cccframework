@@ -10,13 +10,19 @@ import { searchResearch, expandResearchEvidence, neighboringResearchReferences, 
 import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, readOriginalResearchSection } from "../../../lib/full-research-index";
 
 export const runtime = "nodejs";
-export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
-// Fail before the platform's 150-second limit, preserving any streamed text.
-// A shorter response and leaner evidence payload should normally finish well before this.
-const UPSTREAM_LIMIT_MS = 132000;
-const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
-const AUDIT_OUTPUT_TOKENS = 3000; // Structured verification needs headroom; output remains capped by the compact schema.
-const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
+// 300s with Vercel Fluid Compute works on Hobby and higher plans. Pro/Enterprise
+// may raise this to 800s after confirming the project's runtime entitlement.
+// Each stage is a SEPARATE request; the browser orchestrates them sequentially.
+export const maxDuration = 300;
+const UPSTREAM_LIMIT_MS = 270000; // Keep 30s for SSE completion and cleanup.
+const MAX_OUTPUT_TOKENS = 4200; // Non-reasoning model default.
+const AUDIT_OUTPUT_TOKENS = 3000;
+const RECONSTRUCTION_OUTPUT_TOKENS = 3400;
+// DeepSeek V4 Pro counts private reasoning and visible text in the SAME budget.
+// Give its reconstruction and verification stages headroom without streaming reasoning.
+const PRO_RECONSTRUCTION_TOKENS = 10000;
+const PRO_WRITING_TOKENS = 16000;
+const PRO_AUDIT_TOKENS = 9000;
 
 const HEARTBEAT_MS = 12000;
 const EVIDENCE_LIMIT = 36;
@@ -571,6 +577,10 @@ export async function POST(req: NextRequest) {
     : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
     : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
     : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
+  const deepSeekV4Pro = /deepseek-v4-pro/i.test(model);
+  const maxTokens = deepSeekV4Pro
+    ? (stage === "audit" ? PRO_AUDIT_TOKENS : stage === "reconstruction" ? PRO_RECONSTRUCTION_TOKENS : PRO_WRITING_TOKENS)
+    : (stage === "audit" ? AUDIT_OUTPUT_TOKENS : stage === "reconstruction" ? RECONSTRUCTION_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS);
   // Evidence discovery is now a deterministic local operation: zero Chutes
   // tokens, no JSON parsing/truncation failure, stable across repeated runs.
   if (stage === "discovery") {
@@ -648,7 +658,11 @@ export async function POST(req: NextRequest) {
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
           signal: abort.signal,
           body: JSON.stringify({
-            model, temperature: 0, max_tokens: stage === "audit" ? AUDIT_OUTPUT_TOKENS : stage === "reconstruction" ? RECONSTRUCTION_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
+            model, temperature: 0, max_tokens: maxTokens, stream: true,
+            // OpenAI-compatible Chutes deployments may support reasoning_effort;
+            // stage-dependent reasoning allows the structured JSON stages to
+            // finish sooner while preserving more deliberation for synthesis.
+            ...(deepSeekV4Pro ? { reasoning_effort: stage === "foundation" || stage === "synthesis" ? "high" : "low" } : {}),
             // Both model families can default to extended reasoning, which uses
             // completion tokens before final-answer text is produced. Apply the
             // template option appropriate to the exact selected model family.
@@ -763,10 +777,10 @@ export async function POST(req: NextRequest) {
             promptTokens:usage?.prompt_tokens,completionTokens:usage?.completion_tokens,
             answerCharacters:answer.length,maxOutputTokens:AUDIT_OUTPUT_TOKENS,validJson:Boolean(parsed)});
           if (!parsed) {
-            finish("error", { message: `Verification could not parse valid JSON (model: ${model}; finish: ${finishReason || "unknown"}; tokens: ${usage?.completion_tokens ?? "unreported"}/${AUDIT_OUTPUT_TOKENS}). Analysis retained as UNVERIFIED.`, partial: false }); return;
+            finish("error", { message: `Verification could not parse valid JSON (model: ${model}; finish: ${finishReason || "unknown"}; tokens: ${usage?.completion_tokens ?? "unreported"}/${maxTokens}). Analysis retained as UNVERIFIED.`, partial: false }); return;
           }
           if (finishReason === "length" || !providerDone || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
-            finish("error", { message: `Verification incomplete or wrong schema (finish: ${finishReason || "unknown"}; completion: ${providerDone}; tokens: ${usage?.completion_tokens ?? "unreported"}/${AUDIT_OUTPUT_TOKENS}). Analysis retained as UNVERIFIED.`, partial: false }); return;
+            finish("error", { message: `Verification incomplete or wrong schema (finish: ${finishReason || "unknown"}; completion: ${providerDone}; tokens: ${usage?.completion_tokens ?? "unreported"}/${maxTokens}). Analysis retained as UNVERIFIED.`, partial: false }); return;
           }
           // Validation requires a verbatim quote in an ACTUAL supplied verse.
           // Never silently replace generated analytical text based on a model's
