@@ -52,9 +52,10 @@ function aliases(w:MorphWord){
   const roman=[...([surface,stem].map(x=>latin(transliterate(x)))),...(w.l?[latin(w.l)]:[])].filter(x=>x.length>=4);
   return {arabic:[...new Set(arabic)],roman:[...new Set(roman)]};
 }
+function escapedLiteral(value:string):string{return value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
 function matches(unit:string, set:ReturnType<typeof aliases>){
   const ar=normalizeArabic(unit),r=latin(unit);
-  return set.arabic.some(x=>ar.includes(x))||set.roman.some(x=>new RegExp(`(^|[^a-z])${x}(?=$|[^a-z])`).test(r));
+  return set.arabic.some(x=>ar.includes(x))||set.roman.some(x=>new RegExp(`(^|[^a-z])${escapedLiteral(x)}(?=$|[^a-z])`).test(r));
 }
 function claimed(unit:string,pattern:RegExp){const result=[...latin(unit).matchAll(pattern)].map(x=>x[1].toLowerCase());return new Set(result).size===1?result[0]:undefined;}
 const formRe=/\bform\s+(xii|xi|viii|vii|vi|iv|ix|iii|ii|v|x|i)\b/gi;
@@ -86,7 +87,7 @@ export function validateGrammarClaims(analysis:string,refs:string|string[],morph
         const romanUnit=latin(unit);
         const matchedKnown=knownAliases.some(alias=>{
           const token=latin(alias).replace(/[^a-z]/g,"");
-          return token.length>=4 && new RegExp(`(^|[^a-z])${token}(?=$|[^a-z])`).test(romanUnit);
+          return token.length>=4 && new RegExp(`(^|[^a-z])${escapedLiteral(token)}(?=$|[^a-z])`).test(romanUnit);
         });
         return matches(unit,aliases(word))||matchedKnown?[index]:[];
       });
