@@ -1,6 +1,12 @@
-/** Convert valid Qurʾānic verse citations in rendered research Markdown into
- * in-page Reader navigation anchors. No model changes or external links.
- * Code, existing links, HTML, and fenced blocks are left untouched.
+/**
+ * Verse-reference recognition for the rendered analysis. Do NOT inject Markdown
+ * links into the source: the site's ResearchMarkdown view does not render them,
+ * and nested citation brackets then become visible as raw text.
+ *
+ * Decoration is applied to actual DOM text nodes after React has rendered the
+ * analysis. It does not alter quoted source text, existing links, code, or
+ * canonical Qur'an text. For streaming output the caller waits for completion
+ * before decorating, avoiding mutations to live React-managed text nodes.
  */
 export const QURAN_AYAH_COUNTS = [
   7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,
@@ -17,47 +23,60 @@ export function validVerseReference(chapter: number, verse: number): boolean {
     verse >= 1 && verse <= QURAN_AYAH_COUNTS[chapter - 1];
 }
 
-// Retain already formatted Markdown syntax verbatim. An ordinary Markdown link
-// is generated only from a bare citation; the renderer handles safe escaping.
-const PROTECTED = /(`+[^`\n]*`+|!?\[[^\]\n]*\]\([^\)\n]*\)|<[^>\n]*>|https?:\/\/[^\s<>)]+|\b[\w.-]+@[\w.-]+\.[a-z]{2,})/gi;
-const REFERENCE = /(?<![\w:/])([1-9]\d{0,2}):([1-9]\d{0,2})(?![\w:/])/g;
-
-function linkPlainText(text: string): string {
-  return text.replace(REFERENCE, (original, chapterText: string, verseText: string) => {
-    const chapter = Number(chapterText);
-    const verse = Number(verseText);
-    if (!validVerseReference(chapter, verse)) return original;
-    return `[${original}](#ccc-quran-ref-${chapter}-${verse})`;
-  });
-}
-
-export function linkVerseReferencesInMarkdown(source: string): string {
-  let fence: string | null = null;
-  return source.split('\n').map(line => {
-    const opening = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
-    if (opening) {
-      const marker = opening[1];
-      if (!fence) fence = marker;
-      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
-      return line;
-    }
-    if (fence || /^\s{0,3}\[[^\]]+\]:\s*\S+/.test(line)) return line;
-    let output = '';
-    let at = 0;
-    for (const match of line.matchAll(PROTECTED)) {
-      if (match.index === undefined) continue;
-      output += linkPlainText(line.slice(at, match.index));
-      output += match[0];
-      at = match.index + match[0].length;
-    }
-    return output + linkPlainText(line.slice(at));
-  }).join('\n');
-}
-
 export function parseReaderCitationHash(hash: string): {chapter:number; verse:number} | null {
   const match = /^#ccc-quran-ref-(\d{1,3})-(\d{1,3})$/.exec(hash);
   if (!match) return null;
   const chapter = Number(match[1]);
   const verse = Number(match[2]);
   return validVerseReference(chapter, verse) ? {chapter, verse} : null;
+}
+
+// Guard against references that are word indices, time stamps, URLs, or
+// partial numbers. All candidate references are checked against surah lengths.
+const REFERENCE = /(?<![\w:/])([1-9]\d{0,2}):([1-9]\d{0,2})(?![\w:/])/g;
+
+export function decorateRenderedVerseReferences(container: HTMLElement): number {
+  const doc = container.ownerDocument;
+  const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const targets: Text[] = [];
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const parent = node.parentElement;
+    if (!parent || !node.textContent || !REFERENCE.test(node.textContent)) {
+      REFERENCE.lastIndex = 0;
+      continue;
+    }
+    REFERENCE.lastIndex = 0;
+    if (parent.closest('a,code,pre,kbd,samp,script,style,textarea,button,input,[data-no-verse-links]')) continue;
+    targets.push(node as Text);
+  }
+  let added = 0;
+  for (const textNode of targets) {
+    const text = textNode.textContent || '';
+    const fragment = doc.createDocumentFragment();
+    let cursor = 0;
+    REFERENCE.lastIndex = 0;
+    for (const match of text.matchAll(REFERENCE)) {
+      const index = match.index ?? 0;
+      const chapter = Number(match[1]);
+      const verse = Number(match[2]);
+      if (!validVerseReference(chapter, verse)) continue;
+      fragment.append(doc.createTextNode(text.slice(cursor, index)));
+      const link = doc.createElement('a');
+      link.href = `#ccc-quran-ref-${chapter}-${verse}`;
+      link.className = 'ccc-analysis-verse-link';
+      link.title = `Show Qurʾān ${chapter}:${verse} in the Reader`;
+      link.textContent = match[0];
+      link.style.textDecoration = 'underline';
+      link.style.textUnderlineOffset = '0.13em';
+      fragment.append(link);
+      cursor = index + match[0].length;
+      added++;
+    }
+    if (cursor) {
+      fragment.append(doc.createTextNode(text.slice(cursor)));
+      textNode.parentNode?.replaceChild(fragment, textNode);
+    }
+  }
+  return added;
 }

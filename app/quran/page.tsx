@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { ResearchMarkdown } from "./research-markdown";
-import { linkVerseReferencesInMarkdown, parseReaderCitationHash } from "./analysis-verse-links";
+import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./analysis-verse-links";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 import audioStyles from "./verse-audio.module.css";
@@ -20,6 +20,18 @@ function cleanAnalysisText(source: string): string {
       ? String.fromCodePoint(value) : full;
   }).replace(/&(?:amp|lt|gt|quot|apos);/g, entity =>
     ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '\"', "&apos;": "'" } as Record<string, string>)[entity] || entity);
+}
+
+
+// Decorate the *rendered* analysis, rather than inserting Markdown syntax that
+// ResearchMarkdown prints literally. Render completed text only; streaming
+// stays untouched to avoid interfering with React updates during generation.
+function LinkedResearchAnalysis({ source, enabled = true }: { source: string; enabled?: boolean }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (enabled && contentRef.current) decorateRenderedVerseReferences(contentRef.current);
+  }, [source, enabled]);
+  return <div ref={contentRef}><ResearchMarkdown source={source}/></div>;
 }
 
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
@@ -1439,7 +1451,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               {publicLoadState === "error" && <p role="alert" className={styles.hint}>Unable to retrieve published analysis.</p>}
               {publicAnalysis && <div className={styles.answer} onClick={onAnalysisCitationClick}>
                 <p className={styles.hint}>Published v{publicAnalysis.version} · {new Date(publicAnalysis.publishedAt).toLocaleDateString()}</p>
-                <ResearchMarkdown source={linkVerseReferencesInMarkdown(publicAnalysis.content)}/>
+                <LinkedResearchAnalysis key={`published-${publicAnalysis.reference}-${publicAnalysis.version}`} source={publicAnalysis.content}/>
               </div>}
             </> : <>
             <p className={styles.hint}>Browse and search on the left without interrupting this analysis. A new request begins only when you press Analyze verse; Stop cancels it explicitly. Keep this browser tab open while streaming.</p>
@@ -1471,7 +1483,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               {argumentAudit.notNecessarilyDisputed.length > 0 && <p><strong>Not automatically negated:</strong> {argumentAudit.notNecessarilyDisputed.join(" · ")}</p>}
             </details>}
             {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
-            {aiResponse && <div className={styles.answer} onClick={onAnalysisCitationClick}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={linkVerseReferencesInMarkdown(cleanAnalysisText(aiResponse))}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
+            {aiResponse && <div className={styles.answer} onClick={onAnalysisCitationClick}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<LinkedResearchAnalysis key={`private-${analysisReference}-${loading ? "streaming" : "complete"}`} source={cleanAnalysisText(aiResponse)} enabled={!loading}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <div className={styles.note} style={{ marginTop: 24 }}>
               <h3>Saved drafts</h3>
               <p className={styles.hint}>Drafts are private to this browser; they are not published and do not sync across devices. Select one to reopen and edit it.</p>
