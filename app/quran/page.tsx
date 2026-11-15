@@ -1301,7 +1301,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               </div>}
               {researchTab === 'analysis' && <>
           <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{analysisReference ? `Analysis ${analysisReference}` : "No analysis yet"}</span></div>
+            <div className={styles.panelHeader}><h2>Detailed Analysis</h2><span>{publicMode
+              ? publicAnalysis ? `Published ${publicAnalysis.reference} · v${publicAnalysis.version}` : publicLoadState === "loading" ? "Loading published analysis…" : publicLoadState === "missing" ? "Not published" : publicLoadState === "error" ? "Unable to load" : "Select a verse"
+              : analysisReference && aiResponse ? `Analysis ${analysisReference}` : loading ? "Analysis in progress" : "No analysis yet"}</span></div>
             <div className={styles.selection}>
               {analysisVerse ? <span>Reader selection: {refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select a verse in the Reader."}
               {analysisReference && <span style={{ marginLeft: 12 }}> {loading ? "Streaming" : "Last analysis"}: {analysisReference}</span>}
