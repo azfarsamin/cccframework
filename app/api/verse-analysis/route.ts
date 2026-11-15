@@ -8,7 +8,7 @@ import { reviewAnalysisQuality } from "../../../lib/analysis-quality";
 import { CCC_EPISTEMIC_DIRECTIVE, CCC_REASONING_SAFEGUARDS } from "../../../lib/ccc-epistemic-directive";
 import { correctionPrompt, correctedGrammarSheet } from "../../../lib/corpus-corrections";
 import { searchResearch, expandResearchEvidence, neighboringResearchReferences, rankRelevantResearch, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
-import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, readOriginalResearchSection } from "../../../lib/full-research-index";
+import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, restoreArgumentSectionsForVerse } from "../../../lib/full-research-index";
 
 export const runtime = "nodejs";
 // 300s with Vercel Fluid Compute works on Hobby and higher plans. Pro/Enterprise
@@ -278,25 +278,36 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     const fullIds=[...new Set([...researchUnits.map(u => u.articleId),
       ...findFullArticleIdsForVerse(ref,2)])];
     const fullEvidence = fullArticleEvidenceForVerse(ref,fullIds,36);
-    // Source-aware inclusion for new works: never claim the content was read
-    // when only its citations/headings were included. Keep sections together.
-    for(const id of fullIds.filter(id=>!researchUnits.some(u=>u.articleId===id))){
-      const article=readFullResearchArticle(id);
-      if(!article)continue;
-      for(const sectionId of (article.verse_to_sections[ref]||[]).slice(0,2)){
-        const original=readOriginalResearchSection(id,sectionId);
-        if(!original)continue;
-        const allowance=4500;
-        const complete=original.originalText.length<=allowance;
-        const text=complete?original.originalText:original.originalText.slice(0,allowance);
-        const citationFrequency:Record<string,number>={};
-        for(const verse of original.section.verse_refs)citationFrequency[verse]=1;
-        researchUnits.push({key:sectionId,articleId:id,title:article.title,
-          section:original.section.heading,text,verseRefs:original.section.verse_refs,
-          citationFrequency,chunkIds:[sectionId],complete,score:20});
-        researchContext += `\n\n[Complete-source section ${sectionId}; ${complete?'complete':'TRUNCATED'}; verses: ${original.section.verse_refs.join(', ')}]\n${text}`;
-        researchSources.push({id:sectionId,title:article.title,section:original.section.heading,complete,parts:1});
-      }
+    // Restore the complete research ARGUMENT, including its comparative table
+    // and related sections. Do not filter by the first two verse-linked sections:
+    // evidence in a table often has no focal verse citation in its individual rows.
+    const restoration = restoreArgumentSectionsForVerse(ref,fullIds,24500,12);
+    const restoredArticles = new Set(restoration.sections.map(s=>s.articleId));
+    // When the complete index restores sections of the same article, prefer the
+    // authenticated original over incomplete legacy excerpts from that article.
+    const droppedKeys = new Set(researchUnits.filter(u=>restoredArticles.has(u.articleId)).map(u=>u.key));
+    const keptLegacy = researchUnits.filter(u=>!droppedKeys.has(u.key));
+    researchUnits = [...keptLegacy];
+    researchSources = researchSources.filter(u=>!droppedKeys.has(u.id));
+    for(const section of restoration.sections){
+      const citationFrequency:Record<string,number>={};
+      for(const verse of section.verseRefs)citationFrequency[verse]=1;
+      researchUnits.push({key:section.sectionId,articleId:section.articleId,title:section.articleTitle,
+        section:section.heading,text:section.text,verseRefs:section.verseRefs,
+        citationFrequency,chunkIds:[section.sectionId],complete:true,score:60});
+      researchSources.push({id:section.sectionId,title:section.articleTitle,
+        section:section.heading,complete:true,parts:1});
+    }
+    researchContext = researchUnits.length
+      ? researchUnits.map(u=>
+          `[RESTORED ${u.complete?'COMPLETE':'INCOMPLETE'} RESEARCH SECTION ${u.key}; source: ${u.title}; section: ${u.section}; verses: ${u.verseRefs.join(', ')}]\n${u.text}`
+        ).join("\n\n")
+      : 'No directly relevant indexed research sections were restored.';
+    if(restoration.omitted.length){
+      researchContext += `\n\n[RETRIEVAL COVERAGE: ${restoration.sections.length} complete source sections delivered; `+
+        `${restoration.omitted.length} related sections NOT delivered due to context budget. `+
+        `Do not claim an omitted section or table was supplied or examined. `+
+        `Omitted headings: ${restoration.omitted.map(x=>x.heading).join(' | ')}]`;
     }
     const sectionNavigation = fullEvidence.articles.map(a => {
       const anchors = a.sections.filter(s => a.directSections.includes(s.id));
@@ -496,7 +507,7 @@ GRAMMATICAL CALIBRATION: Do not assert two expressions share a root unless separ
 LOGICAL CALIBRATION: Preserve the precise question being investigated, and rank alternatives by affirmative evidence; do not grant an alternative standing simply because it is conceivable or traditional. Separate historical recording from independent divine norm-making. A general Qurʾānic criterion is capable of applying to later institutions without naming them. Context establishes meaning; it does not by itself impose an expiry date on a principle. Where a messenger expressly follows revelation only, distinguish that positive restriction from mere non-mention of later literature. Do not overstate a Qurʾānic statement as prohibiting ordinary truthful speech or history. Explicit statements, cumulative inference and true unknowns must receive distinct confidence.
 READER-FACING WRITING RULES: Never print backend identifiers or provenance implementation names (e.g. Buckwalter, manifest, xaliyfap, jaAEil, >afosadu, jEl, internal lemma ids, retrieval window, chunk). Use Arabic script and standard scholarly transliteration (e.g. jāʿil, khalīfa, fasād, safk); the supplied romanized corpus identifiers are search keys ONLY, not publishable transliteration. Keep evidentiary limitations in natural language, and cite concrete passages examined. Do not include raw coverage telemetry or lists of internal keys in interpretation/calibration. Check Arabic dependency: فِي الْأَرْضِ is a locative phrase; it does NOT govern the accusative خَلِيفَةً, the active participle جَاعِلٌ licenses its object. Lexical grammatical gender and the word-final tāʾ marbūṭa cannot be treated as an automatic contradiction, and do not invent an "ء-pattern" classification. Compare predicate meanings individually: 18:8 is making the earth bare, not appointment to an office. A possible implication about Adam's descendants must be labelled an inference. Do not conflate God's knowledge of what the angels concealed (2:33) with a specification of the precise concealed contents.
 Analyze one Qurʾānic verse through grammar, immediate context, complete relevant Qurʾānic comparisons, and CCC (coherence, correspondence, calibration). Qurʾān-alone interpretive and doctrinal authority. External hadith, tafsīr, manuscripts and historical evidence supplied in indexed research may be examined as claims on the Correspondence axis, NEVER as independent doctrinal authorities. Neither mainstream traditions nor the research author enjoy presumptive evidentiary superiority.
-FOLLOW THE RECONSTRUCTED ARGUMENT: Before reaching a verdict examine the actual premises and comparative evidence in the supplied RESTORED research sections. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
+FOLLOW THE RECONSTRUCTED ARGUMENT: Before reaching a verdict examine the actual premises and comparative evidence in the supplied RESTORED research sections. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A table listed in the source index is not the same as a table delivered in full; if a complete table is restored, analyze its actual rows, and if a budget omission occurred, report that precise limitation. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
 LOGICAL TEST: For each proposed objection, identify precisely which proposition it contradicts. Check that the contrary evidence makes the proposition false, rather than merely describing a different aspect. Transitive verbs may still describe self-directed or benefactive action; assess these dimensions separately, not through category confusion. A false allegation about a thing's origin or identity need not falsify an activity associated with it; nor does the allegation alone independently establish that activity happened. Apply this general distinction to ANY reported speech. Never infer that all associated clauses share the same truth status without argument.
 AFFIRMATIVE EVIDENCE: A competing interpretation requires specific affirmative Arabic evidence and transparent provenance. A hypothetical grammatical possibility is not evidence against a supported interpretation. Equally, a strong inferential preference does not establish absolute lexical impossibility. External linguistic claims must be labeled external; do not import them silently or pretend they cannot exist because a Qurʾānic word occurs once. No manufactured opposition, neutrality, or uncertainty. Identify demonstrated errors in any interpretation. Attribute certainty to the actual inferential strength.
 CORPUS DQ OVERRIDES: Corrections marked correction_supported for an identified verse/token supersede raw corpus tags in the analysis; original_annotation_supported records mean the original corpus is right and the model must not contradict it. In particular in 28:10, إِنْ كَادَتْ لَتُبْدِي uses lightened emphatic inna with distinguishing lām (not conditional in); قَلْبِهَا contains a masculine singular noun with feminine possessive suffix; لِتَكُونَ is from ك و ن, not ك و د. Treat these as verified lexical/syntactic facts, NOT doctrinal conclusions. Explain any genuine conflicting annotations only in private review findings; do not present corrected tags as competing equally credible parses. GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings. A conjunction does not automatically entail semantic non-identity; a singular pronoun is not automatically a proof of one single lawgiver. Morphological similarity or semantic opposition does not prove the same root. A morphological gender/number or verb-form tag does not itself prove a semantic age threshold, category exclusion, contractual ethic, or universally fixed meaning. When a corpus annotation and Arabic syntax disagree, report the conflict instead of asserting a tag is infallible. Apply the supplied local reviewed-correction register, where available, and distinguish approved grammatical corrections from unresolved candidate revisions. A source annotation is not automatically the gold standard.
