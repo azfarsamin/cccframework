@@ -1235,7 +1235,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                 </button>
               </div>
             </div>
-            <div role="tablist" aria-label="Qurʾān study tools" className={styles.researchTabs}>
+            <div role="tablist" aria-label="Qurʾān study tools" className={`${styles.researchTabs} ${creditsStyles.balancedStudyTabs}`}>
               {([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
                   aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
