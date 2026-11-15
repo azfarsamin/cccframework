@@ -309,12 +309,26 @@ function normalizedRoot(value: string) {
   return normalizeArabic(value).replace(/\s+/g, "").trim();
 }
 
-type Note = { id: string; reference: string; question: string; response: string; created: string };
-
+type SavedDraft = {
+  reference: string;
+  content: string;
+  updatedAt: string;
+  evidenceAudit?: unknown;
+  argumentAudit?: unknown;
+  auditReport?: unknown;
+  unsuppliedReferences?: string[];
+};
+const DRAFT_STORAGE_KEY = "ccc-quran-publication-drafts-v1";
 function refOf(chapter: number, verse: number) { return `${chapter}:${verse}`; }
-function storageRead(): Note[] {
-  try { return JSON.parse(localStorage.getItem("ccc-quran-notes-v1") || "[]") as Note[]; }
-  catch { return []; }
+function readSavedDrafts(): SavedDraft[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedDraft =>
+      Boolean(item && typeof item === "object" &&
+        typeof item.reference === "string" && /^\d{1,3}:\d{1,3}$/.test(item.reference) &&
+        typeof item.content === "string" && typeof item.updatedAt === "string"));
+  } catch { return []; }
 }
 
 export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean } = {}) {
@@ -354,7 +368,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [wordChoice, setWordChoice] = useState<WordChoice | null>(null);
   const [wordGloss, setWordGloss] = useState("");
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
-  const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "analysis" | "notes">("grammar");
+  const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "analysis">("grammar");
   const [researchExpanded, setResearchExpanded] = useState(false);
   const analysisAbort = useRef<AbortController | null>(null);
   const analysisRun = useRef(0);
@@ -466,6 +480,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
   const [publicationDraft, setPublicationDraft] = useState("");
+  const [savedDrafts, setSavedDrafts] = useState<SavedDraft[]>([]);
+  const [draftToOpen, setDraftToOpen] = useState("");
+  const draftBeingEdited = useRef(false);
+  const [draftStatus, setDraftStatus] = useState("");
   const [publicationApproved, setPublicationApproved] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publicationStatus, setPublicationStatus] = useState("");
@@ -492,11 +510,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [analysisReference, setAnalysisReference] = useState<string | null>(null);
   const [readerStatus, setReaderStatus] = useState("");
   const [incomplete, setIncomplete] = useState(false);
-  const [notes, setNotes] = useState<Note[]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { setNotes(storageRead());
+  useEffect(() => { if (!publicMode) setSavedDrafts(readSavedDrafts());
     fetch("https://api.alquran.cloud/v1/surah")
       .then((r) => { if (!r.ok) throw new Error("Surah list unavailable"); return r.json(); })
       .then((j: QuranResponse<Surah[]>) => setSurahs(j.data))
@@ -867,9 +884,50 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     return () => { active = false; };
   }, [publicMode, researchTab, selectedPublicReference]);
 
+  // Never overwrite a draft the author is editing, including while the model streams.
+  // Generate a fresh editable proposal only after the current analysis finishes.
   useEffect(() => {
-    if (!publicMode) { setPublicationDraft(cleanAnalysisText(aiResponse)); setPublicationApproved(false); }
-  }, [aiResponse, publicMode]);
+    if (publicMode || loading || !analysisReference || !aiResponse || draftBeingEdited.current) return;
+    setPublicationDraft(cleanAnalysisText(aiResponse));
+    setPublicationApproved(false);
+  }, [aiResponse, analysisReference, loading, publicMode]);
+
+  function savePublicationDraft() {
+    if (publicMode || loading || !analysisReference || !publicationDraft.trim()) return;
+    const record: SavedDraft = {
+      reference: analysisReference, content: publicationDraft,
+      updatedAt: new Date().toISOString(), evidenceAudit, argumentAudit, auditReport, unsuppliedReferences,
+    };
+    const next = [record, ...readSavedDrafts().filter(item => item.reference !== record.reference)]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    try {
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next));
+      setSavedDrafts(next);
+      setDraftToOpen(record.reference);
+      draftBeingEdited.current = true;
+      setDraftStatus(`Draft ${record.reference} saved in this browser. It is not published.`);
+    } catch {
+      setDraftStatus("Unable to save: browser storage is unavailable or full. Copy the draft before leaving.");
+    }
+  }
+
+  function openPublicationDraft() {
+    if (publicMode || loading || !draftToOpen) return;
+    const record = readSavedDrafts().find(item => item.reference === draftToOpen);
+    if (!record) { setDraftStatus("Saved draft unavailable in this browser."); return; }
+    draftBeingEdited.current = true;
+    setAnalysisReference(record.reference);
+    setPublicationDraft(record.content);
+    setAiResponse(record.content);
+    setEvidenceAudit((record.evidenceAudit as typeof evidenceAudit) || null);
+    setArgumentAudit((record.argumentAudit as typeof argumentAudit) || null);
+    setAuditReport((record.auditReport as typeof auditReport) || null);
+    setUnsuppliedReferences(record.unsuppliedReferences || []);
+    setPublicationApproved(false);
+    setIncomplete(false);
+    setResearchTab("analysis");
+    setDraftStatus(`Opened saved draft ${record.reference} for editing. Changes require Save draft.`);
+  }
 
   async function publishAnalysis() {
     if (publicMode || !analysisReference || !publicationApproved || !publicationDraft.trim() || incomplete || loading) return;
@@ -902,6 +960,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     analysisAbort.current = request;
     const run = ++analysisRun.current;
     const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
+    draftBeingEdited.current = false;
+    setPublicationDraft("");
+    setPublicationApproved(false);
+    setDraftStatus("");
     setAnalysisReference(reference);
     setResearchTab("analysis");
     setLoading(true); setStatus("Connecting to analysis model…"); setAiResponse(""); setIncomplete(false); setAuditReport(null); setEvidenceAudit(null); setArgumentAudit(null); setUnsuppliedReferences([]);
@@ -1035,24 +1097,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     }
   }
 
-  function saveNote() {
-    if (!analysisReference || !aiResponse) { setStatus("No analysis output to save."); return; }
-    const entry: Note = {
-      id: `${Date.now()}`, reference: analysisReference,
-      question: "Detailed Analysis", response: cleanAnalysisText(aiResponse) || "Analysis not generated.", created: new Date().toISOString(),
-    };
-    const next = [entry, ...notes]; setNotes(next); localStorage.setItem("ccc-quran-notes-v1", JSON.stringify(next));
-    setStatus("Saved in this browser. Export notes before clearing browser data.");
-  }
-  function exportNotes() {
-    const file = new Blob([JSON.stringify(notes, null, 2)], { type: "application/json" });
-    const href = URL.createObjectURL(file); const a = document.createElement("a");
-    a.href = href; a.download = "ccc-quran-research-notes.json"; a.click(); URL.revokeObjectURL(href);
-  }
   return (
     <main className={styles.main}>
       <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · grammar · detailed verse analysis · notes</p></div>
+        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · grammar · detailed verse analysis · saved drafts</p></div>
         <span className={styles.beta}>Qurʾān-only research</span>
       </div>
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
@@ -1188,10 +1236,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               </div>
             </div>
             <div role="tablist" aria-label="Qurʾān study tools" className={styles.researchTabs}>
-              {(publicMode
-                ? ([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis']] as const)
-                : ([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis'], ['notes', 'Notes']] as const)
-              ).map(([id, label]) => (
+              {([['grammar', 'Grammar'], ['roots', 'Roots'], ['analysis', 'Detailed Analysis']] as const).map(([id, label]) => (
                 <button key={id} type="button" role="tab" id={`ccc-tab-${id}`} aria-selected={researchTab === id}
                   aria-controls="ccc-research-content" onClick={() => setResearchTab(id)}
                   className={researchTab === id ? styles.activeResearchTab : ''}>{label}</button>
@@ -1412,30 +1457,38 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </details>}
             {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
             {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
-            <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
-            {aiResponse && <div className={styles.note} style={{ marginTop: 24 }}>
+            <div className={styles.note} style={{ marginTop: 24 }}>
+              <h3>Saved drafts</h3>
+              <p className={styles.hint}>Drafts are private to this browser; they are not published and do not sync across devices. Select one to reopen and edit it.</p>
+              {savedDrafts.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <select aria-label="Choose a saved analysis draft" value={draftToOpen} onChange={event => setDraftToOpen(event.target.value)} style={{ flex: "1 1 180px", minWidth: 0 }}>
+                  <option value="">Select saved draft</option>
+                  {savedDrafts.map(draft => <option key={draft.reference} value={draft.reference}>{draft.reference} — {new Date(draft.updatedAt).toLocaleString()}</option>)}
+                </select>
+                <button type="button" className={styles.secondary} disabled={!draftToOpen || loading} onClick={openPublicationDraft}>Open draft</button>
+              </div> : <p className={styles.hint}>No saved drafts in this browser.</p>}
+              {draftStatus && <p role="status" className={styles.hint}>{draftStatus}</p>}
+            </div>
+            {(aiResponse || publicationDraft) && <div className={styles.note} style={{ marginTop: 24 }}>
               <h3>Admin publication workflow</h3>
               <p className={styles.hint}>Review and edit the full analysis below. Approval publishes this exact text; model findings are not automatically corrected.</p>
               <label className={styles.label}>Publication draft
-                <textarea style={{ width: "100%", minHeight: 320, fontFamily: "inherit" }} value={publicationDraft} onChange={e => { setPublicationDraft(e.target.value); setPublicationApproved(false); }} />
+                <textarea style={{ width: "100%", minHeight: 320, fontFamily: "inherit" }} value={publicationDraft} onChange={e => { draftBeingEdited.current = true; setPublicationDraft(e.target.value); setPublicationApproved(false); setDraftStatus("Unsaved changes — select Save draft to retain them."); }} />
               </label>
               <label className={styles.label} style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <input type="checkbox" checked={publicationApproved} onChange={e => setPublicationApproved(e.target.checked)} />
                 I have reviewed this exact analysis and approve it for public publication.
               </label>
               {auditReport && (auditReport.findings.length || auditReport.unresolved.length) ? <p className={styles.hint}>Verifier reports {auditReport.findings.length} finding(s) and {auditReport.unresolved.length} unresolved item(s). Resolve these before approving.</p> : null}
-              <button type="button" className={styles.primary} disabled={publishing || loading || incomplete || !publicationApproved || !publicationDraft.trim()} onClick={publishAnalysis}>
-                {publishing ? "Publishing…" : `Publish ${analysisReference} to /publicquran`}
-              </button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="button" className={styles.secondary} disabled={publishing || loading || !analysisReference || !publicationDraft.trim()} onClick={savePublicationDraft}>Save draft</button>
+                <button type="button" className={styles.primary} disabled={publishing || loading || incomplete || !publicationApproved || !publicationDraft.trim()} onClick={publishAnalysis}>
+                  {publishing ? "Publishing…" : `Publish ${analysisReference} to /publicquran`}
+                </button>
+              </div>
               {publicationStatus && <p role="status" className={styles.hint}>{publicationStatus}</p>}
             </div>}
             </>}
-          </div>
-              </>}
-              {researchTab === 'notes' && <>
-          <div className={styles.tabBody}>
-            <div className={styles.panelHeader}><h2>Research notebook</h2><button type="button" className={styles.small} onClick={exportNotes} disabled={!notes.length}>Export JSON</button></div>
-            {!notes.length ? <p className={styles.hint}>No saved notes yet. Notes stay in this browser until exported.</p> : notes.slice(0, 12).map(n => <details key={n.id} className={styles.note}><summary>{n.reference} · {new Date(n.created).toLocaleDateString()}</summary><p>{n.question}</p><ResearchMarkdown source={n.response}/></details>)}
           </div>
               </>}
             </div>
