@@ -316,7 +316,7 @@ function storageRead(): Note[] {
   catch { return []; }
 }
 
-export default function QuranResearchPage() {
+export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean } = {}) {
   const [surahs, setSurahs] = useState<Surah[]>([]);
   // One shared recorded-audio player; entirely independent of verse selection and AI.
   const verseAudio = useQuranVerseAudio(surahs);
@@ -412,6 +412,12 @@ export default function QuranResearchPage() {
   const pendingJump = useRef<{ chapter: number; verse: number } | null>(null);
   const scrollTarget = useRef<string | null>(null);
   const [password, setPassword] = useState("");
+  const [publicationDraft, setPublicationDraft] = useState("");
+  const [publicationApproved, setPublicationApproved] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publicationStatus, setPublicationStatus] = useState("");
+  const [publicAnalysis, setPublicAnalysis] = useState<{ reference: string; version: number; publishedAt: string; content: string } | null>(null);
+  const [publicLoadState, setPublicLoadState] = useState<"idle" | "loading" | "missing" | "error">("idle");
   const [aiResponse, setAiResponse] = useState("");
   const [auditReport, setAuditReport] = useState<{ findings: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved: string[]; deterministicFindings?: number; grammarStatus?: string; evidenceStatus?: string } | null>(null);
   const [evidenceAudit, setEvidenceAudit] = useState<{
@@ -790,6 +796,44 @@ export default function QuranResearchPage() {
     setSelectedSearch(old => old.length === 1 && old[0].chapter === result.chapter && old[0].verse === result.verse ? [] : [result]);
   }
   const analysisVerse = analysisVerses[0] || null;
+  // The public Reader NEVER calls the paid inference endpoint.
+  const selectedPublicReference = analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : null;
+  useEffect(() => {
+    if (!publicMode || researchTab !== "analysis" || !selectedPublicReference) return;
+    let active = true;
+    setPublicAnalysis(null); setPublicLoadState("loading");
+    const [surah, ayah] = selectedPublicReference.split(":");
+    fetch(`/published-analyses/${surah}/${ayah}.json`, { cache: "no-store" })
+      .then(async response => {
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json() as { reference: string; version: number; publishedAt: string; content: string };
+      })
+      .then(record => { if (!active) return; setPublicAnalysis(record); setPublicLoadState(record ? "idle" : "missing"); })
+      .catch(() => { if (active) setPublicLoadState("error"); });
+    return () => { active = false; };
+  }, [publicMode, researchTab, selectedPublicReference]);
+
+  useEffect(() => {
+    if (!publicMode) { setPublicationDraft(cleanAnalysisText(aiResponse)); setPublicationApproved(false); }
+  }, [aiResponse, publicMode]);
+
+  async function publishAnalysis() {
+    if (publicMode || !analysisReference || !publicationApproved || !publicationDraft.trim() || incomplete || loading) return;
+    setPublishing(true); setPublicationStatus("Publishing approved analysis…");
+    try {
+      const response = await fetch("/api/publish-analysis", {
+        method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "x-ccc-passcode": password },
+        body: JSON.stringify({ reference: analysisReference, content: publicationDraft, evidenceAudit, argumentAudit, auditReport, unsuppliedReferences }),
+      });
+      const body = await response.json() as { error?: string; version?: number; reference?: string };
+      if (!response.ok) throw new Error(body.error || `Publish failed (HTTP ${response.status})`);
+      setPublicationStatus(`Published ${body.reference} version ${body.version} to the repository. Public availability follows Vercel deployment.`);
+      setPublicationApproved(false);
+    } catch (error) { setPublicationStatus(error instanceof Error ? error.message : "Publication failed"); }
+    finally { setPublishing(false); }
+  }
+
   function cancelAnalysis() {
     analysisRun.current++;
     analysisAbort.current?.abort();
@@ -1262,6 +1306,15 @@ export default function QuranResearchPage() {
               {analysisVerse ? <span>Reader selection: {refOf(analysisVerse.chapter, analysisVerse.verse)}</span> : "Select a verse in the Reader."}
               {analysisReference && <span style={{ marginLeft: 12 }}> {loading ? "Streaming" : "Last analysis"}: {analysisReference}</span>}
             </div>
+            {publicMode ? <>
+              {publicLoadState === "loading" && <p role="status" className={styles.hint}>Loading published analysis…</p>}
+              {publicLoadState === "missing" && <p role="status" className={styles.hint}>Detailed analysis for this verse has not yet been published.</p>}
+              {publicLoadState === "error" && <p role="alert" className={styles.hint}>Unable to retrieve published analysis.</p>}
+              {publicAnalysis && <div className={styles.answer}>
+                <p className={styles.hint}>Published v{publicAnalysis.version} · {new Date(publicAnalysis.publishedAt).toLocaleDateString()}</p>
+                <ResearchMarkdown source={publicAnalysis.content}/>
+              </div>}
+            </> : <>
             <p className={styles.hint}>Browse and search on the left without interrupting this analysis. A new request begins only when you press Analyze verse; Stop cancels it explicitly. Keep this browser tab open while streaming.</p>
             <label className={styles.label}>Private analysis passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
@@ -1293,6 +1346,23 @@ export default function QuranResearchPage() {
             {unsuppliedReferences.length > 0 && <p role="status" className={styles.hint}>References mentioned without full Arabic in this analysis: {unsuppliedReferences.join(", ")}. These claims need separate verification.</p>}
             {aiResponse && <div className={styles.answer}><h3>Detailed analysis {analysisReference || ""}</h3>{incomplete && <p role="alert" className={styles.incomplete}>The analysis or verification may be incomplete (output limit or interrupted stream).</p>}<ResearchMarkdown source={cleanAnalysisText(aiResponse)}/>{auditReport && (auditReport.findings.length > 0 || auditReport.unresolved.length > 0) && <details><summary>Evidence review: {auditReport.findings.length} flagged issue(s), {auditReport.unresolved.length} unresolved item(s){auditReport.deterministicFindings !== undefined ? `; ${auditReport.deterministicFindings} corpus-backed grammar flag(s)` : ""}</summary><ul>{auditReport.findings.map((item, i) => <li key={`finding-${i}`}><strong>Review (not auto-applied):</strong> {item.issue} <span>Evidence {item.evidenceRef}: {item.evidenceQuote}</span> <span>Suggested revision: {item.suggestion}</span></li>)}{auditReport.unresolved.map((item, i) => <li key={`open-${i}`}>Unresolved: {item}</li>)}</ul></details>}</div>}
             <button type="button" className={styles.secondary} disabled={!aiResponse} onClick={saveNote}>Save analysis note</button>
+            {aiResponse && <div className={styles.note} style={{ marginTop: 24 }}>
+              <h3>Admin publication workflow</h3>
+              <p className={styles.hint}>Review and edit the full analysis below. Approval publishes this exact text; model findings are not automatically corrected.</p>
+              <label className={styles.label}>Publication draft
+                <textarea style={{ width: "100%", minHeight: 320, fontFamily: "inherit" }} value={publicationDraft} onChange={e => { setPublicationDraft(e.target.value); setPublicationApproved(false); }} />
+              </label>
+              <label className={styles.label} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <input type="checkbox" checked={publicationApproved} onChange={e => setPublicationApproved(e.target.checked)} />
+                I have reviewed this exact analysis and approve it for public publication.
+              </label>
+              {auditReport && (auditReport.findings.length || auditReport.unresolved.length) ? <p className={styles.hint}>Verifier reports {auditReport.findings.length} finding(s) and {auditReport.unresolved.length} unresolved item(s). Resolve these before approving.</p> : null}
+              <button type="button" className={styles.primary} disabled={publishing || loading || incomplete || !publicationApproved || !publicationDraft.trim()} onClick={publishAnalysis}>
+                {publishing ? "Publishing…" : `Publish ${analysisReference} to /publicquran`}
+              </button>
+              {publicationStatus && <p role="status" className={styles.hint}>{publicationStatus}</p>}
+            </div>}
+            </>}
           </div>
               </>}
               {researchTab === 'notes' && <>
@@ -1307,4 +1377,8 @@ export default function QuranResearchPage() {
       </div>
     </main>
   );
+}
+
+export default function QuranPrivatePage() {
+  return <QuranResearchPage />;
 }
