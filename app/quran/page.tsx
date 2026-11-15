@@ -1057,7 +1057,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
       </div>
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
         <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
-        <a href="/quran/corpus" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search</a>
+        <a href="/quran/corpus" target="_blank" rel="noopener noreferrer" title="Open Corpus Search in a new tab; the Reader and any running analysis stay open" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search ↗</a>
       </nav>
       <section className={styles.globalSearch} aria-label="Search the entire Quran">
         <h2>Find a verse or search the Qurʾān</h2>
@@ -1303,7 +1303,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             <div style={{ marginTop: 12, marginBottom: 12, border: "1px solid #d9dfe8", borderRadius: 10, padding: 12, background: "#f8f9fb" }}>
               <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>Advanced corpus analysis</div>
               <p className={styles.hint} style={{ marginTop: 0 }}>Explore this root across grammatical forms, or find all verbs of a form across the Qurʾān.</p>
-              <a style={{ color: "#234469", fontSize: 13, fontWeight: 650 }} href={rootOptions.some(option => option.root === normalizedRoot(rootQuery))
+              <a target="_blank" rel="noopener noreferrer" title="Open corpus tools in a new tab without interrupting the Reader analysis" style={{ color: "#234469", fontSize: 13, fontWeight: 650 }} href={rootOptions.some(option => option.root === normalizedRoot(rootQuery))
                 ? `/quran/corpus?mode=root&letter=${encodeURIComponent(normalizedRoot(rootQuery)[0])}&root=${encodeURIComponent(normalizedRoot(rootQuery))}&form=any`
                 : "/quran/corpus"}>
                 Open in Corpus Search ↗
