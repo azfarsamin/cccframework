@@ -500,6 +500,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [publicationApproved, setPublicationApproved] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [publicationStatus, setPublicationStatus] = useState("");
+  const [publishedEditorStatus, setPublishedEditorStatus] = useState("");
+  const [publishedEditorLoading, setPublishedEditorLoading] = useState(false);
+  const [loadedPublishedVersion, setLoadedPublishedVersion] = useState<{reference:string;version:number;publishedAt:string}|null>(null);
+  const publishedEditorRequest = useRef(0);
   const [publicAnalysis, setPublicAnalysis] = useState<{ reference: string; version: number; publishedAt: string; content: string } | null>(null);
   const [publicLoadState, setPublicLoadState] = useState<"idle" | "loading" | "missing" | "error">("idle");
   const [aiResponse, setAiResponse] = useState("");
@@ -911,6 +915,47 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     return () => { active = false; };
   }, [publicMode, researchTab, selectedPublicReference]);
 
+  // Admin-only: published files are durable, public read-only records. Loading a
+  // published version creates an editable working copy; only Publish writes back.
+  // The original published record remains unchanged until an approved publish.
+  async function loadPublishedForEditing() {
+    if (publicMode || loading || publishing || publishedEditorLoading || !selectedPublicReference) return;
+    const reference = selectedPublicReference;
+    if ((publicationDraft.trim() || aiResponse.trim()) &&
+        !window.confirm(`Replace the current editor with published analysis ${reference}? Save any unsaved changes first.`)) return;
+    const request = ++publishedEditorRequest.current;
+    setPublishedEditorLoading(true);
+    setPublishedEditorStatus(`Loading published ${reference}…`);
+    try {
+      const [surah, ayah] = reference.split(":");
+      const response = await fetch(`/published-analyses/${surah}/${ayah}.json`, { cache: "no-store" });
+      if (response.status === 404) throw new Error(`No published analysis exists for ${reference}. Run a new analysis instead.`);
+      if (!response.ok) throw new Error(`Unable to load published analysis (HTTP ${response.status}).`);
+      const record = await response.json() as { reference?:string;version?:number;publishedAt?:string;content?:string };
+      if (record.reference !== reference || !Number.isInteger(record.version) ||
+          typeof record.content !== "string" || !record.content.trim()) {
+        throw new Error("Published record is invalid or its verse reference does not match.");
+      }
+      if (request !== publishedEditorRequest.current) return;
+      draftBeingEdited.current = true; // protect the imported text from model-sync effects
+      setAnalysisReference(reference);
+      setAiResponse(record.content);
+      setPublicationDraft(record.content);
+      setPublicationApproved(false);
+      setIncomplete(false);
+      // These verification artifacts belong to another AI run, not the published text.
+      setEvidenceAudit(null); setArgumentAudit(null); setAuditReport(null); setUnsuppliedReferences([]);
+      setLoadedPublishedVersion({reference, version:record.version as number, publishedAt:record.publishedAt || ""});
+      setPublicationStatus(""); setDraftStatus("");
+      setPublishedEditorStatus(`Loaded published ${reference} v${record.version}. Edit below, Save draft, or approve and publish a revision.`);
+    } catch (error) {
+      if (request === publishedEditorRequest.current)
+        setPublishedEditorStatus(error instanceof Error ? error.message : "Could not load published analysis.");
+    } finally {
+      if (request === publishedEditorRequest.current) setPublishedEditorLoading(false);
+    }
+  }
+
   // Never overwrite a draft the author is editing, including while the model streams.
   // Generate a fresh editable proposal only after the current analysis finishes.
   useEffect(() => {
@@ -953,6 +998,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     setPublicationApproved(false);
     setIncomplete(false);
     setResearchTab("analysis");
+    setLoadedPublishedVersion(null);
+    setPublishedEditorStatus("");
     setDraftStatus(`Opened saved draft ${record.reference} for editing. Changes require Save draft.`);
   }
 
@@ -981,6 +1028,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     setIncomplete(true);
   }
   async function analyze() {
+    if (!publicMode && !loading && (publicationDraft.trim() || aiResponse.trim()) &&
+        !window.confirm("Start a new AI analysis? This replaces the current editable text. Save the draft first if you want to retain it.")) return;
     if (!analysisVerse) { setStatus("Select a verse in the Reader first."); return; }
     analysisAbort.current?.abort();
     const request = new AbortController();
@@ -988,6 +1037,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     const run = ++analysisRun.current;
     const reference = `${analysisVerse.chapter}:${analysisVerse.verse}`;
     draftBeingEdited.current = false;
+    setLoadedPublishedVersion(null);
+    setPublishedEditorStatus("");
     setPublicationDraft("");
     setPublicationApproved(false);
     setDraftStatus("");
@@ -1458,7 +1509,18 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             <label className={styles.label}>Private analysis passcode
               <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder="Set by site administrator" />
             </label>
-            <button type="button" className={styles.primary} disabled={loading || !analysisVerse} onClick={analyze}>{loading ? `Analyzing ${analysisReference || "verse"}…` : `Analyze ${analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "selected verse"}`}</button>
+            <div className={styles.note} style={{ marginBottom: 12 }}>
+              <h3>Published analyses</h3>
+              <p className={styles.hint}>Select a verse in the Reader, then load its published analysis into the editable workspace. The public version stays unchanged until you publish a revision.</p>
+              <button type="button" className={styles.secondary}
+                disabled={loading || publishing || publishedEditorLoading || !selectedPublicReference}
+                onClick={() => void loadPublishedForEditing()}>
+                {publishedEditorLoading ? "Loading published analysis…" : `Load published ${selectedPublicReference || "verse"} for editing`}
+              </button>
+              {publishedEditorStatus && <p role="status" className={styles.hint}>{publishedEditorStatus}</p>}
+              {loadedPublishedVersion && <p className={styles.hint}>Editing a copy of published {loadedPublishedVersion.reference}, version {loadedPublishedVersion.version}. Save a draft to retain unpublished changes.</p>}
+            </div>
+            <button type="button" className={styles.primary} disabled={loading || publishing || publishedEditorLoading || !analysisVerse} onClick={analyze}>{loading ? `Analyzing ${analysisReference || "verse"}…` : `Run new analysis ${analysisVerse ? refOf(analysisVerse.chapter, analysisVerse.verse) : "(select verse)"}`}</button>
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
             {evidenceAudit && <details className={styles.note}>
