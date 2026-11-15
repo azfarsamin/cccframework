@@ -1,4 +1,3 @@
-// Self-contained compiled research index with four research works. No dependency on research/index.json at build or runtime.
 const bundledResearchIndex = {
   "schema_version": 1,
   "generated_at": "2026-11-14",
@@ -55,6 +54,17 @@ const bundledResearchIndex = {
       "source_type": "user_supplied_book",
       "status": "indexed_not_fact_checked",
       "description": "Eight-chapter worldview-evaluation treatise with appendices: belief formation, CCC criteria, Qurʾānic preservation and manuscript evidence, comparative scripture, Qurʾānic reasoning toolkit, seven domains, tri-modal intelligence, and final convergence."
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "authors": [],
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "source_sha256": "dfe8b81991d170430989c800063bdf57e571e400e2882c0e590c9f0ce42bfc6a",
+      "primary_verse": "66:1",
+      "source_type": "user_supplied_article",
+      "status": "indexed_not_fact_checked",
+      "description": "Qur’an-only case for God’s exclusive authority to legislate halal and haram; prophetic correction in 66:1–2; false religious prohibitions, dietary law and constraints on hadith authority."
     }
   ],
   "chunks": [
@@ -18265,6 +18275,498 @@ const bundledResearchIndex = {
         "author"
       ],
       "text": "Azfar Samin is an independent researcher with an interest in religion, epistemology, systems thinking, and comparative worldview analysis. His work focuses on examining truth claims from first principles, with particular attention to coherence, correspondence with reality, and the conditions under which belief systems can be judged consistently across a shared set of criteria.\n\nAs for his geolocation, he aspires to live in the city of Truth, and the land where people follow what constrains them to it.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s01:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Introduction",
+      "section_number": 1,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "17:36"
+      ],
+      "topics": [
+        "halal",
+        "haram",
+        "authority"
+      ],
+      "text": "Halāl and Harām: A Qur’anic Perspective\nHow Hadith interpretations shaped prohibitions that contradict the Qur’an\n\nThe subject of ḥalāl (حلال) and ḥarām (حرام) is frequently discussed within the Muslim community. Traditionalist Muslims across all major sects place significant emphasis on these two terms, which lie at the heart of Islam’s ethical, legal, and spiritual framework. They define what is permissible and what is forbidden according to the Qur’an, the Sunnah (teachings of Prophet Muhammad), and Islamic jurisprudence (fiqh). In essence, ḥalāl refers to what is deemed lawful and ḥarām to what is unlawful.\n\nWhile much of the popular discussion focuses on food—what is acceptable to eat and what must be avoided—other areas such as attire, music, fine arts, and even pet ownership have also been subject to rulings by religious scholars who interpret Islamic law (Sharī‘ah).\n\nThe purpose of this article is to re-examine the subject of ḥalāl and ḥarām through a Qur’anic lens, offering an alternative perspective for those who take personal responsibility for their actions and prefer not to follow inherited views without knowledge. As the Qur’an states:\n\n“And do not pursue that of which you have no knowledge…” (17:36).",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s01:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Introduction",
+      "section_number": 1,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [],
+      "topics": [
+        "halal",
+        "haram",
+        "authority"
+      ],
+      "text": "The evidence presented here invites readers to apply critical thinking and make informed choices based on God’s guidance.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s02:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Authority Over Lawfulness and Unlawfulness",
+      "section_number": 2,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "66:1",
+        "66:2"
+      ],
+      "topics": [
+        "prophet",
+        "oaths",
+        "lawful",
+        "forbidding",
+        "wives",
+        "authority"
+      ],
+      "text": "We begin our discussion by first asking: Who has the authority to declare what is lawful and unlawful? Our reference point is, of course, the Qur’an. Can it be anyone other than God?\n\nIn verse 66:1, we see Prophet Muhammad himself being corrected by God for prohibiting something merely to please his wives:\n\n“O Prophet, why do you forbid (tuḥarrimu) what God has made lawful (aḥalla) for you, seeking to please your wives? God is Forgiving, Merciful. God has ordained for you the absolution of your oaths. And God is your Protector, and He is the Knowing, the Wise.” (66:1–2)\n\nThe message here is unambiguous: the authority to declare something unlawful belongs to God alone. Not even His final messenger was permitted to impose such restrictions. The Prophet is reminded to dissolve his oath and free himself from an unnecessary self-imposed burden.\n\nNotably, the Qur’an does not elaborate on the background of this event, which suggests that the specific details are unimportant. What matters is the principle: no one—Prophet or otherwise—has the right to forbid what God has allowed.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s02:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Authority Over Lawfulness and Unlawfulness",
+      "section_number": 2,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "10:15",
+        "46:9"
+      ],
+      "topics": [
+        "prophet",
+        "oaths",
+        "lawful",
+        "forbidding",
+        "wives",
+        "authority"
+      ],
+      "text": "This raises a serious issue when we turn to the Hadith literature, where many reports attribute to the Prophet sayings that appear to prohibit things. Since the Qur’an emphasizes that the Prophet followed only what was revealed to him (e.g., 10:15, 46:9), it is difficult to reconcile such reports with scripture. The most reasonable conclusion is that these attributions do not originate with him but were later inventions in his name.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s03:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "The Seriousness of Fabricating Law",
+      "section_number": 3,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "16:116",
+        "16:117",
+        "69:43",
+        "69:44",
+        "69:45",
+        "69:46",
+        "69:47"
+      ],
+      "topics": [
+        "false attribution",
+        "fabrication",
+        "authority",
+        "prophet",
+        "revelation"
+      ],
+      "text": "The gravity of declaring something ḥalāl or ḥarām without God’s authority is underscored in the following verses:\n\n“And do not say, concerning the falsehood your tongues describe: ‘This is lawful (ḥalāl), and this is forbidden (ḥarām),’ inventing lies against God. Indeed, those who invent lies against God will never succeed. A brief enjoyment, then they will face a painful punishment.” (16:116–117)\n\nThese verses leave no room for doubt: attributing false rulings to God is a form of blasphemy that leads to certain punishment. If such a warning applies to ordinary people, it follows all the more that God’s final messenger—who was fully aware of the seriousness of fabricating in God’s name—would never engage in declaring unlawful what God had permitted. This reinforces the conclusion that reports which attribute such prohibitions to him cannot be genuine, but must have been later fabrications. This is confirmed unequivocally in the Qur’an:\n\n“[This is] a revelation from the Lord of all creation. And if he [the Prophet] had fabricated any statements and attributed them to Us, We would have seized him by the right hand, then cut his aorta, and none of you could have shielded him.” (69:43–47)",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s03:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "The Seriousness of Fabricating Law",
+      "section_number": 3,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [],
+      "topics": [
+        "false attribution",
+        "fabrication",
+        "authority",
+        "prophet",
+        "revelation"
+      ],
+      "text": "The severity of these words leaves no doubt: fabricating revelations in God’s name is unthinkable, even for the Prophet himself. If he had done so, God makes clear that He would have ended his mission immediately.\n\nIn light of this, it is difficult to accept that the Prophet would later be portrayed as declaring things unlawful that God had not forbidden—especially in collections compiled two to three centuries after his death, which he neither saw nor authorized. Such attributions deserve critical re-examination by those who seek to practice faith on the basis of God’s own revelation.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s04:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Only God Determines Lawfulness",
+      "section_number": 4,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "10:59",
+        "3:93",
+        "4:160"
+      ],
+      "topics": [
+        "halal",
+        "haram",
+        "authority",
+        "dietary",
+        "prohibitions"
+      ],
+      "text": "Another verse highlights the principle that humans cannot legislate in God’s stead:\n\n“Say: ‘Have you considered what God has provided for you, yet you have made some of it unlawful (ḥarām) and some lawful (ḥalāl)?’ Say: ‘Did God give you permission, or do you invent lies against God?’” (10:59)\n\nGod firmly rebukes those who take it upon themselves to issue religious rulings without His authority. The Qur’an makes it clear that only God determines what is lawful and unlawful, and these rulings are already specified in His revelation.\n\nGod further provides the example of the Children of Israel, who committed a similar transgression as a lesson for future generations:\n\n“All food was lawful to the Children of Israel except what Israel made unlawful upon himself before the Torah was sent down. Say: ‘Bring the Torah and recite it, if you are truthful.’” (3:93)\n\n“Because of the disobedience among those who are Jewish, God made unlawful to them certain things that had previously been lawful, as a consequence of their actions and for deterring others from the path of God.” (4:160)",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s04:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Only God Determines Lawfulness",
+      "section_number": 4,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "6:146",
+        "6:138",
+        "6:139",
+        "6:143",
+        "6:144"
+      ],
+      "topics": [
+        "halal",
+        "haram",
+        "authority",
+        "dietary",
+        "prohibitions"
+      ],
+      "text": "“And for those who are Jewish We made unlawful all that have claws; and from the cattle and sheep We forbade their fat, except that which is attached to the back, or entrails, or mixed with bone. This was a punishment for their rebellion, and God is truthful.” (6:146)\n\nNotably, some Hadith later included similar prohibitions, such as forbidding animals with claws and birds with talons (See examples in the Appendix below). While these restrictions were originally specific to the Children of Israel, it appears that some Muslim compilers incorporated elements of Jewish dietary law into the Hadith corpus, which later acquired canonical status.\n\nIn a similar manner, the Qur’an notes that pagan Arabs also engaged in prohibitions that made little common sense and falsely attributed them to God (6:138–139; 6:143–144).\n\nFrom the verses cited above, it is evident that only Allah has the authority to declare what is lawful (ḥalāl) and unlawful (ḥarām), and no human being has been granted the power to override the criteria established in the Qur’an.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s05:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Qur’anic Guidance on Food",
+      "section_number": 5,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "16:114",
+        "16:115"
+      ],
+      "topics": [
+        "food",
+        "diet",
+        "carrion",
+        "blood",
+        "swine",
+        "necessity"
+      ],
+      "text": "Let us now examine the verses that provide guidance regarding what is lawful to consume as food:\n\n“So eat of what God has provided you, lawful (ḥalāl) and good (ṭayyib), and be grateful for the favor of your Lord if it is Him you serve.” (16:114)\n\nThe first principle is clear: God encourages consumption of foods that are both lawful and beneficial. In contemporary terms, this implies a habit of healthy eating and avoiding substances that may harm the body or lead to illness. Unhealthy eating puts us in a diseased state, for which we have to run to the doctor and get medicine prescribed, which essentially is designed to only mask the symptoms, has potential long-term side effects that are harmful, and hardly provides a cure but we digress ….\n\nThe Qur’an then identifies specific prohibitions:\n\n“He has made unlawful to you carrion, blood, the flesh of swine, and that dedicated to other than God; but whoever is forced, neither desiring nor transgressing, God is Forgiving and Merciful.” (16:115)",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s05:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Qur’anic Guidance on Food",
+      "section_number": 5,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "6:145",
+        "5:3"
+      ],
+      "topics": [
+        "food",
+        "diet",
+        "carrion",
+        "blood",
+        "swine",
+        "necessity"
+      ],
+      "text": "“Say: ‘I find no food forbidden (muḥarram) for me except that it be: animals that die of themselves, running blood, the flesh of pigs, or that which is sacrificed for other than God. Whoever is compelled to eat these out of necessity, without desire or transgression, your Lord is Forgiving and Merciful.’” (6:145)\n\nFrom these verses, we can summarize four categories of prohibited foods:\n\nAnimals that die of themselves (carrion)\n\nRunning blood\n\nFlesh of pigs\n\nFoods sacrificed to other than God\n\nImportantly, verse 6:145 clarifies that in cases of necessity—when survival is at stake—these restrictions are relaxed. God, in His mercy, permits consumption of these foods without sin, emphasizing that divine law is flexible and compassionate in extreme circumstances.\n\nIn 5:3, we find these four earlier restrictions reiterated, along with additional details:",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s05:c02",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Qur’anic Guidance on Food",
+      "section_number": 5,
+      "chunk_number": 2,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "5:3"
+      ],
+      "topics": [
+        "food",
+        "diet",
+        "carrion",
+        "blood",
+        "swine",
+        "necessity"
+      ],
+      "text": "“Forbidden to you is carrion, blood, the flesh of swine, that dedicated to other than God, the strangled, the beaten, the fallen, the gored, that eaten by a beast of prey—except what you slaughter—and that sacrificed upon the altar, and that you seek apportionment by divining arrows; that is perfidy. But whoever is compelled by hunger, without inclination to sin, God is Forgiving and Merciful. This day I have perfected for you your religion, completed My favor upon you, and approved submission as your doctrine; but do not fear those who disbelieve, and fear Me instead.” (5:3)\n\nThis verse not only reinforces the previously mentioned dietary restrictions but also adds prohibitions on animals that are strangled, beaten, gored, fallen, or partially eaten by predators, as well as forbidden practices such as divination by arrows.\n\nImportantly, the verse concludes by affirming that God has perfected the religion for believers, completing His favor and approving submission (Islam) as a comprehensive doctrine. This makes it clear that no further human additions or explanations are required to supplement His guidance regarding lawful and unlawful matters.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s06:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "The Prophet’s Role",
+      "section_number": 6,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "6:145",
+        "2:219",
+        "46:9"
+      ],
+      "topics": [
+        "messenger",
+        "revelation",
+        "authority",
+        "obedience"
+      ],
+      "text": "Verses such as 6:145 and 2:219 clarify that the Prophet is only a conveyor of divine revelation, not a lawgiver of his own accord. This is evident in the recurring Qur’anic construction “Say” (qul), which appears at least 308 times. In some cases, verses begin with phrases such as “They ask you … Say …” (yasʾalūnaka / yastaftūnaka…qul…), indicating that Allah provides clarification on specific issues directly to the believers, all within the boundaries of the Qur’an.\n\nThe Prophet conveyed God’s guidance to the believers through Angel Gabriel; he did not legislate independently.\n\n“Say: ‘I am not a new thing among the messengers, and I do not know what will be done with me or with you. I follow only what is revealed to me, and I am only a clear warner.” (46:9)\n\nFour important points can be drawn from this verse:\n\nThe Prophet was not a new messenger; his message was consistent with that of all previous messengers—calling people to serve God alone and not associate partners with Him.\n\nHe had no knowledge of the unseen, including what would happen to himself or others.\n\nHe followed only what was revealed to him, without inventing anything beyond the Qur’an.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s06:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "The Prophet’s Role",
+      "section_number": 6,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [],
+      "topics": [
+        "messenger",
+        "revelation",
+        "authority",
+        "obedience"
+      ],
+      "text": "Like all messengers before him, his primary duty was to warn the people around him and deliver God’s message faithfully.\n\nObedience to the Prophet thus means adherence to what God revealed through him, not to later Hadith collections compiled centuries after his death.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s07:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Human Tendency to Create Prohibitions",
+      "section_number": 7,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "6:118",
+        "6:121",
+        "6:119"
+      ],
+      "topics": [
+        "food",
+        "lawful",
+        "dietary",
+        "innovation",
+        "false prohibitions"
+      ],
+      "text": "Returning to our earlier discussion, we observe that, apart from the specific prohibitions outlined previously, all food is lawful (ḥalāl) according to the Qur’an. It is that simple.\n\nThe only additional requirement is that we mention the name of Allah before eating:\n\n“So eat of that over which the name of God has been remembered, if you believe in His signs.” (6:118)\n\nConversely, the Qur’an warns against consuming anything without invoking God’s name:\n\n“And do not eat of that over which the name of God has not been mentioned, for it is transgression. And the devils inspire their supporters to dispute with you; but if you obey them, you would be associators (polytheists).” (6:121)\n\nInterestingly, in 6:119, God questions the human tendency to create prohibitions and seek minutiae from their chosen religious authorities, even though He has already made clear what is lawful and provided all necessary details through revelation:\n\n“And why should you not eat of that on which the name of God has been mentioned, when He has fully detailed to you what has been made unlawful—except what you are compelled to? Many are misguided by their desires without knowledge; your Lord is fully aware of the transgressors.” (6:119)",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s07:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Human Tendency to Create Prohibitions",
+      "section_number": 7,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "2:168"
+      ],
+      "topics": [
+        "food",
+        "lawful",
+        "dietary",
+        "innovation",
+        "false prohibitions"
+      ],
+      "text": "As long as we mention God’s name before eating, all things are lawful except what He has explicitly forbidden. This verse emphasizes that God has provided complete guidance in the Qur’an regarding what is ḥalāl and ḥarām. The wording also indicates God’s displeasure with those who unnecessarily declare things unlawful for themselves, despite repeated instruction not to do so.\n\nBased on the evidence presented, it becomes clear that those who impose prohibitions through human religious decrees or non-Qur’anic literature—beyond what God has revealed—are the ones truly misguided.\n\nThe final point is emphasized in 2:168, where God encourages humans to consume all that He has made lawful. Making things unlawful against His guidance is likened to following the footsteps of the devil, whose sole purpose is to mislead mankind away from the path outlined in the Qur’an:\n\n“O people, eat of what is on the earth as good and lawful, and do not follow in the footsteps of the devil. He is to you a clear enemy.” (2:168)\n\nGod further cautions believers not to declare unlawful what He has permitted:",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s07:c02",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Human Tendency to Create Prohibitions",
+      "section_number": 7,
+      "chunk_number": 2,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "5:87"
+      ],
+      "topics": [
+        "food",
+        "lawful",
+        "dietary",
+        "innovation",
+        "false prohibitions"
+      ],
+      "text": "“O you who believe, do not make unlawful the good things that God has made lawful for you, and do not transgress; God does not love the transgressors.” (5:87)\n\nThese verses reinforce the Qur’anic principle that humans should adhere strictly to God’s guidance, avoiding unnecessary prohibitions or innovations in matters of lawfulness and consumption.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s08:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Other Domains of Ḥalāl and Ḥarām",
+      "section_number": 8,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "7:32"
+      ],
+      "topics": [
+        "clothing",
+        "dogs",
+        "pets",
+        "adornment",
+        "authority"
+      ],
+      "text": "The discussion of what is ḥalāl and ḥarām extends beyond food and drink to other aspects of life. Numerous Hadith, for example, prohibit Muslims from wearing gold rings, silk clothing, or garments dyed with saffron, and even disallow keeping dogs as pets. The point here is that, regardless of personal preference or cultural norms, the Qur’an establishes that no one—not even the Prophet —has the authority to forbid what God has made permissible, contrary to the claims of Hadith apologists.\n\nSay, \"Who has forbidden the adornment of Allah which He has produced for His servants and the good [lawful] things of provision?\" Say, \"They are for those who believe during the worldly life [but] exclusively for them on the Day of Resurrection.\" Thus do We detail the verses for a people who know. (7:32)1",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s08:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Other Domains of Ḥalāl and Ḥarām",
+      "section_number": 8,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [],
+      "topics": [
+        "clothing",
+        "dogs",
+        "pets",
+        "adornment",
+        "authority"
+      ],
+      "text": "This verse makes clear that there are no inherent restrictions on lawful luxury items. As long as a person observes God’s guidance and understands that this life determines judgment in the Hereafter, there is no reason they cannot enjoy the blessings God has provided. The final part of the verse further reinforces a point highlighted earlier: the Qur’an provides all necessary guidance to follow God alone, without reliance on supplementary books or man-made religious traditions that the Prophet never authorized.\n\nIn Islam, there is also a negative attitude toward keeping dogs, largely based on Hadith literature, which often portrays dogs unfavorably in contrast to cats. One example is as follows:\n\nIt was narrated that ʿĀ’ishah said:\n“Jibril (as) promised the Messenger of Allah (ﷺ) that he would come to him at a certain hour, but he was late. The Prophet ﷺ went out and found Jibril standing at the door. He asked: ‘What kept you from entering?’ Jibril replied: ‘There is a dog in the house, and we do not enter a house in which there is a dog or an image.’”\n— Sunan Ibn Mājah, Vol. 4, Book 32, Hadith 3651",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s08:c02",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Other Domains of Ḥalāl and Ḥarām",
+      "section_number": 8,
+      "chunk_number": 2,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "18:18",
+        "18:22",
+        "5:4"
+      ],
+      "topics": [
+        "clothing",
+        "dogs",
+        "pets",
+        "adornment",
+        "authority"
+      ],
+      "text": "This hadith stands in tension with how service dogs are used today by those with a disability. A person with vision loss may use a guide dog. Hearing alert dogs help people with hearing loss.\n\nIronically, while cats are not mentioned in the Qur’an, dogs are explicitly referenced in the story of the Companions of the Cave:\n\n“And you would have thought them awake, while they were asleep; and We turned them on their right and on their left, and their dog stretched out his forelegs at the entrance.” (18:18)\n“And you would have thought them awake, while they were asleep; and We turned them on their right and on their left, and their dog lay at the entrance. Had you seen them, you would have turned from them in flight, and been filled with awe of them.” (18:22)\n\nand indirectly in (5:4)2. This contrast highlights that the Qur’an does not prohibit dogs, and the negative perception largely originates from later Hadith interpretations rather than divine scripture.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": true
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s09:c00",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Conclusion",
+      "section_number": 9,
+      "chunk_number": 0,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "6:150"
+      ],
+      "topics": [
+        "halal",
+        "haram",
+        "religious authority"
+      ],
+      "text": "In conclusion, Allah does not forbid us from consuming or using anything except what He has explicitly prohibited. In fact, He challenges those who make claims about certain things being unlawful to produce evidence:\n\n“Say: ‘Bring your witnesses who can testify that God has made this unlawful.’” (6:150)\n\nThe Qur’an makes it unequivocally clear that the authority to declare what is lawful (ḥalāl) or unlawful (ḥarām) rests solely with God. No human being—not even the Prophet Muhammad —has the right to impose additional prohibitions beyond what has been revealed. The examples from the Qur’an, from dietary laws to the broader scope of permissible conduct, consistently emphasize that God has provided complete guidance for believers, and no further human intervention is necessary.\n\nThe Hadith literature, compiled centuries after the Prophet’s lifetime, contains numerous attributions that contradict this Qur’anic principle. Whether regarding food, luxury, clothing, or pets, these human-imposed restrictions often reflect cultural or sectarian biases rather than divine authority. By examining the Qur’an itself, it becomes clear that the Prophet’s role was solely to deliver God’s message faithfully, without adding or subtracting from it.",
+      "source_kind": "authored_research",
+      "evidence_role": "argument_not_scripture",
+      "external_discussion": false
+    },
+    {
+      "id": "halal-and-haram-quranic-perspective:s09:c01",
+      "article_id": "halal-and-haram-quranic-perspective",
+      "title": "Halāl and Harām: A Qur’anic Perspective",
+      "section": "Conclusion",
+      "section_number": 9,
+      "chunk_number": 1,
+      "source_path": "research/articles/halal-and-haram-quranic-perspective.md",
+      "verse_refs": [
+        "39:18"
+      ],
+      "topics": [
+        "halal",
+        "haram",
+        "religious authority"
+      ],
+      "text": "True guidance, therefore, comes from adhering to the Qur’an, following God’s instructions directly, and avoiding unnecessary innovations in religious practice. As verse 39:18 reminds us:\n\n“Those who hear the word and follow the best of it—those are they whom God has guided; and it is they who possess insight.” (39:18)\n\nUnderstanding and applying this principle allows Muslims to live faithfully according to divine revelation, free from man-made prohibitions that were never intended by God.",
       "source_kind": "authored_research",
       "evidence_role": "argument_not_scripture",
       "external_discussion": false

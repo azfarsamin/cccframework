@@ -32,13 +32,14 @@ function verbFacts(w:MorphWord){
   const mood=moodTag?moodNames[moodTag]:undefined;
   const voice=tags.includes("PASS")?"passive":tags.includes("ACT")?"active":undefined;
   const aspect=tags.includes("IMPF")?"imperfect":tags.includes("PERF")?"perfect":tags.includes("IMPV")?"imperative":undefined;
-  return {form,mood,voice,aspect,tags};
+  const personTag=tags.find(t=>/^[123](?:MS|FS|MP|FP|D|M|F|P|S)$/.test(t));
+  return {form,mood,voice,aspect,tags,personTag};
 }
 export function deterministicGrammarSheet(ref:string,morph:Morphology):string{
   return (morph[ref]||[]).flatMap((w,i)=>{
     const f=verbFacts(w);if(!f)return [];
     return [`${ref} word ${i+1}: ${w.s.map(x=>x[0]).join("")} [lemma=${w.l||"?"}; root=${w.r||"?"}] `+
-      `FORM=${f.form}; ASPECT=${f.aspect||"not annotated"}; VOICE=${f.voice||"not annotated"}; MOOD=${f.mood||"NOT ANNOTATED — do not infer"}`];
+      `FORM=${f.form}; ASPECT=${f.aspect||"not annotated"}; VOICE=${f.voice||"not annotated"}; PERSON=${f.personTag||"NOT ANNOTATED"}; MOOD=${f.mood||"NOT ANNOTATED — do not infer"}`];
   }).join("\n")||"No annotated verbs in the focal verse.";
 }
 // Split on sentence and clause delimiters. Do NOT take a grammar label from
@@ -48,7 +49,7 @@ function aliases(w:MorphWord){
   const surface=w.s.map(x=>x[0]).join("");
   const stem=w.s.find(([,pos])=>pos==="V")?.[0]||surface;
   const arabic=[surface,stem].map(normalizeArabic).filter(x=>x.length>=3);
-  const roman=[surface,stem].map(x=>latin(transliterate(x))).filter(x=>x.length>=4);
+  const roman=[...([surface,stem].map(x=>latin(transliterate(x)))),...(w.l?[latin(w.l)]:[])].filter(x=>x.length>=4);
   return {arabic:[...new Set(arabic)],roman:[...new Set(roman)]};
 }
 function matches(unit:string, set:ReturnType<typeof aliases>){
@@ -57,6 +58,15 @@ function matches(unit:string, set:ReturnType<typeof aliases>){
 }
 function claimed(unit:string,pattern:RegExp){const result=[...latin(unit).matchAll(pattern)].map(x=>x[1].toLowerCase());return new Set(result).size===1?result[0]:undefined;}
 const formRe=/\bform\s+(xii|xi|viii|vii|vi|iv|ix|iii|ii|v|x|i)\b/gi;
+const personRe=/\b([123](?:MS|FS|MP|FP|D|M|F|P|S))\b/gi;
+const spelledPersonRe=/\b(first|second|third)[ -]person\s+(masculine|feminine)\s+(singular|plural|dual)\b/gi;
+const pMap:Record<string,string>={first:"1",second:"2",third:"3",masculine:"M",feminine:"F",singular:"S",plural:"P",dual:"D"};
+function assertedPerson(unit:string):string|undefined{
+  const numeric=claimed(unit,personRe);
+  const textual=[...latin(unit).matchAll(spelledPersonRe)].map(m=>`${pMap[m[1]]}${pMap[m[2]]}${pMap[m[3]]}`);
+  const result=new Set([...(numeric?[numeric.toUpperCase()]:[]),...textual]);
+  return result.size===1?[...result][0]:undefined;
+}
 const moodRe=/\b(indicative|subjunctive|jussive|energetic)\b/gi;
 const voiceRe=/\b(passive|active)\s+(?:voice|verb|imperfect|perfect)\b/gi;
 export function validateGrammarClaims(analysis:string,refs:string|string[],morph:Morphology,corpus:Corpus):GrammarFinding[]{
@@ -90,10 +100,12 @@ export function validateGrammarClaims(analysis:string,refs:string|string[],morph
       const assertedMood=claimed(unit,moodRe);
       const assertedForm=claimed(unit,formRe)?.toUpperCase();
       const assertedVoice=claimed(unit,voiceRe);
+      const assertedPersonTag=assertedPerson(unit);
       let kind="",asserted="",correct="";
       if(assertedMood && f.mood && assertedMood!==f.mood){kind="mood";asserted=assertedMood;correct=f.mood;}
       else if(assertedForm && assertedForm!==f.form){kind="verb form";asserted=`Form ${assertedForm}`;correct=`Form ${f.form}`;}
       else if(assertedVoice && f.voice && assertedVoice!==f.voice){kind="voice";asserted=assertedVoice;correct=f.voice;}
+      else if(assertedPersonTag && f.personTag && assertedPersonTag!==f.personTag){kind="person/number/gender";asserted=assertedPersonTag;correct=f.personTag;}
       if(!kind)continue;
       const key=`${ref}:${target+1}:${kind}`;if(seen.has(key))continue;seen.add(key);
       findings.push({quote:unit.slice(0,240),issue:`Token-aligned ${kind} mismatch: claimed ${asserted}; corpus tag ${correct}.`,
