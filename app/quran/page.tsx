@@ -5,6 +5,7 @@ import { ResearchMarkdown } from "./research-markdown";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 import audioStyles from "./verse-audio.module.css";
+import creditsStyles from "./credits-popup.module.css";
 import { VerseAudioButton, VerseAudioDock, useQuranVerseAudio } from "./verse-audio";
 
 // The model occasionally emits numeric HTML entities and malformed section numbering.
@@ -317,6 +318,22 @@ function storageRead(): Note[] {
 }
 
 export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean } = {}) {
+  // Display attribution once per browser, then retain a permanent way to reopen it.
+  const [creditsOpen, setCreditsOpen] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem("ccc-reader-credits-ack-v1") !== "1") setCreditsOpen(true); }
+    catch { setCreditsOpen(true); }
+  }, []);
+  const closeCredits = () => {
+    setCreditsOpen(false);
+    try { localStorage.setItem("ccc-reader-credits-ack-v1", "1"); } catch { /* private browsing */ }
+  };
+  useEffect(() => {
+    if (!creditsOpen) return;
+    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape") closeCredits(); };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [creditsOpen]);
   const [surahs, setSurahs] = useState<Surah[]>([]);
   // One shared recorded-audio player; entirely independent of verse selection and AI.
   const verseAudio = useQuranVerseAudio(surahs);
@@ -1059,19 +1076,19 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </div>
           ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
           {readerStatus && <p role="alert" className={styles.status}>{readerStatus}</p>}
-          <VerseAudioDock audio={verseAudio} goToVerse={goToReference} />
+          <div className={creditsStyles.audioHost}><VerseAudioDock audio={verseAudio} goToVerse={goToReference} /></div>
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
                 const chosen = selectedSearch.some(r => r.chapter === result.chapter && r.verse === result.verse);
-                return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""} ${verseAudio.isActive(result.chapter, result.verse) ? audioStyles.activeVerse : ""}`} key={`${result.chapter}:${result.verse}`}>
+                return <div className={`${styles.ayah} ${chosen ? styles.chosen : ""} ${verseAudio.isActive(result.chapter, result.verse) ? audioStyles.activeVerse : ""}`} style={{ minHeight: "unset", paddingTop: "0.75rem", paddingBottom: "0.75rem", gap: "0.6rem" }} key={`${result.chapter}:${result.verse}`}>
                   <div className={styles.verseToolbar}>
                     <button type="button" className={styles.searchRef} onClick={() => openSearchResult(result)} title="Open this verse in the surah reader">{refOf(result.chapter, result.verse)} <span aria-hidden="true">↗</span></button>
                     <button type="button" className={styles.verseSelect} onClick={() => toggleSearchVerse(result)} aria-pressed={chosen}>{chosen ? "Selected ✓" : "Select verse"}</button>
                     <VerseAudioButton audio={verseAudio} chapter={result.chapter} verse={result.verse} />
                   </div>
-                  <span dir="rtl" lang="ar" className={styles.arabic}>{result.arabic}</span>
-                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu translation unavailable for this verse." : "Translation unavailable for this verse.")}</span>
+                  <span dir="rtl" lang="ar" className={styles.arabic}><span className={creditsStyles.fontPlusOnePoint}>{result.arabic}</span></span>
+                  <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}><span className={creditsStyles.fontPlusOnePoint}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu translation unavailable for this verse." : "Translation unavailable for this verse.")}</span></span>
                   <VerseReferences chapter={result.chapter} verse={result.verse} />
                 </div>;
               })}
@@ -1080,9 +1097,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </>}
             {!showSearchResults && <>
             {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
-              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""} ${verseAudio.isActive(chapter, a.numberInSurah) ? audioStyles.activeVerse : ""}`}>
+              className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""} ${verseAudio.isActive(chapter, a.numberInSurah) ? audioStyles.activeVerse : ""}`} style={{ minHeight: "unset", paddingTop: "0.75rem", paddingBottom: "0.75rem", gap: "0.6rem" }}>
               <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected ✓" : "Select verse"}</button><VerseAudioButton audio={verseAudio} chapter={chapter} verse={a.numberInSurah} /></div>
-              <span className={styles.arabic} dir="rtl" lang="ar">{(() => {
+              <span className={styles.arabic} dir="rtl" lang="ar"><span className={creditsStyles.fontPlusOnePoint}>{(() => {
                 const reference = refOf(chapter, a.numberInSurah);
                 const tokens = a.text.trim().split(/\s+/);
                 const basmalahOffset = verseBasmalahOffset(chapter, a.numberInSurah, tokens);
@@ -1094,19 +1111,20 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                     // Preserve original token positions for corpus alignment and inspection.
                     const safe = !mapping || mapping[i] !== null;
                     return <button key={i} type="button" className={styles.arabicWord}
+                      style={{ fontSize: "inherit" }}
                       disabled={!safe}
                       title={safe ? `Inspect word ${i + 1}` : "Word could not be aligned confidently; grammar withheld"}
                       onClick={() => void inspectWord(reference, i + 1, token, a.text)}>{token}</button>;
                   })}</span>
                 </>;
-              })()}</span>
-              <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`}
+              })()}</span></span>
+              <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} 
                 lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>
-                {edition === "ur.islahi"
+                <span className={creditsStyles.fontPlusOnePoint}>{edition === "ur.islahi"
                   ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
                   : edition === "gerrans"
                     ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
-                    : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}
+                    : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}</span>
               </span>
               <VerseReferences chapter={chapter} verse={a.numberInSurah} />
             </div>)}
@@ -1114,7 +1132,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
             </>}
           </div>
-          <p className={styles.credit}>Arabic text supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider's text edition, accuracy, and rights before public production use. This prototype does not modify the returned Arabic text. Translations and Urdu expositions are credited to their respective authors; the full 114-surah Urdu text is attributed to Amin Ahsan Islahi, Tadabbur-e-Qurʾān (user-supplied dataset). These renderings are not authoritative Arabic text.</p>
+          <button type="button" className={creditsStyles.creditsLink} onClick={() => setCreditsOpen(true)} aria-haspopup="dialog">Credits &amp; sources</button>
         </section>
         <aside className={`${styles.sidebar} ${styles.researchSide}`} aria-label="Qurʾān study tools">
           <section className={`${styles.panel} ${styles.researchPanel}`}>
@@ -1377,6 +1395,19 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
           </section>
         </aside>
       </div>
+      {creditsOpen && <div className={creditsStyles.backdrop} onMouseDown={event => { if (event.target === event.currentTarget) closeCredits(); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="ccc-credits-heading" className={creditsStyles.dialog}>
+          <div className={creditsStyles.header}>
+            <h2 id="ccc-credits-heading">Credits &amp; sources</h2>
+            <button type="button" className={creditsStyles.close} aria-label="Close credits" onClick={closeCredits} autoFocus>×</button>
+          </div>
+          <div className={creditsStyles.body}>
+            <p><strong>Arabic Qurʾān:</strong> Supplied by <a href="https://alquran.cloud/api" target="_blank" rel="noreferrer">Al Quran Cloud API</a> (Uthmani edition). Verify the provider’s text edition, accuracy, and rights before public production use. The reader does not modify the returned Arabic text.</p>
+            <p><strong>Translations:</strong> Credited to their respective authors. The full 114-surah Urdu exposition is attributed to Amin Ahsan Islahi, <em>Tadabbur-e-Qurʾān</em> (user-supplied dataset). Translations are not authoritative Arabic text.</p>
+            <p><strong>Audio:</strong> Streamed on demand from <a href="https://alquran.cloud" target="_blank" rel="noreferrer">Al Quran Cloud</a>, reciter <strong>ar.alafasy</strong>. Internet access is required. Verse audio and translation remain separate.</p>
+          </div>
+        </section>
+      </div>}
     </main>
   );
 }

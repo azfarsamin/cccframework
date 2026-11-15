@@ -1,0 +1,18 @@
+/* Small, scope-contained reader cosmetics. Existing app styling is preserved. */
+.fontPlusOnePoint { display: inline; font-size: calc(1em + 1pt); line-height: 1.5; }
+/* The audio dock's original attribution is retained in Credits & sources above. */
+.audioHost :global(p:has(a[href*="alquran.cloud"])) { display: none; }
+.creditsLink { margin: 0.65rem 0 0; padding: 0.35rem 0; border: 0; background: transparent; color: #566b88; text-decoration: underline; cursor: pointer; font: inherit; font-size: 0.85rem; }
+.creditsLink:hover { color: #244b7d; }
+.backdrop { position: fixed; inset: 0; z-index: 10000; background: rgba(17,24,39,.56); display: grid; place-items: center; padding: 1rem; }
+.dialog { width: min(100%, 540px); max-height: min(80vh, 670px); overflow-y: auto; border-radius: 1rem; background: #fff; color: #26334b; box-shadow: 0 20px 70px rgba(0,0,0,.25); }
+.header { position: sticky; top: 0; background: #fff; display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #e2e8f0; padding: 0.9rem 1rem 0.9rem 1.3rem; }
+.header h2 { font-size: 1.15rem; font-weight: 650; margin: 0; }
+.close { width: 2.25rem; height: 2.25rem; flex-shrink: 0; border: 1px solid #d0d8e2; background: #f8fafc; color: #26334b; border-radius: .55rem; font-size: 1.65rem; line-height: 1; cursor: pointer; }
+.close:focus-visible, .creditsLink:focus-visible { outline: 2px solid #3263a2; outline-offset: 2px; }
+.body { padding: .35rem 1.3rem 1.3rem; font-size: 0.97rem; line-height: 1.6; }
+.body p { margin: 0.85rem 0; }
+.body a { color: #254e87; text-decoration: underline; }
+@media (max-width: 520px) { .dialog { max-height: 85dvh; } .header { padding: .7rem .8rem .7rem 1rem; } .body { padding: .3rem 1rem 1rem; font-size: .91rem; } }
+/* Audio component versions that use a dedicated credit class instead of <p>. */
+.audioHost :global([class*="credit" i]) { display: none; }
