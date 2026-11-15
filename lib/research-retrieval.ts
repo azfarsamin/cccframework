@@ -19573,7 +19573,7 @@ export async function searchResearch(query: string, verseRef?: string, limit = 4
     const topics = new Set(chunk.topics.flatMap(terms));
     const body = normalize(chunk.text);
     const matchCount = searchTerms.filter(term => body.includes(term) || section.includes(term) || topics.has(term)).length;
-    const score = (exactVerse ? 24 : 0) + (verseRef && section.includes(verseRef) ? 12 : 0) + matchCount * 2 + searchTerms.filter(term => section.includes(term) || topics.has(term)).length * 3 - (chunk.external_discussion ? 2 : 0);
+    const score = (exactVerse ? 24 + Math.min(12, (chunk.text.match(new RegExp(verseRef!.replace(":", "\\:"), "g")) || []).length * 3) : 0) + (verseRef && section.includes(verseRef) ? 12 : 0) + matchCount * 2 + searchTerms.filter(term => section.includes(term) || topics.has(term)).length * 3 - (chunk.external_discussion ? 2 : 0);
     if (score <= 0 || (!exactVerse && matchCount === 0)) continue;
     scored.push({ id: chunk.id, articleId: chunk.article_id, title: chunk.title,
       section: chunk.section, verseRefs: chunk.verse_refs, text: chunk.text,
@@ -19665,4 +19665,32 @@ export async function neighboringResearchReferences(units:ResearchEvidenceUnit[]
     }
   }
   return [...leadScores.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0])).slice(0,limit).map(([ref])=>ref);
+}
+
+/** v7.12.4: Topic-neutral section relevance gate. A section that cites the
+ * focal verse incidentally must not become a new claim in the reconstruction.
+ * Relevance is graded by citation concentration and section heading.
+ * No doctrinal viewpoint receives a bonus or exclusion.
+ */
+export function rankRelevantResearch(verseRef: string, units: ResearchEvidenceUnit[], maxUnits = 3): {
+  accepted: ResearchEvidenceUnit[]; rejected: ResearchEvidenceUnit[];
+} {
+  const scored = units.map(unit => {
+    const textCitations = [...unit.text.matchAll(/\b(\d{1,3}:\d{1,3})\b/g)].map(m => m[1]);
+    const direct = textCitations.filter(x => x === verseRef).length;
+    const total = textCitations.length;
+    const density = direct / Math.max(1, total);
+    const metadata = unit.verseRefs.includes(verseRef);
+    const headingMentionsVerse = unit.section.includes(verseRef);
+    const heading = normalize(unit.section);
+    const genericMethod = /(?:method of interpretation|methodology|text grammar and context|general framework)/i.test(heading);
+    const score = (metadata ? 12 : 0) + Math.min(5, direct) * 5 + density * 40 +
+      (headingMentionsVerse ? 15 : 0) - (genericMethod ? 18 : 0) -
+      (total > 10 && direct <= 1 ? 8 : 0);
+    return {unit,score,direct,metadata};
+  }).filter(x => x.metadata || x.direct > 0)
+    .sort((a,b) => b.score-a.score || b.unit.score-a.unit.score || a.unit.key.localeCompare(b.unit.key));
+  const accepted = scored.filter(x => x.score >= 10).slice(0,maxUnits).map(x => x.unit);
+  const keys = new Set(accepted.map(x => x.key));
+  return { accepted, rejected:units.filter(u => !keys.has(u.key)) };
 }

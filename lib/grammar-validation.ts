@@ -49,13 +49,15 @@ function aliases(w:MorphWord){
   const surface=w.s.map(x=>x[0]).join("");
   const stem=w.s.find(([,pos])=>pos==="V")?.[0]||surface;
   const arabic=[surface,stem].map(normalizeArabic).filter(x=>x.length>=3);
-  const roman=[...([surface,stem].map(x=>latin(transliterate(x)))),...(w.l?[latin(w.l)]:[])].filter(x=>x.length>=4);
+  // Do not use a short lemma as a surface-form match: e.g. ra'aA / tara
+  // matched unrelated 4:44 descriptions of ishtara (false Form VIII flag).
+  const roman=[surface,stem].map(x=>latin(transliterate(x))).filter(x=>x.length>=5);
   return {arabic:[...new Set(arabic)],roman:[...new Set(roman)]};
 }
 function escapedLiteral(value:string):string{return value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}
 function matches(unit:string, set:ReturnType<typeof aliases>){
   const ar=normalizeArabic(unit),r=latin(unit);
-  return set.arabic.some(x=>ar.includes(x))||set.roman.some(x=>new RegExp(`(^|[^a-z])${escapedLiteral(x)}(?=$|[^a-z])`).test(r));
+  return set.arabic.some(x=>new RegExp(`(^|[^\p{L}])${escapedLiteral(x)}(?=$|[^\p{L}])`,"u").test(ar))||set.roman.some(x=>new RegExp(`(^|[^a-z])${escapedLiteral(x)}(?=$|[^a-z])`).test(r));
 }
 function claimed(unit:string,pattern:RegExp){const result=[...latin(unit).matchAll(pattern)].map(x=>x[1].toLowerCase());return new Set(result).size===1?result[0]:undefined;}
 const formRe=/\bform\s+(xii|xi|viii|vii|vi|iv|ix|iii|ii|v|x|i)\b/gi;
@@ -91,10 +93,12 @@ export function validateGrammarClaims(analysis:string,refs:string|string[],morph
         });
         return matches(unit,aliases(word))||matchedKnown?[index]:[];
       });
-      const target=explicit?Number(explicit[1])-1:cited.length===1?cited[0]:-1;
+      // Explicit word numbers are meaningful only when the current verse is
+      // actually identified. Cross-verse prose often says "word 2" elsewhere.
+      const target=explicit && unit.includes(ref) ? Number(explicit[1])-1 : cited.length===1 ? cited[0] : -1;
       if(target<0||target>=words.length||!verbFacts(words[target]))continue;
       // No claim may be inherited from neighboring clauses or a list of verbs.
-      if(!explicit && cited.length!==1)continue;
+      if(!(explicit && unit.includes(ref)) && cited.length!==1)continue;
       const f=verbFacts(words[target])!;
       const matchedCorrection = correctionRecords([ref]).find(e=>e.id===`${ref}:${target+1}` && e.status==="correction_supported" && e.category==="morphology_mood");
       if (matchedCorrection && typeof matchedCorrection.recommended.mood==="string") f.mood=matchedCorrection.recommended.mood;
