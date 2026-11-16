@@ -368,6 +368,27 @@ function corpusRomanization(value: string): string {
   return output;
 }
 
+// Render a readable whole-word transliteration from the existing corpus segments.
+// The definite article is joined to its preceding prefix (bi + al -> bil-),
+// while a sun-letter shadda after the article is not printed twice. The
+// separate stem-internal shadda (e.g. rr in sharri) is retained.
+function inspectorTransliteration(word: MorphWord): string {
+  let output = "";
+  let articleBeforeStem = false;
+  for (const [surface, kind] of word.s) {
+    if (kind === "DET") {
+      output += output && /[aeiouāīū]$/i.test(output) ? "l-" : "al-";
+      articleBeforeStem = true;
+      continue;
+    }
+    const adjusted = articleBeforeStem && surface.length > 1 && surface[1] === "~"
+      ? surface[0] + surface.slice(2) : surface;
+    output += corpusRomanization(adjusted);
+    articleBeforeStem = false;
+  }
+  return output;
+}
+
 const ROOT_GROUP_ORDER = [
   "Verb — Form I", "Verb — Form II", "Verb — Form III", "Verb — Form IV",
   "Verb — Form V", "Verb — Form VI", "Verb — Form VII", "Verb — Form VIII",
@@ -1012,6 +1033,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
 
   const inspectedWord = wordChoice && morph?.[wordChoice.reference]?.[wordChoice.index - 1];
   const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
+  const inspectorRomanized = inspectedWord ? inspectorTransliteration(inspectedWord) : "";
+  const inspectorDictionaryUrl = inspectedWord?.r && wordChoice
+    ? `https://corpus.quran.com/qurandictionary.jsp?q=${encodeURIComponent(inspectedWord.r)}#(${wordChoice.reference}:${wordChoice.index})`
+    : "";
 
   const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
   const analysisVerses = showSearchResults
@@ -1500,7 +1525,16 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
-              <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display}</span>
+              <div className={styles.inspectorWordLine}>
+                {inspectorRomanized && inspectorDictionaryUrl ? (
+                  <a className={styles.inspectorTransliteration} href={inspectorDictionaryUrl}
+                    target="_blank" rel="noopener noreferrer"
+                    title="Open this word in the Qurʾānic Arabic Corpus dictionary">
+                    {inspectorRomanized}
+                  </a>
+                ) : <span className={styles.inspectorTransliteration} aria-label="Transliteration unavailable">—</span>}
+                <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display || (inspectedWord?.s.map(segment => translitToArabic(segment[0])).join("") ?? "")}</span>
+              </div>
               <div className={styles.wordMeaning} lang="en" aria-live="polite">
                 <span className={styles.morphLabel}>English word meaning</span>
                 <strong>{wordGlossLoading ? "Loading…" : wordGloss || "Unavailable from the word-by-word source"}</strong>

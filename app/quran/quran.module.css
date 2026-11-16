@@ -235,3 +235,9 @@
   .researchExpandButton { padding:7px; }
   .researchTabs button { font-size:12px; }
 }
+
+/* Word inspector: corpus-based transliteration at left, Arabic word at right. */
+.inspectorWordLine{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
+.inspectorTransliteration{color:#24527f;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
+.inspectorTransliteration:hover,.inspectorTransliteration:focus-visible{color:#163657}
+.inspectorWordLine .inspectorArabic{flex-shrink:0;margin-left:auto}
