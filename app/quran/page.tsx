@@ -1179,8 +1179,11 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
 
   return (
     <main className={styles.main}>
-      <div className={styles.header}>
-        <div><a href="/" className={styles.back}>← CCC Framework</a><h1>Qurʾān Research Engine</h1><p>Arabic text · grammar · detailed verse analysis · saved drafts</p></div>
+      <div className={styles.header} style={{ paddingBlock: "0.25rem", marginBottom: "0.65rem", alignItems: "center" }}>
+        <div>
+          <a href="/" className={styles.back}>← CCC Framework</a>
+          <h1 style={{ fontSize: "1.35rem", lineHeight: 1.2, margin: "0.25rem 0 0" }}>Qurʾān Research Engine</h1>
+        </div>
         <span className={styles.beta}>Qurʾān-only research</span>
       </div>
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
