@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   buildCorpusIndex, corpusForms, exportCorpusCsv, FORM_ORDER,
   normalizeRoot, queryCorpus, resultCounts,
@@ -32,6 +32,12 @@ export default function QuranCorpusSearchPage() {
   const [applied, setApplied] = useState<SearchQuery | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("verse");
   const [shown, setShown] = useState(PAGE_SIZE);
+  // Glosses come from the Reader's existing word-by-word endpoint. Cache the
+  // whole verse so repeated occurrences share one request; never infer a gloss
+  // from the root or from a verse-level translation.
+  const glossCache = useRef(new Map<string, string[] | null>());
+  const glossPending = useRef(new Set<string>());
+  const [, setGlossRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -113,6 +119,44 @@ export default function QuranCorpusSearchPage() {
     });
     return ordered.slice(0, shown);
   }, [result, shown, grouping]);
+  // Only request the verses on the currently displayed result page. At most
+  // four requests are in flight and cached glosses survive search/order changes.
+  useEffect(() => {
+    if (!applied || !displayed.length) return;
+    const refs = Array.from(new Set(displayed.map(t => t.reference)))
+      .filter(ref => !glossCache.current.has(ref) && !glossPending.current.has(ref));
+    if (!refs.length) return;
+    for (const ref of refs) glossPending.current.add(ref);
+    let cursor = 0;
+    async function worker() {
+      while (cursor < refs.length) {
+        const ref = refs[cursor++];
+        try {
+          const response = await fetch(`/api/quran-word?verse=${encodeURIComponent(ref)}`);
+          if (!response.ok) throw new Error(`Gloss unavailable for ${ref}`);
+          const payload: unknown = await response.json();
+          const meanings = payload && typeof payload === "object" && "meanings" in payload
+            ? (payload as { meanings?: unknown }).meanings : null;
+          glossCache.current.set(ref, Array.isArray(meanings) && meanings.every(m => typeof m === "string")
+            ? meanings as string[] : null);
+        } catch {
+          glossCache.current.set(ref, null);
+        } finally {
+          glossPending.current.delete(ref);
+          setGlossRevision(value => value + 1);
+        }
+      }
+    }
+    void Promise.all(Array.from({ length: Math.min(4, refs.length) }, () => worker()));
+  }, [applied, displayed]);
+
+  function englishMeaning(token: CorpusToken): string {
+    const words = glossCache.current.get(token.reference);
+    if (words === undefined) return "Loading…";
+    const meaning = words?.[token.position - 1];
+    return typeof meaning === "string" && meaning.trim() ? meaning.trim() : "Unavailable";
+  }
+
   const totalWords = tokens.length;
   const totalVerbs = useMemo(() => tokens.filter(t => Boolean(t.form)).length, [tokens]);
   const ready = !loading && !error;
@@ -261,10 +305,11 @@ export default function QuranCorpusSearchPage() {
         </div>
         {result.length ? <div className={styles.tableScroll}>
           <table className={styles.table}>
-            <thead><tr><th scope="col">Verse / word</th><th scope="col">Arabic word</th><th scope="col">Root · lemma</th><th scope="col">Grammar</th><th scope="col">Open</th></tr></thead>
+            <thead><tr><th scope="col">Verse / word</th><th scope="col">Arabic word</th><th scope="col">English meaning</th><th scope="col">Root · lemma</th><th scope="col">Grammar</th><th scope="col">Open</th></tr></thead>
             <tbody>{displayed.map(t => <tr key={`${t.reference}:${t.position}`}>
               <td><strong>{t.reference}:{t.position}</strong></td>
               <td className={styles.arabic} dir="rtl" lang="ar">{t.word}</td>
+              <td className={styles.meaning} lang="en">{englishMeaning(t)}</td>
               <td><span className={styles.arabicRoot} dir="rtl" lang="ar">{t.root || "—"}</span><small dir="rtl" lang="ar">{t.lemma}</small></td>
               <td><strong>{t.form ? `Verb · Form ${t.form}` : t.pos}</strong><small>{[t.aspect, t.voice].filter(Boolean).join(" · ")}</small></td>
               <td><a className={styles.openLink} href={readerHref(t)} target="_blank" rel="noopener noreferrer" title="Open this verse and word in a new Reader tab">Open in Reader ↗</a><a className={styles.sourceLink} href={`https://corpus.quran.com/wordmorphology.jsp?location=(${t.reference}:${t.position})`} target="_blank" rel="noreferrer">Word morphology ↗</a></td>

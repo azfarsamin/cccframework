@@ -68,3 +68,6 @@
 .threeTiers label { font-size:14px; }
 .resultsHeader p, .toolbar, .dataset { font-size:13px; line-height:1.6; }
 .footer { font-size:12px; line-height:1.7; }
+
+/* Contextual word-by-word gloss in corpus result rows. */
+.meaning{min-width:145px;max-width:260px;line-height:1.5;overflow-wrap:anywhere;color:#303b4a}
