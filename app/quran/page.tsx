@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ResearchMarkdown } from "./research-markdown";
 import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./analysis-verse-links";
 import { VerseReferences } from "./verse-references";
@@ -34,20 +34,25 @@ function LinkedResearchAnalysis({ source, enabled = true }: { source: string; en
   return <div ref={contentRef}><ResearchMarkdown source={source}/></div>;
 }
 
-// Copy exact displayed content; no retranslation, verse-number prefix, or generated text.
-// The two small controls live under each verse, including global search results.
+// Copy the source text as displayed, with a citation on the final line.
+// "Verse" produces the bilingual/trilingual block the researcher can paste directly:
+// Arabic, selected translation (English or Urdu), then (surah:verse).
+// The individual Arabic/translation actions remain available, and also cite the verse.
+function formatVerseForCopy(reference: string, arabic: string, translation?: string): string {
+  return [arabic.trim(), translation?.trim(), `(${reference})`].filter(Boolean).join("\n");
+}
 function VerseCopyControls({ reference, arabic, translation, urdu }: {
   reference: string; arabic: string; translation: string; urdu: boolean;
 }) {
   const [feedback, setFeedback] = useState("");
-  async function copyText(text: string, kind: "arabic" | "translation") {
+  async function copyText(text: string, name: string) {
     if (!text.trim() || !navigator.clipboard?.writeText) {
       setFeedback("Clipboard access unavailable. Use HTTPS or your browser's copy command.");
       return;
     }
     try {
       await navigator.clipboard.writeText(text);
-      setFeedback(`${kind === "arabic" ? "Arabic" : urdu ? "Urdu" : "English"} copied`);
+      setFeedback(`${name} copied with reference`);
     } catch {
       setFeedback("Unable to copy. Check browser clipboard permissions.");
     }
@@ -56,9 +61,9 @@ function VerseCopyControls({ reference, arabic, translation, urdu }: {
     const name = kind === "arabic" ? "Arabic" : urdu ? "Urdu" : "English";
     return <button type="button" disabled={!value.trim()}
       className={creditsStyles.verseCopyButton}
-      title={`Copy ${name} for ${reference}`}
-      aria-label={`Copy ${name} text of verse ${reference}`}
-      onClick={() => void copyText(value, kind)}>
+      title={`Copy ${name} with verse reference (${reference})`}
+      aria-label={`Copy ${name} text of verse ${reference} with reference`}
+      onClick={() => void copyText(formatVerseForCopy(reference, value), name)}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
         <rect x="8" y="8" width="12" height="12" rx="2"/>
         <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
@@ -71,6 +76,17 @@ function VerseCopyControls({ reference, arabic, translation, urdu }: {
       {copyButton("arabic", arabic)}
       {urdu && copyButton("translation", translation)}
     </div>
+    <button type="button" className={creditsStyles.verseCopyButton}
+      disabled={!arabic.trim() || !translation.trim()}
+      title={`Copy Arabic and ${urdu ? "Urdu" : "English"} with verse reference (${reference})`}
+      aria-label={`Copy complete verse ${reference}: Arabic, ${urdu ? "Urdu" : "English"}, and reference`}
+      onClick={() => void copyText(formatVerseForCopy(reference, arabic, translation), "Verse")}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="8" y="8" width="12" height="12" rx="2"/>
+        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+      </svg>
+      <span className={creditsStyles.verseCopyLabel}>Verse</span>
+    </button>
     {!urdu && copyButton("translation", translation)}
     <span className={creditsStyles.verseCopyFeedback} role="status" aria-live="polite">{feedback}</span>
   </div>;
@@ -479,6 +495,23 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [wordGlossLoading, setWordGlossLoading] = useState(false);
   const [researchTab, setResearchTab] = useState<"grammar" | "roots" | "analysis">("grammar");
   const [researchExpanded, setResearchExpanded] = useState(false);
+  // Desktop workspace split, independent of verse selection and streaming.
+  // A wider pane preserves context without resetting an in-progress analysis.
+  const [readerWidth, setReaderWidth] = useState(55);
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem("ccc-quran-reader-pane-width-v1"));
+      if (Number.isFinite(saved) && saved >= 35 && saved <= 70) setReaderWidth(saved);
+    } catch { /* local storage can be disabled */ }
+  }, []);
+  function updateReaderWidth(width: number) {
+    const safe = Math.min(70, Math.max(35, Math.round(width / 5) * 5));
+    setReaderWidth(safe);
+    setResearchExpanded(false);
+    try { localStorage.setItem("ccc-quran-reader-pane-width-v1", String(safe)); }
+    catch { /* layout control still works without persistence */ }
+  }
+
   const analysisAbort = useRef<AbortController | null>(null);
   const analysisRun = useRef(0);
   const [rootQuery, setRootQuery] = useState("");
@@ -1272,7 +1305,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   }
 
   return (
-    <main id={publicMode ? "ccc-public-research" : undefined} className={styles.main}
+    <main id={publicMode ? "ccc-public-research" : undefined} className={`${styles.main} ${creditsStyles.fluidWorkspace}`}
       style={publicMode ? { paddingTop: "0.25rem", marginTop: 0 } : undefined}>
       {publicMode && <style>{`
         /* Hide the actual site's shared navigation on publicquran only. */
@@ -1302,7 +1335,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
         </form>
         {globalError && <p role="alert" className={styles.searchError}>{globalError}</p>}
       </section>
-      <div className={`${styles.layout} ${researchExpanded ? styles.researchExpandedLayout : ""}`}>
+      <div className={`${styles.layout} ${researchExpanded ? styles.researchExpandedLayout : ""} ${creditsStyles.fluidColumns}`}
+        style={{ "--ccc-reader-width": `${researchExpanded ? 40 : readerWidth}%` } as CSSProperties}>
         <section className={styles.panel} aria-label="Quran reader">
           <div className={styles.panelHeader}><h2>{showSearchResults ? "Search results" : "Qurʾān reader"}</h2><span>{showSearchResults ? `${globalTotal ?? 0} matching verses` : `${ayahs.length} verses`}</span></div>
           <div className={styles.controls}>
@@ -1436,6 +1470,12 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               <h2>Study tools</h2>
               <div className={styles.researchActions}>
                 <span>{loading && analysisReference ? `Streaming ${analysisReference}` : analysisVerse ? `Selected ${refOf(analysisVerse.chapter, analysisVerse.verse)}` : "Select a verse"}</span>
+                <label className={creditsStyles.paneWidthControl} title="Adjust the width of the Qurʾān Reader and Study tools">
+                  <span>Reader {researchExpanded ? 40 : readerWidth}%</span>
+                  <input type="range" min="35" max="70" step="5"
+                    aria-label="Reader pane width" value={researchExpanded ? 40 : readerWidth}
+                    onChange={event => updateReaderWidth(Number(event.target.value))} />
+                </label>
                 <button
                   type="button"
                   className={styles.researchExpandButton}
