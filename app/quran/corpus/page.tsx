@@ -312,7 +312,7 @@ export default function QuranCorpusSearchPage() {
               <td className={styles.meaning} lang="en">{englishMeaning(t)}</td>
               <td><span className={styles.arabicRoot} dir="rtl" lang="ar">{t.root || "—"}</span><small dir="rtl" lang="ar">{t.lemma}</small></td>
               <td><strong>{t.form ? `Verb · Form ${t.form}` : t.pos}</strong><small>{[t.aspect, t.voice].filter(Boolean).join(" · ")}</small></td>
-              <td><a className={styles.openLink} href={readerHref(t)} target="_blank" rel="noopener noreferrer" title="Open this verse and word in a new Reader tab">Open in Reader ↗</a><a className={styles.sourceLink} href={`https://corpus.quran.com/wordmorphology.jsp?location=(${t.reference}:${t.position})`} target="_blank" rel="noreferrer">Word morphology ↗</a></td>
+              <td><a className={styles.openLink} href={readerHref(t)} target="_blank" rel="noopener noreferrer" title="Open this verse and word in a new Reader tab">Open in Reader ↗</a></td>
             </tr>)}</tbody>
           </table>
         </div> : <p className={styles.empty}>No matching annotations for this combination. Try “Any” in one or more tiers.</p>}
@@ -320,7 +320,7 @@ export default function QuranCorpusSearchPage() {
       </> : <p className={styles.empty}>{loading ? "Loading corpus annotations…" : error ? "Search is unavailable until the morphology dataset loads." : "Root-led searches include all annotated derivatives. Verb-form-led searches include verbs only."}</p>}
     </section>
     <footer className={styles.footer}>
-      Morphology: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus v0.4</a>, © Kais Dukes (2011). The tool searches its existing local annotations without AI, hadith or tafsīr. Grammatical labels are annotations, not the Qurʾānic text. Word surfaces shown here are converted from Buckwalter; open the Reader for the original Uthmānī verse text. "Form I" is the corpus's unmarked basic verbal form.
+      Morphology: Qurʾānic Arabic Corpus v0.4, © Kais Dukes (2011). The tool searches its existing local annotations without AI, hadith or tafsīr. Grammatical labels are annotations, not the Qurʾānic text. Word surfaces shown here are converted from Buckwalter; open the Reader for the original Uthmānī verse text. "Form I" is the corpus's unmarked basic verbal form.
     </footer>
   </main>;
 }
