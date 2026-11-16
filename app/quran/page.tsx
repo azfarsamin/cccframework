@@ -5,6 +5,7 @@ import { ResearchMarkdown } from "./research-markdown";
 import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./analysis-verse-links";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
+import { VERSE_NOTES } from "./verse-notes";
 import audioStyles from "./verse-audio.module.css";
 import creditsStyles from "./credits-popup.module.css";
 import { VerseAudioButton, VerseAudioDock, useQuranVerseAudio } from "./verse-audio";
@@ -90,6 +91,20 @@ function VerseCopyControls({ reference, arabic, translation, urdu }: {
     {!urdu && copyButton("translation", translation)}
     <span className={creditsStyles.verseCopyFeedback} role="status" aria-live="polite">{feedback}</span>
   </div>;
+}
+
+/** A native disclosure keeps the triangle keyboard-accessible and collapsed by default. */
+function VerseNotes({ reference }: { reference: string }) {
+  const notes = VERSE_NOTES[reference];
+  if (!notes?.length) return null;
+  return <details className={styles.verseNotes}>
+    <summary className={styles.verseNotesToggle}>Notes ({notes.length})</summary>
+    <ol className={styles.verseNotesList}>
+      {notes.map((note, index) => <li key={`${reference}:${index}`} className={styles.verseNoteItem}>
+        <ResearchMarkdown source={note} />
+      </li>)}
+    </ol>
+  </details>;
 }
 
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
@@ -1433,6 +1448,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                   <VerseReferences chapter={result.chapter} verse={result.verse} />
                   <VerseCopyControls reference={refOf(result.chapter, result.verse)} arabic={result.arabic}
                     translation={result.english || ""} urdu={edition === "ur.islahi"} />
+                  <VerseNotes reference={refOf(result.chapter, result.verse)} />
                 </div>;
               })}
               {globalTotal === 0 && <p className={styles.hint}>No exact matches. Try another spelling or a shorter keyword.</p>}
@@ -1478,6 +1494,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               <VerseReferences chapter={chapter} verse={a.numberInSurah} />
               <VerseCopyControls reference={refOf(chapter, a.numberInSurah)} arabic={a.text}
                 translation={translation} urdu={edition === "ur.islahi"} />
+              <VerseNotes reference={refOf(chapter, a.numberInSurah)} />
             </div>;
             })}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}

@@ -245,3 +245,16 @@
 /* Root-concordance references now navigate within the Reader. */
 .rootLocalLink{border:0;padding:0;background:none;font:inherit;color:#23558b;text-decoration:underline;cursor:pointer;text-align:left}
 .rootLocalLink:hover,.rootLocalLink:focus-visible{color:#163657}
+
+
+/* Per-verse research notes. Native details provides an accessible triangle toggle. */
+.verseNotes{margin-top:8px;border-top:1px solid #e2e6eb;padding-top:9px;cursor:default}
+.verseNotesToggle{display:list-item;list-style:disclosure-closed inside;width:max-content;max-width:100%;font-size:13px;font-weight:650;line-height:1.6;color:#263b58;cursor:pointer;padding:4px 6px;border-radius:5px}
+.verseNotes[open]>.verseNotesToggle{list-style-type:disclosure-open}
+.verseNotesToggle:hover{background:#f2f5f8}
+.verseNotesToggle:focus-visible{outline:2px solid #5477ac;outline-offset:2px}
+.verseNotesList{margin:10px 0 2px;padding-left:30px;color:#283547;font-size:13px;line-height:1.7}
+.verseNoteItem{padding:0 0 2px 3px;overflow-wrap:anywhere}
+.verseNoteItem p{margin:0 0 11px}
+.verseNoteItem p:last-child{margin-bottom:3px}
+.verseNoteItem strong{font-weight:700}

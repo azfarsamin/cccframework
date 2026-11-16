@@ -1,0 +1,16 @@
+/**
+ * Editorial annotations displayed below the corresponding Qurʾānic verse.
+ * These are researcher-supplied notes, not part of the Qurʾān or its translation.
+ * Add a second note to the same reference by appending another string to its array.
+ */
+export const VERSE_NOTES: Readonly<Record<string, readonly string[]>> = {
+  "5:32": [
+    `The allegation that Qurʾān 5:32 plagiarized Mishnah Sanhedrin 4:5 rests on conflating an asserted composition date with manuscript evidence.
+
+The Mishnah is conventionally dated to approximately 200 CE, but its earliest surviving substantial codices date centuries after the Qurʾān, principally from the tenth–thirteenth centuries. Its textual witnesses exhibit variants, and scholarship documents centuries of textual transmission and correction. **A conventional date of compilation is not evidence that the precise wording of Sanhedrin 4:5 existed in 200 CE.**
+
+The Qurʾān explicitly attributes the principle to an earlier prescription for the Children of Israel. A case can be made that later rabbinic transmission incorporated Qurʾānic wording.
+
+**The burden of proof is on the claimant to produce securely dated pre-Qurʾānic manuscript evidence containing the alleged source text.**`
+  ]
+};
