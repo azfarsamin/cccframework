@@ -34,6 +34,48 @@ function LinkedResearchAnalysis({ source, enabled = true }: { source: string; en
   return <div ref={contentRef}><ResearchMarkdown source={source}/></div>;
 }
 
+// Copy exact displayed content; no retranslation, verse-number prefix, or generated text.
+// The two small controls live under each verse, including global search results.
+function VerseCopyControls({ reference, arabic, translation, urdu }: {
+  reference: string; arabic: string; translation: string; urdu: boolean;
+}) {
+  const [feedback, setFeedback] = useState("");
+  async function copyText(text: string, kind: "arabic" | "translation") {
+    if (!text.trim() || !navigator.clipboard?.writeText) {
+      setFeedback("Clipboard access unavailable. Use HTTPS or your browser's copy command.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setFeedback(`${kind === "arabic" ? "Arabic" : urdu ? "Urdu" : "English"} copied`);
+    } catch {
+      setFeedback("Unable to copy. Check browser clipboard permissions.");
+    }
+  }
+  function copyButton(kind: "arabic" | "translation", value: string) {
+    const name = kind === "arabic" ? "Arabic" : urdu ? "Urdu" : "English";
+    return <button type="button" disabled={!value.trim()}
+      className={creditsStyles.verseCopyButton}
+      title={`Copy ${name} for ${reference}`}
+      aria-label={`Copy ${name} text of verse ${reference}`}
+      onClick={() => void copyText(value, kind)}>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="8" y="8" width="12" height="12" rx="2"/>
+        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+      </svg>
+      <span className={creditsStyles.verseCopyLabel}>{name}</span>
+    </button>;
+  }
+  return <div className={creditsStyles.verseCopyFooter}>
+    <div className={creditsStyles.verseCopyLeft}>
+      {copyButton("arabic", arabic)}
+      {urdu && copyButton("translation", translation)}
+    </div>
+    {!urdu && copyButton("translation", translation)}
+    <span className={creditsStyles.verseCopyFeedback} role="status" aria-live="polite">{feedback}</span>
+  </div>;
+}
+
 type Surah = { number: number; name: string; englishName: string; numberOfAyahs: number };
 type Ayah = { numberInSurah: number; text: string };
 type QuranResponse<T> = { code: number; data: T };
@@ -1333,13 +1375,21 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                   <span dir="rtl" lang="ar" className={styles.arabic}><span className={creditsStyles.fontPlusOnePoint}>{result.arabic}</span></span>
                   <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}><span className={creditsStyles.fontPlusOnePoint}>{result.english || (edition === "ur.islahi" ? "Islahi Urdu translation unavailable for this verse." : "Translation unavailable for this verse.")}</span></span>
                   <VerseReferences chapter={result.chapter} verse={result.verse} />
+                  <VerseCopyControls reference={refOf(result.chapter, result.verse)} arabic={result.arabic}
+                    translation={result.english || ""} urdu={edition === "ur.islahi"} />
                 </div>;
               })}
               {globalTotal === 0 && <p className={styles.hint}>No exact matches. Try another spelling or a shorter keyword.</p>}
               {globalTotal !== null && globalShown < globalTotal && <button type="button" className={styles.moreResults} onClick={() => setGlobalShown(n => n + MAX_SEARCH_RESULTS)}>Show next 100 matches</button>}
             </>}
             {!showSearchResults && <>
-            {visible.map(a => <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
+            {visible.map(a => {
+              const translation = edition === "ur.islahi"
+                ? (islahi[refOf(chapter, a.numberInSurah)] || "")
+                : edition === "gerrans"
+                  ? (gerrans[refOf(chapter, a.numberInSurah)] || "")
+                  : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || "");
+              return <div id={`ccc-verse-${chapter}-${a.numberInSurah}`} key={a.numberInSurah}
               className={`${styles.ayah} ${selected.includes(a.numberInSurah) ? styles.chosen : ""} ${verseAudio.isActive(chapter, a.numberInSurah) ? audioStyles.activeVerse : ""}`} style={{ minHeight: "unset", paddingTop: "0.75rem", paddingBottom: "0.75rem", gap: "0.6rem" }}>
               <div className={styles.verseToolbar}><span className={styles.ref}>{refOf(chapter, a.numberInSurah)}</span><button type="button" className={styles.verseSelect} onClick={() => toggleAyah(a.numberInSurah)} aria-pressed={selected.includes(a.numberInSurah)}>{selected.includes(a.numberInSurah) ? "Selected ✓" : "Select verse"}</button><VerseAudioButton audio={verseAudio} chapter={chapter} verse={a.numberInSurah} /></div>
               <span className={styles.arabic} dir="rtl" lang="ar"><span className={creditsStyles.fontPlusOnePoint}>{(() => {
@@ -1363,14 +1413,17 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               })()}</span></span>
               <span className={`${styles.english} ${edition === "ur.islahi" ? styles.urduTranslation : ""}`} 
                 lang={edition === "ur.islahi" ? "ur" : "en"} dir={edition === "ur.islahi" ? "rtl" : "ltr"}>
-                <span className={creditsStyles.fontPlusOnePoint}>{edition === "ur.islahi"
-                  ? (islahi[refOf(chapter, a.numberInSurah)] || (translationError || "Loading Urdu text…"))
+                <span className={creditsStyles.fontPlusOnePoint}>{translation || (edition === "ur.islahi"
+                  ? (translationError || "Loading Urdu text…")
                   : edition === "gerrans"
-                    ? (gerrans[refOf(chapter, a.numberInSurah)] || "Gerrans translation not installed for this verse.")
-                    : (translations.find(t => t.numberInSurah === a.numberInSurah)?.text || (translationError || "Loading translation…"))}</span>
+                    ? "Gerrans translation not installed for this verse."
+                    : (translationError || "Loading translation…"))}</span>
               </span>
               <VerseReferences chapter={chapter} verse={a.numberInSurah} />
-            </div>)}
+              <VerseCopyControls reference={refOf(chapter, a.numberInSurah)} arabic={a.text}
+                translation={translation} urdu={edition === "ur.islahi"} />
+            </div>;
+            })}
             {ayahs.length === 0 && <p className={styles.hint}>Loading the Arabic Qurʾān…</p>}
             {ayahs.length > 0 && visible.length === 0 && <p className={styles.hint}>No matches in this surah.</p>}
             </>}
