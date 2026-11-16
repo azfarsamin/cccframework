@@ -238,6 +238,10 @@
 
 /* Word inspector: corpus-based transliteration at left, Arabic word at right. */
 .inspectorWordLine{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
-.inspectorTransliteration{color:#24527f;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
-.inspectorTransliteration:hover,.inspectorTransliteration:focus-visible{color:#163657}
+.inspectorTransliteration{color:#24527f;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere;text-decoration:none}
+
 .inspectorWordLine .inspectorArabic{flex-shrink:0;margin-left:auto}
+
+/* Root-concordance references now navigate within the Reader. */
+.rootLocalLink{border:0;padding:0;background:none;font:inherit;color:#23558b;text-decoration:underline;cursor:pointer;text-align:left}
+.rootLocalLink:hover,.rootLocalLink:focus-visible{color:#163657}

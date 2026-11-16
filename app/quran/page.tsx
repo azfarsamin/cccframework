@@ -1034,9 +1034,6 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const inspectedWord = wordChoice && morph?.[wordChoice.reference]?.[wordChoice.index - 1];
   const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
   const inspectorRomanized = inspectedWord ? inspectorTransliteration(inspectedWord) : "";
-  const inspectorDictionaryUrl = inspectedWord?.r && wordChoice
-    ? `https://corpus.quran.com/qurandictionary.jsp?q=${encodeURIComponent(inspectedWord.r)}#(${wordChoice.reference}:${wordChoice.index})`
-    : "";
 
   const selectedAyahs = ayahs.filter(a => selected.includes(a.numberInSurah));
   const analysisVerses = showSearchResults
@@ -1526,13 +1523,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <div className={styles.inspectorWordLine}>
-                {inspectorRomanized && inspectorDictionaryUrl ? (
-                  <a className={styles.inspectorTransliteration} href={inspectorDictionaryUrl}
-                    target="_blank" rel="noopener noreferrer"
-                    title="Open this word in the Qurʾānic Arabic Corpus dictionary">
-                    {inspectorRomanized}
-                  </a>
-                ) : <span className={styles.inspectorTransliteration} aria-label="Transliteration unavailable">—</span>}
+                <span className={styles.inspectorTransliteration}>
+                  {inspectorRomanized || "—"}
+                </span>
                 <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display || (inspectedWord?.s.map(segment => translitToArabic(segment[0])).join("") ?? "")}</span>
               </div>
               <div className={styles.wordMeaning} lang="en" aria-live="polite">
@@ -1569,7 +1562,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </div>}
 
             {!wordChoice && <p className={styles.emptyTool}>Click any enabled Arabic word in the reader to inspect its root and grammatical details.</p>}
-            <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
+            <p className={styles.morphCredit}>Morphological annotations: Qurʾānic Arabic Corpus v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
               </div>}
               {researchTab === 'roots' && <div className={styles.tabBody}>
                 <h3 className={styles.toolTitle}>Root concordance</h3>
@@ -1653,7 +1646,6 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                       <tbody>
                         {group.hits.slice(0, visibleCount).map(hit => {
                           const location = `${hit.reference}:${hit.index}`;
-                          const morphologyUrl = `https://corpus.quran.com/wordmorphology.jsp?location=(${location})`;
                           // Re-render after batch completion; the gloss remains
                           // associated with the precise Qurʾānic word position.
                           void rootGlossRevision;
@@ -1661,15 +1653,12 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                           const glossLoaded = rootGlossCache.current.has(hit.reference);
                           return <tr key={location}>
                             <td className={styles.rootLocation}>
-                              <a href={morphologyUrl} target="_blank" rel="noreferrer" title="Open corpus word morphology">({location}) ↗</a>
+                              <button type="button" className={styles.rootLocalLink} onClick={() => openRootHit(hit)} title="Inspect this word in the Qurʾān Reader">({location}) ↗</button>
                               <em>{hit.romanized}</em>
                               <span dir="rtl" lang="ar">{hit.surface}</span>
                             </td>
                             <td className={styles.rootMeaning}>
-                              <a href={morphologyUrl} target="_blank" rel="noreferrer"
-                                title={`Open the source word analysis for ${location}`}>
-                                {wordGloss || (glossLoaded ? "Gloss unavailable" : "Loading gloss…")} ↗
-                              </a>
+                              <span>{wordGloss || (glossLoaded ? "Gloss unavailable" : "Loading gloss…")}</span>
                             </td>
                             <td>
                               <button type="button" className={styles.rootVerseAction} onClick={() => openRootHit(hit)} aria-label={`Open Qur'an ${hit.reference}, word ${hit.index}`}>
@@ -1690,10 +1679,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                   </button>}
                 </section>;
               })}
-              <p className={styles.hint}>Word forms and grammatical groups come from the Qurʾānic Arabic Corpus. English word glosses are linked to the source rather than inferred from a root meaning. Arabic context is shown only when word alignment is verified.</p>
+              <p className={styles.hint}>Word forms and grammatical groups come from the Qurʾānic Arabic Corpus. English word glosses come from the local word-by-word source rather than inferred from a root meaning. Arabic context is shown only when word alignment is verified.</p>
             </div>}
             {rootTotal === 0 && <p role="status" className={styles.hint}>No annotated occurrences found for this root.</p>}
-            <p className={styles.morphCredit}>Morphological annotations: <a href="https://corpus.quran.com" target="_blank" rel="noreferrer">Qurʾānic Arabic Corpus</a> v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
+            <p className={styles.morphCredit}>Morphological annotations: Qurʾānic Arabic Corpus v0.4, © Kais Dukes (2011). <a href="/data/quranic-corpus-morphology-0.4.zip">Original unmodified dataset and notices</a>. Annotation is analytical data, not Qurʾānic revelation.</p>
               </div>}
               {researchTab === 'analysis' && <>
           <div className={styles.tabBody}>
