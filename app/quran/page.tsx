@@ -345,6 +345,23 @@ function readSavedDrafts(): SavedDraft[] {
 }
 
 export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean } = {}) {
+  // The public workspace is a focused research surface. The site's shared
+  // marketing header is outside this component; hide it only while this
+  // public reader is mounted, without changing the private /quran layout.
+  useEffect(() => {
+    if (!publicMode) return;
+    const root = document.getElementById("ccc-public-research");
+    if (!root) return;
+    const siteNavigation = Array.from(document.querySelectorAll<HTMLElement>("header, nav"))
+      .find(element => !root.contains(element) &&
+        ["/books", "/articles", "/publications"].filter(path =>
+          element.querySelector(`a[href=\"${path}\"]`) ||
+          element.querySelector(`a[href$=\"${path}\"]`)
+        ).length >= 2);
+    const sharedHeader = siteNavigation?.closest("header") || siteNavigation;
+    sharedHeader?.setAttribute("data-ccc-public-hide-header", "true");
+    return () => sharedHeader?.removeAttribute("data-ccc-public-hide-header");
+  }, [publicMode]);
   // Display attribution once per browser, then retain a permanent way to reopen it.
   const [creditsOpen, setCreditsOpen] = useState(false);
   useEffect(() => {
@@ -1178,19 +1195,28 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   }
 
   return (
-    <main className={styles.main}>
-      <div className={styles.header} style={{ paddingBlock: "0.25rem", marginBottom: "0.65rem", alignItems: "center" }}>
+    <main id={publicMode ? "ccc-public-research" : undefined} className={styles.main}
+      style={publicMode ? { paddingTop: "0.25rem", marginTop: 0 } : undefined}>
+      {publicMode && <style>{`
+        /* Hide the shared marketing/navigation header only on /publicquran. */
+        body:has(#ccc-public-research) [data-ccc-public-hide-header=\"true\"],
+        body:has(#ccc-public-research) header:has(a[href$=\"/books\"]):has(a[href$=\"/publications\"]) {
+          display: none !important;
+        }
+        #ccc-public-research { padding-top: 0.25rem !important; margin-top: 0 !important; }
+      `}</style>}
+      {!publicMode && <div className={styles.header} style={{ paddingBlock: "0.25rem", marginBottom: "0.65rem", alignItems: "center" }}>
         <div>
           <a href="/" className={styles.back}>← CCC Framework</a>
           <h1 style={{ fontSize: "1.35rem", lineHeight: 1.2, margin: "0.25rem 0 0" }}>Qurʾān Research Engine</h1>
         </div>
         <span className={styles.beta}>Qurʾān-only research</span>
-      </div>
-      <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: 7, padding: 6, marginBottom: 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
-        <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
-        <a href="/quran/corpus" target="_blank" rel="noopener noreferrer" title="Open Corpus Search in a new tab; the Reader and any running analysis stay open" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search ↗</a>
+      </div>}
+      <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: publicMode ? 4 : 7, padding: publicMode ? 3 : 6, marginBottom: publicMode ? 8 : 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
+        <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: publicMode ? "6px 8px" : "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
+        <a href="/quran/corpus" target="_blank" rel="noopener noreferrer" title="Open Corpus Search in a new tab; the Reader and any running analysis stay open" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: publicMode ? "6px 8px" : "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search ↗</a>
       </nav>
-      <section className={styles.globalSearch} aria-label="Search the entire Quran" style={{ padding: "0.65rem 0.8rem" }}>
+      <section className={styles.globalSearch} aria-label="Search the entire Quran" style={{ padding: publicMode ? "0.4rem 0.6rem" : "0.65rem 0.8rem" }}>
         <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
           <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "19:28 or Arabic word (e.g. مريم)" : edition === "ur.islahi" ? "2:255 or Urdu word" : "19:28 or English word (e.g. mercy)"} />
           <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
