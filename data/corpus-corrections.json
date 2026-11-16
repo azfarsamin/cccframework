@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "dataset_name": "CCC Quran Morphology Correction Register",
-  "reviewed_utc": "2026-11-15",
+  "reviewed_utc": "2026-11-16",
   "purpose": "Evidence-backed localized correction candidates for use by the CCC model. Treat supported corrections as reviewed annotations; preserve source disagreements.",
   "review_policy": {
     "correction_supported": "Surface as supported correction with provenance; source annotation stays intact on disk.",
@@ -298,6 +298,451 @@
         "latubdī",
         "latubdi"
       ]
+    },
+    {
+      "id": "12:33:7",
+      "category": "grammatical_person_number",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "dEw",
+          "l": "daEaA",
+          "s": [
+            [
+              "yadoEu",
+              "V",
+              "STEM|POS:V|IMPF|LEM:daEaA|ROOT:dEw|3MP"
+            ],
+            [
+              "wna",
+              "PRON",
+              "SUFFIX|PRON:3MP"
+            ],
+            [
+              "niY^",
+              "PRON",
+              "SUFFIX|PRON:1S"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "person_number": "3FP"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "The 3MP subject-pronoun/verb tagging should be feminine plural (3FP); context refers to the women who invite Yusuf. The source webpage still presents masculine plural.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:33:7)",
+        "discussion": "Maqbool Ahmad (question, 2016-12-09); Abdul Rahman (explicit correction, 2016-12-19)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:33:7)",
+          "supports": "The 3MP subject-pronoun/verb tagging should be feminine plural (3FP); context refers to the women who invite Yusuf. The source webpage still presents masculine plural."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "12:33:7",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "12:35:8",
+      "category": "grammatical_case",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "Ayy",
+          "l": "'aAyap",
+          "s": [
+            [
+              "{lo",
+              "DET",
+              "PREFIX|Al+"
+            ],
+            [
+              "'aAya`ti",
+              "N",
+              "STEM|POS:N|LEM:'aAyap|ROOT:Ayy|FP|GEN"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "case": "accusative"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "The noun al-āyāt is the object in the construction; the corpus publicly lists genitive while correction discussion explicitly states accusative.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:35:8)",
+        "discussion": "Maqbool Ahmad (2016-07-06); Abdul Rahman (agreed, 2016-07-15)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:35:8)",
+          "supports": "The noun al-āyāt is the object in the construction; the corpus publicly lists genitive while correction discussion explicitly states accusative."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "12:35:8",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "47:19:14",
+      "category": "grammatical_case",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "vwy",
+          "l": "mavowFY",
+          "s": [
+            [
+              "wa",
+              "CONJ",
+              "PREFIX|w:CONJ+"
+            ],
+            [
+              "mavowaY`",
+              "N",
+              "STEM|POS:N|LEM:mavowFY|ROOT:vwy|M|GEN"
+            ],
+            [
+              "kumo",
+              "PRON",
+              "SUFFIX|PRON:2MP"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "case": "accusative"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "wa-mathwākum is coordinated with the preceding accusative object mutaqallabakum of yaʿlamu.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(47:19:14)",
+        "discussion": "Maqbool Ahmad (2016-04-09); Abdul Rahman (agreed, 2016-04-27)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(47:19:14)",
+          "supports": "wa-mathwākum is coordinated with the preceding accusative object mutaqallabakum of yaʿlamu."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "47:19:14",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "38:52:2",
+      "category": "grammatical_case",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "qSr",
+          "l": "qa`Sira`t",
+          "s": [
+            [
+              "qa`Sira`tu",
+              "N",
+              "STEM|POS:N|ACT|PCPL|LEM:qa`Sira`t|ROOT:qSr|FP|GEN"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "case": "nominative"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "qāṣirātu is treated as nominative; corpus page still displays genitive.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(38:52:2)",
+        "discussion": "Maqbool Ahmad (2016-03-28); Abdul Rahman (agreed, 2016-04-27)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(38:52:2)",
+          "supports": "qāṣirātu is treated as nominative; corpus page still displays genitive."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "38:52:2",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "39:7:2",
+      "category": "morphology_mood",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "kfr",
+          "l": "kafara",
+          "s": [
+            [
+              "takofuru",
+              "V",
+              "STEM|POS:V|IMPF|LEM:kafara|ROOT:kfr|2MP|MOOD:SUBJ"
+            ],
+            [
+              "wA@",
+              "PRON",
+              "SUFFIX|PRON:2MP"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "mood": "jussive"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "Conditional in (if) governs the imperfect as jussive, not subjunctive.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(39:7:2)",
+        "discussion": "Maqbool Ahmad (2016-08-30); Abdul Rahman (agreed, 2016-08-30)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(39:7:2)",
+          "supports": "Conditional in (if) governs the imperfect as jussive, not subjunctive."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "39:7:2",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "39:7:12",
+      "category": "morphology_mood",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "$kr",
+          "l": "$akara",
+          "s": [
+            [
+              "ta$okuru",
+              "V",
+              "STEM|POS:V|IMPF|LEM:$akara|ROOT:$kr|2MP|MOOD:SUBJ"
+            ],
+            [
+              "wA@",
+              "PRON",
+              "SUFFIX|PRON:2MP"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "mood": "jussive"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "The same post explicitly lists this second conditional verb as requiring jussive rather than subjunctive.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(39:7:12)",
+        "discussion": "Maqbool Ahmad (2016-08-30); Abdul Rahman (agreed, 2016-08-30)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(39:7:12)",
+          "supports": "The same post explicitly lists this second conditional verb as requiring jussive rather than subjunctive."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "39:7:12",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "9:39:2",
+      "category": "morphology_mood",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "nfr",
+          "l": "nafara",
+          "s": [
+            [
+              "tanfiru",
+              "V",
+              "STEM|POS:V|IMPF|LEM:nafara|ROOT:nfr|2MP|MOOD:SUBJ"
+            ],
+            [
+              "wA@",
+              "PRON",
+              "SUFFIX|PRON:2MP"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "mood": "jussive"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "Conditional illā tanfirū is parsed as in lā; the imperfect is jussive, although the corpus page still lists subjunctive.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(9:39:2)",
+        "discussion": "Maqbool Ahmad (2016-01-19); Abdul Rahman (agreed, 2016-01-21)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(9:39:2)",
+          "supports": "Conditional illā tanfirū is parsed as in lā; the imperfect is jussive, although the corpus page still lists subjunctive."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "9:39:2",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "37:48:2",
+      "category": "grammatical_case",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "qSr",
+          "l": "qa`Sira`t",
+          "s": [
+            [
+              "qa`Sira`tu",
+              "N",
+              "STEM|POS:N|ACT|PCPL|LEM:qa`Sira`t|ROOT:qSr|FP|GEN"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "case": "nominative"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "qāṣirātu is nominative, analyzed in the discussion as delayed subject (mubtadaʾ muʾakhkhar), not genitive.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(37:48:2)",
+        "discussion": "Maqbool Ahmad (2015-03-10); Abdul Rahman (agreed, 2015-03-11)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(37:48:2)",
+          "supports": "qāṣirātu is nominative, analyzed in the discussion as delayed subject (mubtadaʾ muʾakhkhar), not genitive."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "37:48:2",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
+    },
+    {
+      "id": "12:39:1",
+      "category": "segmentation_and_case",
+      "status": "requires_adjudication",
+      "community_review_status": "correction_discussed_not_applied",
+      "original": {
+        "morphology_record": {
+          "r": "SHb",
+          "l": "SaY`Hib",
+          "s": [
+            [
+              "ya`",
+              "VOC",
+              "PREFIX|ya+"
+            ],
+            [
+              "SaY`Hiba",
+              "N",
+              "STEM|POS:N|LEM:SaY`Hib|ROOT:SHb|NOM"
+            ],
+            [
+              "Yi",
+              "PRON",
+              "SUFFIX|PRON:1S"
+            ]
+          ]
+        }
+      },
+      "recommended": {
+        "segments": "vocative particle + dual noun, no separate 1S possessive suffix",
+        "case": "accusative",
+        "number": "dual"
+      },
+      "confidence": "community_supported_not_independently_adjudicated",
+      "reason": "Corpus lists 3 segments including possessive 1S and nominative noun, while discussion supports 2 segments and dual accusative noun.",
+      "provenance": {
+        "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:39:1)",
+        "discussion": "Kais Dukes (question, 2013-05-30); Abdul Rahman (agreed, 2013-05-30)",
+        "retrieved_utc": "2026-11-16"
+      },
+      "sources": [
+        {
+          "kind": "original_corpus_and_word_discussion",
+          "url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:39:1)",
+          "supports": "Corpus lists 3 segments including possessive 1S and nominative noun, while discussion supports 2 segments and dual accusative noun."
+        }
+      ],
+      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "regression_test": {
+        "fixture": "public/data/morphology.json",
+        "reference": "12:39:1",
+        "assert_upstream_unchanged": true,
+        "assert_candidate_only": true
+      }
     }
-  ]
+  ],
+  "community_import": {
+    "source": "https://corpus.quran.com/messageboard.jsp",
+    "scope": "Initial sample of publicly accessible word discussions, not exhaustive review of archived resolved messages",
+    "imported": 9,
+    "policy": "Suggestions are catalogued as requires_adjudication; unchanged source morphology; independent verification needed before promoting to correction_supported."
+  }
 }
