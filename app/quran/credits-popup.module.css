@@ -87,3 +87,50 @@
   .verseCopyButton { padding: 0.2rem 0.24rem; min-height: 1.65rem; }
   .verseCopyLabel { font-size: 0.68rem; }
 }
+
+
+/* v7.12.32 — responsive, viewport-filling research workspace.
+ * Break free of the parent site's narrow max-width without modifying its layout.
+ * Keep the original mobile/stacked stylesheet below 1100px.
+ */
+@media (min-width: 1100px) {
+  .fluidWorkspace {
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100vw - clamp(32px, 4vw, 96px)) !important;
+    max-width: none !important;
+    min-width: 0;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+  }
+  .fluidColumns {
+    display: grid !important;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, var(--ccc-reader-width, 55%)) minmax(0, 1fr) !important;
+    gap: clamp(12px, 1.6vw, 24px) !important;
+    align-items: start;
+  }
+  .fluidColumns > * { min-width: 0; max-width: none; }
+  .paneWidthControl {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font: inherit;
+    font-size: 0.78rem;
+    color: #53627a;
+    white-space: nowrap;
+  }
+  .paneWidthControl input {
+    display: block;
+    width: clamp(80px, 7.5vw, 132px);
+    accent-color: #293950;
+    cursor: ew-resize;
+  }
+  .paneWidthControl input:focus-visible { outline: 2px solid #3263a2; outline-offset: 2px; }
+}
+@media (max-width: 1099px) {
+  .paneWidthControl { display: none; }
+}
