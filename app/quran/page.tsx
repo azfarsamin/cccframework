@@ -1225,7 +1225,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </label>
           </div>
           <div className={styles.translationControl}>
-            <label htmlFor="ccc-translation">Translation / Urdu exposition</label>
+            <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: "0.4rem", rowGap: "0.1rem" }}>
+              <label htmlFor="ccc-translation">Translation / Urdu exposition</label>
+              {!showSearchResults && <span className={styles.hint} style={{ margin: 0 }}>— Select one verse for detailed analysis. {currentSurah?.englishName || ""}</span>}
+            </div>
             <select id="ccc-translation" value={edition} onChange={e => {setEdition(e.target.value as TranslationEdition); setShowSearchResults(false);}}>
               {editions.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}
             </select>
@@ -1236,7 +1239,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               <span><strong>{globalTotal ?? 0}</strong> matches · Arabic and {editions.find(e => e.id === edition)?.name}</span>
               <button type="button" onClick={() => {setShowSearchResults(false); setGlobalResults([]); setGlobalTotal(null); setSelectedSearch([]);}}>Back to surah reader</button>
             </div>
-          ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
+          ) : null}
           {readerStatus && <p role="alert" className={styles.status}>{readerStatus}</p>}
           <div className={creditsStyles.audioHost}>
             <button
