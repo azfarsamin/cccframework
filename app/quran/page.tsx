@@ -345,22 +345,57 @@ function readSavedDrafts(): SavedDraft[] {
 }
 
 export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean } = {}) {
-  // The public workspace is a focused research surface. The site's shared
-  // marketing header is outside this component; hide it only while this
-  // public reader is mounted, without changing the private /quran layout.
+  // Remove the host site's marketing/navigation bar in the public workspace.
+  // The parent site layout is not part of this upload-only package, so locate
+  // the actual bar by its VISIBLE menu links, not brittle href paths/classes.
+  // Never touch the private /quran workspace or any element containing it.
   useEffect(() => {
     if (!publicMode) return;
     const root = document.getElementById("ccc-public-research");
     if (!root) return;
-    const siteNavigation = Array.from(document.querySelectorAll<HTMLElement>("header, nav"))
-      .find(element => !root.contains(element) &&
-        ["/books", "/articles", "/publications"].filter(path =>
-          element.querySelector(`a[href=\"${path}\"]`) ||
-          element.querySelector(`a[href$=\"${path}\"]`)
-        ).length >= 2);
-    const sharedHeader = siteNavigation?.closest("header") || siteNavigation;
-    sharedHeader?.setAttribute("data-ccc-public-hide-header", "true");
-    return () => sharedHeader?.removeAttribute("data-ccc-public-hide-header");
+    const marked = new Set<HTMLElement>();
+    const menuLabels = new Set(["home", "books", "articles", "publications", "contact"]);
+    const hideSiteNavigation = () => {
+      const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("a"))
+        .filter(a => !root.contains(a) && menuLabels.has((a.textContent || "").trim().toLowerCase()));
+      if (links.length < 3) return;
+      const starts = links.filter(a => (a.textContent || "").trim().toLowerCase() === "books");
+      for (const start of starts) {
+        let candidate: HTMLElement | null = start.parentElement;
+        while (candidate && candidate !== document.body && !candidate.contains(root)) {
+          const labels = new Set(Array.from(candidate.querySelectorAll("a"))
+            .map(a => (a.textContent || "").trim().toLowerCase()));
+          const count = [...menuLabels].filter(label => labels.has(label)).length;
+          if (count >= 4) break;
+          candidate = candidate.parentElement;
+        }
+        if (!candidate || candidate === document.body || candidate.contains(root)) continue;
+        const semanticHeader = candidate.closest<HTMLElement>("header, [role='banner']");
+        let container = semanticHeader && !semanticHeader.contains(root) ? semanticHeader : candidate;
+        // Include the site logo when the navigation and branding share a wrapper.
+        if (container === candidate && !/CCC Framework/i.test(container.textContent || "")) {
+          let ancestor = container.parentElement;
+          while (ancestor && ancestor !== document.body && !ancestor.contains(root)) {
+            if (/CCC Framework/i.test(ancestor.textContent || "")) {
+              container = ancestor;
+              break;
+            }
+            ancestor = ancestor.parentElement;
+          }
+        }
+        container.setAttribute("data-ccc-public-hide-header", "true");
+        marked.add(container);
+        break;
+      }
+    };
+    hideSiteNavigation();
+    // Handle delayed/header hydration without affecting other routes.
+    const observer = new MutationObserver(hideSiteNavigation);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      marked.forEach(el => el.removeAttribute("data-ccc-public-hide-header"));
+    };
   }, [publicMode]);
   // Display attribution once per browser, then retain a permanent way to reopen it.
   const [creditsOpen, setCreditsOpen] = useState(false);
@@ -1198,9 +1233,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
     <main id={publicMode ? "ccc-public-research" : undefined} className={styles.main}
       style={publicMode ? { paddingTop: "0.25rem", marginTop: 0 } : undefined}>
       {publicMode && <style>{`
-        /* Hide the shared marketing/navigation header only on /publicquran. */
-        body:has(#ccc-public-research) [data-ccc-public-hide-header=\"true\"],
-        body:has(#ccc-public-research) header:has(a[href$=\"/books\"]):has(a[href$=\"/publications\"]) {
+        /* Hide the actual site's shared navigation on publicquran only. */
+        body:has(#ccc-public-research) [data-ccc-public-hide-header="true"] {
           display: none !important;
         }
         #ccc-public-research { padding-top: 0.25rem !important; margin-top: 0 !important; }
@@ -1213,7 +1247,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
         <span className={styles.beta}>Qurʾān-only research</span>
       </div>}
       <nav aria-label="Qurʾān research navigation" style={{ display: "flex", gap: publicMode ? 4 : 7, padding: publicMode ? 3 : 6, marginBottom: publicMode ? 8 : 20, border: "1px solid #e0e4e9", background: "#f2f3f5", borderRadius: 11 }}>
-        <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: publicMode ? "6px 8px" : "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
+        <a href={publicMode ? "/publicquran" : "/quran"} aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: publicMode ? "6px 8px" : "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Research Engine</a>
         <a href="/quran/corpus" target="_blank" rel="noopener noreferrer" title="Open Corpus Search in a new tab; the Reader and any running analysis stay open" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: publicMode ? "6px 8px" : "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search ↗</a>
       </nav>
       <section className={styles.globalSearch} aria-label="Search the entire Quran" style={{ padding: publicMode ? "0.4rem 0.6rem" : "0.65rem 0.8rem" }}>
