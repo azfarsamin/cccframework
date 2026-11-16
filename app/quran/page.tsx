@@ -364,6 +364,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [surahs, setSurahs] = useState<Surah[]>([]);
   // One shared recorded-audio player; entirely independent of verse selection and AI.
   const verseAudio = useQuranVerseAudio(surahs);
+  // Keep the player mounted when collapsed so recitation never stops on toggle.
+  const [recitationExpanded, setRecitationExpanded] = useState(false);
   const [chapter, setChapter] = useState(1);
   const [ayahs, setAyahs] = useState<Ayah[]>([]);
   const [edition, setEdition] = useState<TranslationEdition>("gerrans");
@@ -1185,9 +1187,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
         <a href="/quran" aria-current="page" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, background: "#25364e", color: "white", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Qurʾān Reader</a>
         <a href="/quran/corpus" target="_blank" rel="noopener noreferrer" title="Open Corpus Search in a new tab; the Reader and any running analysis stay open" style={{ flex: 1, textDecoration: "none", textAlign: "center", borderRadius: 8, color: "#364456", padding: "12px 10px", fontWeight: 600, fontSize: 14 }}>Corpus Search ↗</a>
       </nav>
-      <section className={styles.globalSearch} aria-label="Search the entire Quran">
-        <h2>Find a verse or search the Qurʾān</h2>
-        <p className={styles.hint}>Enter a reference such as 19:28, search Arabic across all 114 surahs, or search the selected translation. Islahi Urdu searches cover all 114 surahs; Arabic searches cover all surahs. Keyword searches are not root searches.</p>
+      <section className={styles.globalSearch} aria-label="Search the entire Quran" style={{ padding: "0.65rem 0.8rem" }}>
         <form onSubmit={searchWholeQuran} className={styles.globalSearchForm}>
           <input aria-label="Quran-wide search keyword" value={globalQuery} onChange={e => setGlobalQuery(e.target.value)} placeholder={globalLanguage === "arabic" ? "19:28 or Arabic word (e.g. مريم)" : edition === "ur.islahi" ? "2:255 or Urdu word" : "19:28 or English word (e.g. mercy)"} />
           <select aria-label="Search language" value={globalLanguage} onChange={e => setGlobalLanguage(e.target.value as "arabic" | "english")}>
@@ -1238,7 +1238,22 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             </div>
           ) : <p className={styles.hint}>Select one verse for detailed analysis. {currentSurah?.englishName || ""}</p>}
           {readerStatus && <p role="alert" className={styles.status}>{readerStatus}</p>}
-          <div className={creditsStyles.audioHost}><VerseAudioDock audio={verseAudio} goToVerse={goToReference} /></div>
+          <div className={creditsStyles.audioHost}>
+            <button
+              type="button"
+              aria-expanded={recitationExpanded}
+              aria-controls="ccc-recitation-panel"
+              onClick={() => setRecitationExpanded(open => !open)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.3rem 0.45rem", margin: "0.15rem 0", border: 0, borderRadius: 5, background: "transparent", color: "inherit", font: "inherit", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}
+            >
+              <span aria-hidden="true" style={{ display: "inline-block", width: "1rem", textAlign: "center" }}>{recitationExpanded ? "▾" : "▸"}</span>
+              Verse recitation
+              {verseAudio.current && <span style={{ fontWeight: 400, opacity: 0.75 }}>· {verseAudio.current.chapter}:{verseAudio.current.verse}</span>}
+            </button>
+            <div id="ccc-recitation-panel" style={{ display: recitationExpanded ? "block" : "none" }}>
+              <VerseAudioDock audio={verseAudio} goToVerse={goToReference} />
+            </div>
+          </div>
           <div className={styles.verses}>
             {showSearchResults && <>
               {globalResults.slice(0, globalShown).map(result => {
