@@ -44,3 +44,46 @@
   .balancedStudyTabs { gap: 0.2rem; padding: 0.25rem; }
   .balancedStudyTabs > button { padding: 0.55rem 0.2rem; min-height: 2.9rem; }
 }
+
+/* Small, accessible copy actions under each verse; text is unchanged. */
+.verseCopyFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  padding-top: 0.15rem;
+  flex-wrap: wrap;
+}
+.verseCopyLeft { display: flex; gap: 0.35rem; align-items: center; }
+.verseCopyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  min-height: 1.75rem;
+  background: transparent;
+  color: #5a6880;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.verseCopyButton:hover, .verseCopyButton:focus-visible {
+  background: #eaf0f8;
+  border-color: #c8d4e3;
+  color: #203b60;
+}
+.verseCopyButton:disabled { cursor: not-allowed; opacity: 0.4; }
+.verseCopyButton:focus-visible { outline: 2px solid #3263a2; outline-offset: 1px; }
+.verseCopyLabel { font-size: 0.72rem; }
+.verseCopyFeedback { width: 100%; font-size: 0.72rem; color: #335a37; }
+.verseCopyFeedback:empty { display: none; }
+@media (max-width: 520px) {
+  .verseCopyButton { padding: 0.2rem 0.24rem; min-height: 1.65rem; }
+  .verseCopyLabel { font-size: 0.68rem; }
+}
