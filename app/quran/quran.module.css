@@ -258,3 +258,20 @@
 .verseNoteItem p{margin:0 0 11px}
 .verseNoteItem p:last-child{margin-bottom:3px}
 .verseNoteItem strong{font-weight:700}
+
+/* Verse commentary must remain readable against the white verse card.
+   ResearchMarkdown has independent styling; override theme descendants explicitly. */
+.verseNotes .verseNotesList,
+.verseNotes .verseNotesList .markdown,
+.verseNotes .verseNotesList .markdown :is(p, li, span, div, strong, b, em, i, blockquote, h1, h2, h3, h4) {
+  color:#17365d !important;
+  opacity:1 !important;
+}
+.verseNotes .verseNotesList .markdown {
+  background:transparent;
+  font-size:14px;
+  line-height:1.7;
+}
+.verseNotes .verseNotesList .markdown strong,
+.verseNotes .verseNotesList .markdown b { font-weight:750; }
+.verseNotes .verseNotesList .markdown a { color:#174b89 !important; }
