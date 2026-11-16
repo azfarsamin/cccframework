@@ -80,12 +80,12 @@ function VerseCopyControls({ reference, arabic, translation, urdu }: {
       disabled={!arabic.trim() || !translation.trim()}
       title={`Copy Arabic and ${urdu ? "Urdu" : "English"} with verse reference (${reference})`}
       aria-label={`Copy complete verse ${reference}: Arabic, ${urdu ? "Urdu" : "English"}, and reference`}
-      onClick={() => void copyText(formatVerseForCopy(reference, arabic, translation), "Verse")}>
+      onClick={() => void copyText(formatVerseForCopy(reference, arabic, translation), "Both")}>
       <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
         <rect x="8" y="8" width="12" height="12" rx="2"/>
         <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
       </svg>
-      <span className={creditsStyles.verseCopyLabel}>Verse</span>
+      <span className={creditsStyles.verseCopyLabel}>Both</span>
     </button>
     {!urdu && copyButton("translation", translation)}
     <span className={creditsStyles.verseCopyFeedback} role="status" aria-live="polite">{feedback}</span>
