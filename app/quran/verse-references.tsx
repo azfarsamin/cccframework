@@ -260,49 +260,40 @@ const variantReadings: Record<string, VariantReading> = {
   },
 };
 
-// An alternative vocalization, not a claim of a Ḥafṣ–Warsh variant.
-// Unvowelled rasm is the same in both readings of 30:2.
-const alternativeVocalizations: Record<string, { note: string }> = {
-  "30:2": {
-    note: "Sam Gerrans reads غَلَبَتِ (ghalabat, active: ‘the Romans prevailed’) rather than غُلِبَتِ (ghulibat, passive: ‘the Romans were defeated’). The consonantal rasm is unchanged.",
-  },
-};
-
 export function VerseReferences({ chapter, verse }: { chapter: number; verse: number }) {
   const key = `${chapter}:${verse}`;
   const references = verseReferences[key] ?? [];
   const variant = variantReadings[key];
-  const vocalization = alternativeVocalizations[key];
-  if (references.length === 0 && !variant && !vocalization) return null;
+  if (references.length === 0 && !variant) return null;
 
   return (
-    <aside className={styles.verseReferences} aria-label={`References and variant readings for ${key}`}>
+    <>
       {variant && (
-        <div className={styles.verseReferenceItem}>
-          <strong className={styles.verseReferencesHeading}>Variant readings</strong>{" "}
-          <span>
-            Ḥafṣ: <b lang="ar" dir="rtl">{variant.hafsArabic}</b> ({variant.hafsMeaning});{" "}
-            Warsh: <b lang="ar" dir="rtl">{variant.warshArabic}</b> ({variant.warshMeaning}).{" "}
-            <a href={variant.source} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>Source</a>.
-          </span>
-        </div>
-      )}
-      {vocalization && (
-        <div className={styles.verseReferenceItem}>
-          <strong className={styles.verseReferencesHeading}>Alternative vocalization</strong>{" "}
-          <span>{vocalization.note}</span>
-        </div>
+        <aside className={styles.verseReferences} aria-label={`Variant readings for ${key}`}>
+          <div className={styles.verseReferenceItem}>
+            <strong className={styles.verseReferencesHeading}>Variant readings</strong>{" "}
+            <span>
+              Ḥafṣ: <b lang="ar" dir="rtl">{variant.hafsArabic}</b> ({variant.hafsMeaning});{" "}
+              Warsh: <b lang="ar" dir="rtl">{variant.warshArabic}</b> ({variant.warshMeaning}).{" "}
+              <a href={variant.source} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>Source</a>.
+            </span>
+          </div>
+        </aside>
       )}
       {references.length > 0 && (
-        <>
-          <strong className={styles.verseReferencesHeading}>Research references</strong>
-          {references.map((item, index) => (
-            <div className={styles.verseReferenceItem} key={`${key}-${index}-${item.url}`}>
-              <span>{item.label}{item.url ? <> <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</> : <> (link pending).</>}</span>
-            </div>
-          ))}
-        </>
+        <details className={styles.verseNotes} aria-label={`Research references for ${key}`}>
+          <summary className={styles.verseNotesToggle}>Research references ({references.length})</summary>
+          <ol className={styles.verseNotesList}>
+            {references.map((item, index) => (
+              <li className={styles.verseNoteItem} key={`${key}-${index}-${item.url}`}>
+                {item.label}{item.url
+                  ? <> <a href={item.url} target="_blank" rel="noopener noreferrer" className={styles.verseReferenceLink}>here</a>.</>
+                  : <> (link pending).</>}
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
-    </aside>
+    </>
   );
 }
