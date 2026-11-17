@@ -2,7 +2,7 @@
   "schema_version": 2,
   "index_type": "full_source_paragraph_and_section",
   "generated_at": "2026-11-15",
-  "article_count": 10,
+  "article_count": 9,
   "articles": [
     {
       "id": "architecture-of-debt-money-and-interest",
@@ -93,17 +93,6 @@
       "indexed_entire_source": true,
       "edition": "v2.1",
       "source_pdf_sha256": "61ae378f734940dd6ee70a178062639f757e9a4f791a667e157c46a2bdebceb8"
-    },
-    {
-      "id": "reassessing-prophetic-literacy-written-revelation",
-      "title": "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
-      "source_path": "research/articles/reassessing-prophetic-literacy-written-revelation.md",
-      "source_sha256": "1c01361f83d3b311529bbf5650a7e82412f2648893960e19cde44c48ad60b18e",
-      "bytes": 44076,
-      "lines": 418,
-      "section_count": 24,
-      "paragraph_count": 188,
-      "indexed_entire_source": true
     },
     {
       "id": "surah-al-shams-the-self-and-the-balance-of-creation",
