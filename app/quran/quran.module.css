@@ -241,3 +241,24 @@
   .researchExpandButton { padding:7px; }
   .researchTabs button { font-size:12px; }
 }
+
+
+/* QA Release 1.2 — force readable contrast in open analysis disclosures. */
+.note[open],
+.note[open] * {
+  opacity: 1 !important;
+}
+.note[open] :is(p, li, ul, ol, span, div, strong, em) {
+  color: #1f2937 !important;
+}
+.note[open] p strong,
+.note[open] li strong,
+.note[open] summary {
+  color: #172b4d !important;
+}
+.note[open] .hint {
+  color: #445469 !important;
+}
+.note[open] a {
+  color: #174b89 !important;
+}
