@@ -85,12 +85,14 @@
       "id": "reason-revelation-and-the-architecture-of-truth",
       "title": "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews",
       "source_path": "research/articles/reason-revelation-and-the-architecture-of-truth.md",
-      "source_sha256": "12522cc9bb274c3ed805c68daa0af0a9bb82cac7e372a1df80a7a1fab6c49f82",
-      "bytes": 382832,
-      "lines": 4718,
-      "section_count": 154,
-      "paragraph_count": 2359,
-      "indexed_entire_source": true
+      "source_sha256": "53d6a920ea83273bd04853b8bee13c3eee3da964f0230a59b95acc80caa89b4b",
+      "bytes": 487623,
+      "lines": 9006,
+      "section_count": 261,
+      "paragraph_count": 348,
+      "indexed_entire_source": true,
+      "edition": "v2.1",
+      "source_pdf_sha256": "61ae378f734940dd6ee70a178062639f757e9a4f791a667e157c46a2bdebceb8"
     },
     {
       "id": "reassessing-prophetic-literacy-written-revelation",
