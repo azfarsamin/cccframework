@@ -7,6 +7,7 @@ import { deterministicGrammarSheet, validateGrammarClaims } from "../../../lib/g
 import { reviewAnalysisQuality } from "../../../lib/analysis-quality";
 import { CCC_EPISTEMIC_DIRECTIVE, CCC_REASONING_SAFEGUARDS, CCC_QURAN_FIRST_CALIBRATION } from "../../../lib/ccc-epistemic-directive";
 import { correctionPrompt, correctedGrammarSheet } from "../../../lib/corpus-corrections";
+import { gerransPromptNotes } from "../../../lib/gerrans-footnote-index";
 import { searchResearch, expandResearchEvidence, neighboringResearchReferences, rankRelevantResearch, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
 import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, restoreArgumentSectionsForVerse } from "../../../lib/full-research-index";
 
@@ -563,7 +564,13 @@ export async function POST(req: NextRequest) {
   const localCorrections = correctionPrompt([ref, ...evidenceRefs]);
   const coverageGaps = plan.lexical.filter(l => l.total <= 24 && l.supplied < l.total)
     .map(l => `${l.lemma}: ${l.supplied}/${l.total} full Arabic`).slice(0,12);
-  const researchContext = plan.researchContext;
+  // Verse-linked Gerrans commentary is attributed research, not primary Qurʾānic evidence.
+  // Limit the supplemental context to three complete notes / 1,800 characters to
+  // preserve current inference latency and avoid chopping an author's argument.
+  const gerransNotes = gerransPromptNotes(ref);
+  const researchContext = gerransNotes
+    ? plan.researchContext + "\n\n[ATTRIBUTED VERSE-LEVEL COMMENTARY — Sam Gerrans; consult only as research angles, not as evidence to override the Qurʾānic text]\n" + gerransNotes
+    : plan.researchContext;
   const researchCitationCatalogue = plan.researchSources.length
     ? plan.researchSources.map(src => `- ${src.title} — ${src.section} [${src.complete ? "complete" : "incomplete"} indexed section]`).join("\n")
     : "No directly relevant indexed publication was retrieved.";
