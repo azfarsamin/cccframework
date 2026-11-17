@@ -2,7 +2,7 @@
   "schema_version": 2,
   "index_type": "full_source_paragraph_and_section",
   "generated_at": "2026-11-15",
-  "article_count": 9,
+  "article_count": 10,
   "articles": [
     {
       "id": "architecture-of-debt-money-and-interest",
@@ -104,6 +104,22 @@
       "section_count": 12,
       "paragraph_count": 78,
       "indexed_entire_source": true
+    },
+    {
+      "id": "sam-gerrans-addenda-to-the-quran-a-complete-revelation",
+      "title": "Addenda to The Qur’an: A Complete Revelation — Sam Gerrans",
+      "authors": [
+        "Sam Gerrans"
+      ],
+      "source_path": "research/articles/sam-gerrans-addenda-to-the-quran-a-complete-revelation.md",
+      "source_sha256": "fb6fabfe8badbfff2cf8640937638115457de78948b09204bcd9e7ddc0e0e728",
+      "bytes": 531480,
+      "lines": 11839,
+      "section_count": 60,
+      "paragraph_count": 1890,
+      "indexed_entire_source": true,
+      "source_pdf": "research/sources/Addenda-to-The-Quran-A-Complete-Revelation.pdf",
+      "edition": "3rd ed., 2022"
     }
   ]
 }
