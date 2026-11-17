@@ -100,7 +100,7 @@ export default function WorkPage() {
                   </a>
                     <a
             className="button primary"
-            href="/pdfs/ReasonRevelationTruth_FreePdf_v2.0.pdf"
+            href="/pdfs/ReasonRevelationTruth_FreePdf_v2.1.pdf"
             target="_blank"
             rel="noreferrer"
           >
