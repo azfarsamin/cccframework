@@ -302,7 +302,7 @@
     {
       "id": "12:33:7",
       "category": "grammatical_person_number",
-      "status": "requires_adjudication",
+      "status": "correction_supported",
       "community_review_status": "correction_discussed_not_applied",
       "original": {
         "morphology_record": {
@@ -328,10 +328,12 @@
         }
       },
       "recommended": {
-        "person_number": "3FP"
+        "person_number": "3FP",
+        "verb_person_number": "3FP",
+        "subject_pronoun": "3FP"
       },
-      "confidence": "community_supported_not_independently_adjudicated",
-      "reason": "The 3MP subject-pronoun/verb tagging should be feminine plural (3FP); context refers to the women who invite Yusuf. The source webpage still presents masculine plural.",
+      "confidence": "high",
+      "reason": "The subject of yadʿūnanī is the women in the narrative (cf. feminine plural pronominal references kaydahunna / ilayhinna in 12:33 and kaydahunna in 12:34). The Corpus contributor notes the surface form can be morphologically ambiguous, but the contextual subject is feminine plural. Apply 3FP to verb stem and subject pronoun in the reviewed presentation only.",
       "provenance": {
         "source_url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:33:7)",
         "discussion": "Maqbool Ahmad (question, 2016-12-09); Abdul Rahman (explicit correction, 2016-12-19)",
@@ -339,12 +341,17 @@
       },
       "sources": [
         {
-          "kind": "original_corpus_and_word_discussion",
+          "kind": "corpus_community_review",
           "url": "https://corpus.quran.com/wordmorphology.jsp?location=(12:33:7)",
-          "supports": "The 3MP subject-pronoun/verb tagging should be feminine plural (3FP); context refers to the women who invite Yusuf. The source webpage still presents masculine plural."
+          "supports": "Abdul Rahman 19 December 2016: original tag wrong; use 3rd person feminine plural imperfect"
+        },
+        {
+          "kind": "quran_internal_context",
+          "url": "https://corpus.quran.com/wordbyword.jsp?chapter=12&verse=33",
+          "supports": "12:33:12 feminine plural kaydahunna and 12:33:14 ilayhinna corroborate female referents"
         }
       ],
-      "comment_status": "Agreement recorded on public word page; current corpus annotation differs. No proof of integration into upstream release.",
+      "comment_status": "Corpus discussion, Abdul Rahman (19 December 2016), explicitly states that original 3MP tagging is wrong and identifies 3FP; original public annotation remains unchanged.",
       "regression_test": {
         "fixture": "public/data/morphology.json",
         "reference": "12:33:7",
