@@ -118,83 +118,62 @@ Because the verse employs Form VIII, not Form II or IV, the causative reading is
 
 ## Reflexive vs Causative in Arabic Grammar
 
-Before turning to the control example in Q 25:4, it helps to clarify these grammatical categories.
-
-Reflexive → The subject performs the action upon or for itself.
-
-Examples:
-
-ittakhadha (Q 4:125) = “to take for oneself, to adopt.”
-
-iktatabahā (Q 25:5) = “he wrote them down.”
-
-Causative → The subject causes another agent to perform the action.
-
-Examples:
-
-arsala (Q 13:38) = “to cause to go/to send forth.”
-
-aʿlama (Q 2:33) = “to cause someone to know.”
-
-This distinction is foundational in Arabic morphology:
-
-the presence of the prefix ʾa- (Form IV) signals externalization of the act, while the t-infix of Form VIII signals internalization—action reflected back on the subject. Hence, if the meaning was intended to be “he caused to be written down” the Form IV verb would have been aktaba which is not the case in Q 25:5.
-
-Arabic reference grammars consistently note that Form VIII (iftaʿala) verbs typically convey reflexive or middle meanings—actions directed toward or performed for oneself—whereas Form IV (ʾafʿala) verbs are causative, indicating that the subject causes another to perform the act (e.g., ʾaktaba “he caused to write” vs. iktataba “he wrote for himself”; cf. RYDING 2005; OWENS 2013; HOLES 2018).
+Before turning to the control example in Q 25:4, it helps to clarify these grammatical categories. 
+1.	Reflexive → The subject performs the action upon or for itself. 
+Examples: 
+iftarā (Q 4:48) = “he has fabricated.” 
+ittakhadhū (Q 25:30) = “they took (for themselves).” 
+2.	Causative → The subject causes another agent to perform the action. 
+Examples: 
+arsala (Q 13:38) = “to cause to go / to send forth.”
+'aāmannaā (Q 2:8) = “to believe.”
+This distinction is foundational in Arabic morphology: the presence of the prefix ʾa- (Form IV) signals externalization of the act, while the ta-infix of Form VIII generally signals internalization—action reflected back on the subject. Hence, if the meaning was intended to be “he caused to be written down” the Form IV verb would have been aktaba which is not the case in Q 25:5.
+cf. RYDING 2005; OWENS 2013; HOLES 2018).
 
 ## Q 25:4 as a Comparative Example
 
-وَقَالَ الَّذِينَ كَفَرُوا إِنْ هَٰذَا إِلَّا إِفْكٌ اِفْتَرَاهُ وَأَعَانَهُ عَلَيْهِ قَوْمٌ آخَرُونَ
 
-Wa-qāla alladhīna kafarū in hādhā illā ʾifkun iftarāhu wa-aʿānahu ʿalayhi qawmun ʾākharūn.
-
-“And those who disbelieve say, "This [Qur'an] is not except a falsehood he invented, and another people assisted him in it." But they have committed an injustice and a lie.” (Q 25:4)
-
+Wa-qāla alladhīna kafarū in hādhā illā ʾifkun iftarāhu wa-aʿānahu ʿalayhi qawmun ʾākharūn. 
+“Those who disbelieved say, ‘This is nothing but a lie he invented (iftarāhu), and other people have helped him (aʿānahu) in it.’” (Q 25:4)
 Here, the Qurʾān itself prepares the reader for Q 25:5 by juxtaposing two distinct verb patterns—Form VIII and Form IV—in a single verse. This morphological contrast provides an internal linguistic clue.
-
-Verb (Arabic / Transliteration) | Form & Root | Literal Meaning | Agency Type / Function
-
-اِفْتَرَاهُ (iftarāhu) | Form VIII — ف ر ي (f-r-y) | “He fabricated it himself.” | Reflexive / self-initiated action; the act originates within the subject.
-
-أَعَانَهُ (aʿānahu) | Form IV — ع و ن (ʿ-w-n) | “He caused others to help / they helped him.” | Causative / transitive action; the subject causes another agent to perform the act.
-
-In one verse, the Qurʾān employs both forms side by side to distinguish two kinds of agency:
-
-self-initiated (Form VIII), and
-
-externally caused (Form IV).
-
+•	اِفْتَرَاهُ (iftarāhu) — Form VIII from the root *ف ر ي (f-r-y, “to fabricate”).
+ → Means “He fabricated it himself.”
+ → The action originates within the subject. (Reflexive / self-initiated)
+•	أَعَانَهُ (aʿānahu) — Form IV from *ع و ن (ʿ-w-n, “to help”).
+ → Means “They helped him.”
+ → Other agents participate in the action. Assisted / transitive)
+In one verse, the Qurʾān employs both forms side-by-side to distinguish two kinds of agency:
+•	self-initiated action (Form VIII), and
+•	assisted action (Form IV).
 This internal contrast showcases the Qurʾān’s morphological precision—when God intends a causative meaning, He employs Form IV (or Form II); when He intends a self-directed action, He employs Form VIII.
 
 ## Form VIII Verbs in the Qurʾān: Morphological Boundaries of Agency
 
-A survey of Qurʾānic Form VIII verbs demonstrates a consistent semantic pattern: all denote self-directed or reciprocal agency. The following table summarizes representative examples.
+A survey of all 963 Form VIII verbs occurring for 101 roots in the Qurʾān demonstrates a broadly consistent semantic pattern: none of them denote delegated performance by another agent. This pattern is not incidental but structural. The Qurʾān’s internal verb system distinguishes sharply between Forms IV, II (causative) and VIII (reflexive). That consistency lends decisive grammatical weight to the reflexive reading of (Q 25:5). 
+Table E2 summarizes representative examples:
 
-Root | Form VIII Verb | Verse(s) | Sense in context | Reflexive / Reciprocal / Causative?
 
-ف-ر-ي | اِفْتَرَى (iftarā) | Q 25:4, 10:38 | fabricate for oneself | Reflexive/self-initiated
 
-أ-خ-ذ |  |  | Take/adopt for oneself | Reflexive/self-directed
+Table E2
+Form VIII reflexive verbs found in the Qurʾān
+Form VIII verb	Occurrences	Semantic function	Someone else performs the action?
+اِتَّقَى (ittaqā)	166	Guard oneself; exercise restraint	No
+اِتَّبَعَ (ittabaʿa)	136	Follow	No
+اِتَّخَذَ (ittakhadha)	124	Take, adopt, appoint	No
+اِفْتَرَى (iftarā)	50	Fabricate, invent	No
+اِهْتَدَى (ihtadā)	40	Find or follow guidance	No
+اِخْتَلَفَ (ikhtalafa)	35	Differ, disagree	No
+اِبْتَغَى (ibtaghā)	34	Seek, pursue	No
+اِشْتَرَى (ishtarā)	21	Buy, exchange	No
+اِقْتَتَلَ (iqtatala)	4	Fight one another	Reciprocal, not delegated
+اِكْتَتَبَ (iktataba)	1	Wrote down / had written down	Disputed: 25:5
 
-أ-خ-ذ | اِتَّخَذَ (ittakhadha) | Q 2:51, etc. | take/adopt for oneself | Reflexive
+While iktatabah is only mentioned once, other Form VIII (iftaʿala) verbs uniformly express self-directed or reciprocal action; none function causatively delegating action to another person. This consistent internal morphology confirms that iktatabah—“he wrote them down for himself”—rather than any causative procurement (“he had them written”). The Qurʾān’s own morphology attributes authorship and agency to him directly, not to delegated scribes. The contrast between iftarāhu (Form VIII, Q 25:4) and aʿānahu (Form IV, same verse) confirms this morphological boundary.
+Accordingly, in Q 25:5, the verb iktatabahā must be read as reflexive — “he wrote them down himself”—and not as causative (“he had them written”). 
+Post-Qurʾānic lexicons expanded the sense to include causative sense, likely under exegetical pressure to align with the later doctrine of prophetic illiteracy. The Qurʾān’s own linguistic system, however, does not morphologically admit the causative sense for form VIII usage.
+Thus, Q 25:5 linguistically represents the accusation that Prophet Muḥammad himself authored written material, while receiving ongoing dictated input. The Qurʾān’s morphology attributes writing agency directly to him and does not permit a delegated or scribal reading.
+The burden of proof therefore rests on anyone claiming that ٱكْتَتَبَهَا means “he had them written” rather than an action attributed directly to the subject. Such reading requires affirmative lexical or contextual evidence; it cannot be established by imposing readings external to the primary text.
 
-س-ل-م | اِسْتَسْلَمَ (istaslama) | Q 4:125 | submit oneself | Reflexive
-
-ش-ر-ى | اِشْتَرَى (ishtarā) | Q 2:16, etc. | purchase for oneself | Reflexive (“to acquire”)
-
-ب-ي-ع | اِبْتَغَى (ibtaghā) | Q 4:114, etc. | seek for oneself | Reflexive
-
-ذ-ك-ر | اِذْتَكَرَ (idhthakara) | Q 54:17 | remember for oneself | Reflexive
-
-ط-ه-ر | اِطَّهَرَ (ittahara) | Q 9:108 | purify oneself | Reflexive
-
-و-ق-ى | اِتَّقَى (ittaqā) → مُتَّقِينَ (muttaqīn) (derived participle) | Q 2:2 etc. | Act with conscious self-restraint | Reflexive – semantic derivative (active participle from Form VIII)
-
-This pattern is not incidental but structural. The Qurʾān’s internal verb system distinguishes sharply between Forms IV, II (causative) and VIII (reflexive). That consistency lends decisive grammatical weight to the reflexive reading of (Q 25:5).
-
-This consistent internal morphology confirms that iktatabah—“he wrote them down for himself”—rather than any causative procurement (“he had them written”). The Qurʾān’s own morphology eliminates ambiguity: the Prophet’s opponents accused him of writing, not of employing scribes.
-
-Within the Qurʾān itself, Form VIII (iftaʿala) verbs uniformly express self-directed or reciprocal action; none function causatively. The contrast between iftarāhu (Form VIII, Q 25:4) and aʿānahu (Form IV, same verse) confirms this morphological boundary. Accordingly, iktatabahā (Q 25:5) must mean “he wrote them down for himself,” not “he caused them to be written.” Post-Qurʾānic lexicons expanded the sense to include causative procurement, likely under exegetical pressure to align with the later doctrine of prophetic illiteracy. The Qurʾān’s own linguistic system, however, admits only the reflexive sense.
 
 ## Theological Influence on Translation
 
