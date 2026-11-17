@@ -23,3 +23,25 @@ export function correctedGrammarSheet(ref:string, sheet:string):string {
 
 /** Stable machine-readable coverage for code review and regression audits. */
 export function corpusCorrectionVersion():string {return String((registry as {schema_version?:number}).schema_version ?? 1)}
+
+
+/** Exact-token, reviewed presentation overrides. Never mutate upstream morphology.json.
+ * A register entry is not automatically a display override: only explicit, audited
+ * supported annotations with an implemented mapping may change the inspector. */
+export function reviewedDisplaySegments(id: string, original: [string, string, string][]): [string, string, string][] {
+  const record = records.find(e => e.id === id && e.status === "correction_supported");
+  if (!record || id !== "12:33:7") return original;
+  if (record.recommended.person_number !== "3FP") return original;
+  return original.map(([surface, pos, features]) => {
+    if (pos === "V") return [surface, pos, features.replace(/\|3MP(?=\||$)/g, "|3FP")];
+    if (pos === "PRON" && /PRON:3MP/.test(features))
+      return [surface, pos, features.replace(/PRON:3MP/g, "PRON:3FP")];
+    return [surface, pos, features];
+  });
+}
+
+export function displayCorrectionNotice(id: string): string {
+  if (id === "12:33:7" && records.some(e => e.id === id && e.status === "correction_supported"))
+    return "Feminine plural subject (3FP), consistent with the women referred to in 12:33. The source corpus retains the masculine plural tag (3MP); only this reviewed display has been corrected.";
+  return "";
+}
