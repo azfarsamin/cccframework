@@ -2,7 +2,7 @@
   "schema_version": 2,
   "index_type": "full_source_paragraph_and_section",
   "generated_at": "2026-11-15",
-  "article_count": 10,
+  "article_count": 11,
   "articles": [
     {
       "id": "architecture-of-debt-money-and-interest",
@@ -120,6 +120,22 @@
       "indexed_entire_source": true,
       "source_pdf": "research/sources/Addenda-to-The-Quran-A-Complete-Revelation.pdf",
       "edition": "3rd ed., 2022"
+    },
+    {
+      "id": "sam-gerrans-the-god-protocol-second-edition",
+      "title": "The God Protocol — Sam Gerrans (Second Edition, 2022)",
+      "authors": [
+        "Sam Gerrans"
+      ],
+      "source_path": "research/articles/sam-gerrans-the-god-protocol-second-edition.md",
+      "source_sha256": "8675989574960f307c4a22ea0e689fb77346de2a5a7db77372c12dfd8e733a21",
+      "bytes": 690744,
+      "lines": 17891,
+      "section_count": 169,
+      "paragraph_count": 3338,
+      "indexed_entire_source": true,
+      "source_pdf": "research/sources/The-God-Protocol-Ed-2.pdf",
+      "edition": "2nd ed., 2022"
     }
   ]
 }
