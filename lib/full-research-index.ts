@@ -13,11 +13,12 @@ import marriage from '../research/index/quran-hadith-marriageable-age-textual-an
 import architecture from '../research/index/reason-revelation-and-the-architecture-of-truth.json';
 import literacy from '../research/index/reassessing-prophetic-literacy-written-revelation.json';
 import gerrans from '../research/index/sam-gerrans-addenda-to-the-quran-a-complete-revelation.json';
+import godProtocol from '../research/index/sam-gerrans-the-god-protocol-second-edition.json';
 
 export type FullSourceSection = {id:string;heading:string;level:number;start_line:number;end_line:number;verse_refs:string[];chars:number;sha256:string};
 export type FullSourceParagraph = {id:string;section_id:string;line:number;text:string;verse_refs:string[]};
 export type FullArticle = {id:string;title:string;source_path:string;source_sha256:string;bytes:number;lines:number;sections:FullSourceSection[];paragraphs:FullSourceParagraph[];verse_to_sections:Record<string,string[]>;indexed_entire_source:boolean};
-const all = [debt,hadith,halal,hadithDistortions,preservation,moral,marriage,architecture,literacy,shams,gerrans] as FullArticle[];
+const all = [debt,hadith,halal,hadithDistortions,preservation,moral,marriage,architecture,literacy,shams,gerrans,godProtocol] as FullArticle[];
 const byId = new Map(all.map(a=>[a.id,a]));
 export const fullResearchCatalog = all.map(a=>({id:a.id,title:a.title,source:a.source_path,sha256:a.source_sha256,sections:a.sections.length,paragraphs:a.paragraphs.length}));
 export function readFullResearchArticle(articleId:string):FullArticle|null {return byId.get(articleId) || null;}
