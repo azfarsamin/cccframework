@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { gerransPromptNotes } from "../../../lib/gerrans-footnote-index";
 import { searchResearch, expandResearchEvidence, neighboringResearchReferences, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
 
 export const runtime = "nodejs";
@@ -409,7 +410,13 @@ export async function POST(req: NextRequest) {
   if (!evidenceRefs.length)
     return NextResponse.json({ error: "Insufficient verified Qur'anic evidence for analysis." }, { status: 503 });
   const evidence = evidenceText(evidenceRefs, corpus);
-  const researchContext = plan.researchContext;
+  // Verse-linked Gerrans commentary is attributed research, not primary Qurʾānic evidence.
+  // Limit the supplemental context to three complete notes / 1,800 characters to
+  // preserve current inference latency and avoid chopping an author's argument.
+  const gerransNotes = gerransPromptNotes(ref);
+  const researchContext = gerransNotes
+    ? plan.researchContext + "\n\n[ATTRIBUTED VERSE-LEVEL COMMENTARY — Sam Gerrans; consult only as research angles, not as evidence to override the Qurʾānic text]\n" + gerransNotes
+    : plan.researchContext;
   const researchCitationCatalogue = plan.researchSources.length
     ? plan.researchSources.map(src => `- ${src.title} — ${src.section} [${src.complete ? "complete" : "incomplete"} indexed section]`).join("\n")
     : "No directly relevant indexed publication was retrieved.";
