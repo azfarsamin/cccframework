@@ -6,6 +6,7 @@ import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./anal
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
 import { VERSE_NOTES } from "./verse-notes";
+import { reviewedDisplaySegments, displayCorrectionNotice } from "../../lib/corpus-corrections";
 import audioStyles from "./verse-audio.module.css";
 import creditsStyles from "./credits-popup.module.css";
 import { VerseAudioButton, VerseAudioDock, useQuranVerseAudio } from "./verse-audio";
@@ -1047,6 +1048,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   }, [wordChoice?.reference, wordChoice?.index]);
 
   const inspectedWord = wordChoice && morph?.[wordChoice.reference]?.[wordChoice.index - 1];
+  const reviewedSegments = inspectedWord && wordChoice ? reviewedDisplaySegments(`${wordChoice.reference}:${wordChoice.index}`, inspectedWord.s) : [];
+  const correctionNotice = wordChoice ? displayCorrectionNotice(`${wordChoice.reference}:${wordChoice.index}`) : "";
   const selectedRoot = inspectedWord?.r ? translitToArabic(inspectedWord.r) : "";
   const inspectorRomanized = inspectedWord ? inspectorTransliteration(inspectedWord) : "";
 
@@ -1556,7 +1559,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                 </div>
                 <div className={styles.morphSegments}>
                   <span className={styles.morphLabel}>Grammatical analysis</span>
-                  {inspectedWord.s.map((segment, ix) => (
+                  {reviewedSegments.map((segment, ix) => (
                     <div key={ix} className={styles.grammarGroup}>
                       <div className={styles.grammarHeading}>
                         <span>{segment[1] === "V" ? "Verb stem" : segment[1] === "PRON" ? "Pronoun" : partOfSpeechLabels[segment[1]] || "Word segment"}</span>
@@ -1572,6 +1575,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                     </div>
                   ))}
                   <p className={styles.grammarNote}>These are corpus annotations. Perfect/imperfect describe grammatical aspect, not necessarily the real-world time of an event.</p>
+                  {correctionNotice && <p className={styles.grammarNote}><strong>Reviewed local correction:</strong> {correctionNotice}</p>}
                 </div>
 
                 {selectedRoot && <button type="button" className={styles.rootLink} onClick={() => {setRootQuery(selectedRoot); void findRoot(selectedRoot);}}>Find all occurrences of {selectedRoot}</button>}
