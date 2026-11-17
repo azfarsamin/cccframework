@@ -1,4 +1,10 @@
-.main{--ink:#222831;--muted:#646b75;--line:#e2e4e8;--paper:#fff;--soft:#f7f7f5;max-width:1320px;padding:36px 20px 80px;margin:0 auto;color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.header{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:28px}.header h1{font-size:clamp(27px,3vw,37px);margin:12px 0 5px;letter-spacing:-.04em}.header p{color:var(--muted);margin:0}.back{color:var(--muted);text-decoration:none;font-size:14px}.beta{background:#f3eddf;border:1px solid #e7d8b7;color:#6d5522;padding:6px 10px;border-radius:999px;white-space:nowrap;font-size:12px}.layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr);gap:20px;align-items:start}.sidebar{display:grid;gap:20px}.panel{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:20px;min-width:0}.panelHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}.panelHeader h2{font-size:17px;margin:0}.panelHeader span{font-size:12px;color:var(--muted)}.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.controls label,.label{display:flex;flex-direction:column;gap:7px;color:#414954;font-size:13px;font-weight:600}.controls select,.controls input,.label input,.label textarea{padding:11px 12px;border:1px solid #cdd2d7;border-radius:8px;font:inherit;color:var(--ink);background:#fff;width:100%;box-sizing:border-box}.label{margin:16px 0}.label textarea{line-height:1.5;resize:vertical;font-size:14px;font-weight:400}.hint{color:var(--muted);font-size:13px;line-height:1.5}.verses{display:flex;flex-direction:column;max-height:66vh;overflow:auto;gap:9px;margin-top:16px}.ayah{width:100%;border:1px solid var(--line);border-radius:9px;background:#fff;text-align:left;padding:14px;cursor:pointer}.ayah:hover{border-color:#a0a7b1}.chosen{background:#f4f0e6;border-color:#bfa56b}.ref{display:block;font-size:12px;color:#7b6a4b;margin-bottom:10px}.arabic{display:block;text-align:right;line-height:2.35;font-size:24px;font-family:"Traditional Arabic","Noto Naskh Arabic",serif}.credit{font-size:11px;line-height:1.5;color:var(--muted);margin:18px 0 0}.credit a{color:inherit}.selection{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0;color:var(--muted);font-size:13px}.selection span{background:var(--soft);padding:5px 8px;border-radius:6px}.primary,.secondary,.small{border-radius:8px;padding:10px 13px;cursor:pointer;font-weight:600}.primary{background:#24364a;border:1px solid #24364a;color:#fff;width:100%}.primary:disabled{opacity:.55;cursor:not-allowed}.secondary{background:#fff;border:1px solid var(--line);color:var(--ink);width:100%;margin-top:12px}.small{background:#fff;border:1px solid var(--line);font-size:12px}.small:disabled{opacity:.4}.answer{margin-top:16px;border-top:1px solid var(--line)}.answer h3{font-size:15px}.answer pre,.note pre{font:inherit;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.status{color:#935022;font-size:13px}.note{border-bottom:1px solid var(--line);padding:12px 0;font-size:13px}.note summary{cursor:pointer;font-weight:600}.note p{line-height:1.5}@media(max-width:900px){.layout{grid-template-columns:1fr}.verses{max-height:55vh}}@media(max-width:580px){.main{padding:22px 13px 60px}.panel{padding:15px}.controls{grid-template-columns:1fr}.header{display:block}.beta{display:inline-block;margin-top:10px}.arabic{font-size:22px}}
+.main{--ink:#222831;--muted:#646b75;--line:#e2e4e8;--paper:#fff;--soft:#f7f7f5;max-width:1320px;padding:36px 20px 80px;margin:0 auto;color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.header{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:28px}.header h1{font-size:clamp(27px,3vw,37px);margin:12px 0 5px;letter-spacing:-.04em}.header p{color:var(--muted);margin:0}.back{color:var(--muted);text-decoration:none;font-size:14px}.beta{background:#f3eddf;border:1px solid #e7d8b7;color:#6d5522;padding:6px 10px;border-radius:999px;white-space:nowrap;font-size:12px}.layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr);gap:20px;align-items:start}.sidebar{display:grid;gap:20px}.panel{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:20px;min-width:0}.panelHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}.panelHeader h2{font-size:17px;margin:0}.panelHeader span{font-size:12px;color:var(--muted)}.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.controls label,.label{display:flex;flex-direction:column;gap:7px;color:#414954;font-size:13px;font-weight:600}.controls select,.controls input,.label input,.label textarea{padding:11px 12px;border:1px solid #cdd2d7;border-radius:8px;font:inherit;color:var(--ink);background:#fff;width:100%;box-sizing:border-box}.label{margin:16px 0}.label textarea{line-height:1.5;resize:vertical;font-size:14px;font-weight:400}.hint{color:var(--muted);font-size:13px;line-height:1.5}.verses{display:flex;flex-direction:column;max-height:66vh;overflow:auto;gap:9px;margin-top:16px}.ayah{width:100%;border:1px solid var(--line);border-radius:9px;background:#fff;text-align:left;padding:14px;cursor:pointer}.ayah:hover{border-color:#a0a7b1}.chosen{background:#f4f0e6;border-color:#bfa56b}.ref{display:block;font-size:12px;color:#7b6a4b;margin-bottom:10px}.arabic{display:block;text-align:right;line-height:2.35;font-size:24px;font-family:"Traditional Arabic","Noto Naskh Arabic",serif}.credit{font-size:11px;line-height:1.5;color:var(--muted);margin:18px 0 0}.credit a{color:inherit}.selection{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0;color:var(--muted);font-size:13px}.selection span{background:var(--soft);padding:5px 8px;border-radius:6px}.primary,.secondary,.small{border-radius:8px;padding:10px 13px;cursor:pointer;font-weight:600}.primary{background:#24364a;border:1px solid #24364a;color:#fff;width:100%}.primary:disabled{opacity:.55;cursor:not-allowed}.secondary{background:#fff;border:1px solid var(--line);color:var(--ink);width:100%;margin-top:12px}.small{background:#fff;border:1px solid var(--line);font-size:12px}.small:disabled{opacity:.4}.answer{margin-top:16px;border-top:1px solid var(--line)}.answer h3{font-size:15px}.answer pre,.note pre{font:inherit;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.status{color:#935022;font-size:13px}.note{border-bottom:1px solid var(--line);padding:12px 0;font-size:13px;color:#263444;background:#fff}
+.note[open]{border:1px solid #dfe4eb;border-radius:10px;padding:12px 14px;margin-top:10px}
+.note summary{cursor:pointer;font-weight:700;color:#1a2d44}
+.note[open] > summary{margin-bottom:10px}
+.note :is(p, li, span, div, strong, em, ul, ol){color:#263444;opacity:1}
+.note p{line-height:1.6}
+.note .hint{color:#4e5e72}@media(max-width:900px){.layout{grid-template-columns:1fr}.verses{max-height:55vh}}@media(max-width:580px){.main{padding:22px 13px 60px}.panel{padding:15px}.controls{grid-template-columns:1fr}.header{display:block}.beta{display:inline-block;margin-top:10px}.arabic{font-size:22px}}
 
 .translationControl{margin-top:14px;display:flex;flex-direction:column;gap:7px}.translationControl label{font-size:13px;font-weight:600;color:#414954}.translationControl select{padding:11px 12px;border:1px solid #cdd2d7;border-radius:8px;font:inherit;color:var(--ink);background:#fff;width:100%}.translationNotice{font-size:12px;line-height:1.5;color:#935022;margin:3px 0}.english{display:block;margin-top:12px;padding-top:10px;border-top:1px solid #e2e4e8;font-size:15px;line-height:1.75;text-align:left;color:#464c55;white-space:pre-wrap}
 
@@ -235,43 +241,3 @@
   .researchExpandButton { padding:7px; }
   .researchTabs button { font-size:12px; }
 }
-
-/* Word inspector: corpus-based transliteration at left, Arabic word at right. */
-.inspectorWordLine{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0}
-.inspectorTransliteration{color:#24527f;font-size:16px;font-weight:600;line-height:1.5;overflow-wrap:anywhere;text-decoration:none}
-
-.inspectorWordLine .inspectorArabic{flex-shrink:0;margin-left:auto}
-
-/* Root-concordance references now navigate within the Reader. */
-.rootLocalLink{border:0;padding:0;background:none;font:inherit;color:#23558b;text-decoration:underline;cursor:pointer;text-align:left}
-.rootLocalLink:hover,.rootLocalLink:focus-visible{color:#163657}
-
-
-/* Per-verse research notes. Native details provides an accessible triangle toggle. */
-.verseNotes{margin-top:8px;border-top:1px solid #e2e6eb;padding-top:9px;cursor:default}
-.verseNotesToggle{display:list-item;list-style:disclosure-closed inside;width:max-content;max-width:100%;font-size:13px;font-weight:650;line-height:1.6;color:#263b58;cursor:pointer;padding:4px 6px;border-radius:5px}
-.verseNotes[open]>.verseNotesToggle{list-style-type:disclosure-open}
-.verseNotesToggle:hover{background:#f2f5f8}
-.verseNotesToggle:focus-visible{outline:2px solid #5477ac;outline-offset:2px}
-.verseNotesList{margin:10px 0 2px;padding-left:30px;color:#283547;font-size:13px;line-height:1.7}
-.verseNoteItem{padding:0 0 2px 3px;overflow-wrap:anywhere}
-.verseNoteItem p{margin:0 0 11px}
-.verseNoteItem p:last-child{margin-bottom:3px}
-.verseNoteItem strong{font-weight:700}
-
-/* Verse commentary must remain readable against the white verse card.
-   ResearchMarkdown has independent styling; override theme descendants explicitly. */
-.verseNotes .verseNotesList,
-.verseNotes .verseNotesList .markdown,
-.verseNotes .verseNotesList .markdown :is(p, li, span, div, strong, b, em, i, blockquote, h1, h2, h3, h4) {
-  color:#17365d !important;
-  opacity:1 !important;
-}
-.verseNotes .verseNotesList .markdown {
-  background:transparent;
-  font-size:14px;
-  line-height:1.7;
-}
-.verseNotes .verseNotesList .markdown strong,
-.verseNotes .verseNotesList .markdown b { font-weight:750; }
-.verseNotes .verseNotesList .markdown a { color:#174b89 !important; }
