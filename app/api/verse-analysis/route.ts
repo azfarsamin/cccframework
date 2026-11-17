@@ -18,10 +18,10 @@ export const maxDuration = 300;
 const UPSTREAM_LIMIT_MS = 270000; // Keep 30s for SSE completion and cleanup.
 const MAX_OUTPUT_TOKENS = 4200; // Non-reasoning model default.
 const AUDIT_OUTPUT_TOKENS = 3000;
-const RECONSTRUCTION_OUTPUT_TOKENS = 6000;
+const RECONSTRUCTION_OUTPUT_TOKENS = 3400;
 // DeepSeek V4 Pro counts private reasoning and visible text in the SAME budget.
 // Give its reconstruction and verification stages headroom without streaming reasoning.
-const PRO_RECONSTRUCTION_TOKENS = 10000;
+const PRO_RECONSTRUCTION_TOKENS = 6000;
 const PRO_WRITING_TOKENS = 16000;
 const PRO_AUDIT_TOKENS = 9000;
 
@@ -492,7 +492,7 @@ function parseStructuredObject(raw: string): Record<string, unknown> | null {
 }
 
 const RECONSTRUCTION_SYSTEM = `Extract faithful, attributed Qurʾān-centric research angles for the later Further Reading sections, without evaluating or rebutting them. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use supplied text and verified references. Hadith, tafsīr and other external material in RESTORED research sections may be reconstructed as evidence CLAIMS under Correspondence, never as independent doctrinal authority. Do not erase the author’s external comparisons.
-Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Reconstruct every materially relevant, distinct affirmative claim found in the restored research; do not impose a numerical limit or merge independent claims merely to reduce their count. Consolidate only genuine duplicates. Keep each claim concise with its necessary supporting premises and verified evidence references. Return compact JSON without sacrificing distinct research arguments. Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
+Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, up to 3 concise premises per claim and 6 evidenceRefs per claim; up to 3 brief items in each disputed list. Each claim <= 35 words; each premise <= 20 words. Keep all JSON compact (ideally under 1300 output tokens). Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
 
 const AUDIT_SYSTEM = `MANDATORY PRESENTATION AND SYNTAX CHECK: Flag exposed raw Buckwalter lemma identifiers or backend terms (manifest, chunk, coverage telemetry). Flag any claim that فِي الْأَرْضِ governs the accusative خَلِيفَةً; that a feminine-patterned form cannot refer to a man; that خَلِيفَة is an "ء-pattern noun"; or that the six جَاعِل occurrences all concern appointment to a human role (18:8 is a counterexample). Distinguish 2:33's knowledge demonstration from the unspecified concealed matters.
 QURʾĀN-CENTRIC SEMANTIC AUDIT: For any material challenge to the reconstructed interpretation, cite affirmative Arabic contextual counterevidence; neither conventional translation nor the indexed author's conclusion receives a presumption. For claims of two distinct Qurʾānic faculties or categories, test the SAME-SCENE contrast, repeated subject/predicate clusters, and any counterexamples before deciding whether the distinction is functional, contextual, synonymous, or exclusive. A word's non-occurrence with one predicate is not proof of semantic impossibility; test the full lemma set and distinguish verse counts from token counts. The ability to share a function does not establish synonymy, and lexical distinction alone does not demonstrate total functional separation. When the article describes perception, reasoning, knowledge, emotion and belief, identify the ACTUAL predicates and the semantic roles the verses assign; do not import contemporary neuroanatomy as a correcting standard or infer empirical physiology from theological imagery. Claims such as 'never', 'only', 'always', and 'all' require coverage and counterexample checks; partial retrieval does not authorize universal declarations.
@@ -767,10 +767,10 @@ export async function POST(req: NextRequest) {
             ref, model, finishReason, providerDone, durationMs: Date.now() - started,
             promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
             reasoningChunks: reasoningTokensObserved, answerCharacters: answer.length,
-            maxOutputTokens: RECONSTRUCTION_OUTPUT_TOKENS,
+            maxOutputTokens: maxTokens,
           });
           if (finishReason === "length") {
-            finish("error", {message:`Argument reconstruction exceeded the ${RECONSTRUCTION_OUTPUT_TOKENS}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
+            finish("error", {message:`Argument reconstruction exceeded the ${maxTokens}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
             return;
           }
           if (!providerDone) {
