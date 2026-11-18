@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import styles from "./quran.module.css";
-import pdfRegistry from "./generated-pdf-registry.json";
+import publicationLinks from "./generated-publication-links.json";
+import publicationMap from "../../data/publication-pdf-links.json";
 
 // No HTML injection, external links or third-party dependencies. Supports the
 // Markdown emitted by the research models: headings, emphasis, lists and code.
@@ -15,111 +16,80 @@ function inlineMarkdown(value: string): ReactNode[] {
 }
 
 
-// Build-time registry: only PDFs actually present in public/pdfs receive links.
-// Known aliases cover abbreviated filenames; newly added PDFs are discovered
-// automatically when Vercel rebuilds. Ambiguous titles remain plain text.
-type PdfSource = { file: string; title: string; aliases: string[] };
-const availablePdfSources: PdfSource[] = pdfRegistry.sources;
-
-function normalizePublicationTitle(value: string): string {
-  return value.toLowerCase()
-    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[ʾʿ‘’'`]/g, "").replace(/[^a-z0-9]+/g, " ")
-    .replace(/\b(?:pdf|freepdf|edition|ed|second|third|2022|2026)\b/g, " ")
-    .replace(/\s+/g, " ").trim();
-}
-
-// Explicit publication-to-file mappings take priority over a generated registry.
-// This matters after a PDF is renamed: a stale registry may still contain the old
-// filename under the same title. Never let that duplicate suppress the live link.
-// These two filenames have been confirmed in the deployed public/pdfs folder.
-const verifiedPdfSources: PdfSource[] = [
-  {
-    file: "reassessing-prophetic-literacy-written-revelation.pdf",
-    title: "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
-    aliases: [
-      "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
-      "Reassessing Prophetic Literacy and the Written Transmission of Revelation",
-      "Reassessing Prophetic Literacy",
-    ],
-  },
-  {
-    file: "quran-hadith-marriageable-age-textual-analysis.pdf",
-    title: "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
-    aliases: [
-      "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
-      "The Qur’an, Hadith, and the Debate on Marriageable Age",
-      "Quran Hadith Marriageable Age Textual Analysis",
-    ],
-  },
+// Source identity is assigned by the research index, not inferred from PDF filenames.
+// The generator joins stable source IDs to verified public files at build time.
+type PublicationLink = { sourceId: string; title: string; pdfUrl: string; aliases: string[] };
+// Curated source-ID mappings remain available even when the build-generated cache
+// is stale. The generated cache adds future indexed PDFs and is never allowed to
+// shadow a confirmed source ID. Both sources use the same stable identity.
+const knownPublications: PublicationLink[] = publicationMap.sources.map(entry => ({
+  sourceId: entry.sourceId,
+  title: entry.title || entry.aliases[0] || entry.sourceId,
+  pdfUrl: `/pdfs/${encodeURIComponent(entry.file)}`,
+  aliases: entry.aliases,
+}));
+const knownIds = new Set(knownPublications.map(entry => entry.sourceId));
+const indexedPublications: PublicationLink[] = [
+  ...knownPublications,
+  ...publicationLinks.sources.filter(entry => !knownIds.has(entry.sourceId)),
 ];
 
-function pdfCandidates(text: string, sources: PdfSource[]): { source: PdfSource; matchLength: number }[] {
-  const normalized = normalizePublicationTitle(text);
-  if (!normalized) return [];
-  const matches = sources.flatMap(source =>
-    [source.title, ...source.aliases].map(alias => ({
-      source,
-      matchLength: normalizePublicationTitle(alias),
-    })))
-    .filter(({ matchLength }) => matchLength.length >= 12 &&
-      (normalized === matchLength || normalized.startsWith(matchLength + " ")))
-    .map(({ source, matchLength }) => ({ source, matchLength: matchLength.length }))
-    .sort((a, b) => b.matchLength - a.matchLength);
-  // A title can be repeated in aliases for the SAME file; this is not an ambiguity.
-  const seen = new Set<string>();
-  return matches.filter(({ source }) => {
-    if (seen.has(source.file)) return false;
-    seen.add(source.file);
-    return true;
-  });
+function normalizePublicationTitle(value: string): string {
+  return value.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[ʾʿ‘’'`]/g, "").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function findPdfSource(text: string): PdfSource | undefined {
-  // Explicit, verified mappings are authoritative for these publications,
-  // regardless of stale aliases or filenames in the generated registry.
-  const verified = pdfCandidates(text, verifiedPdfSources);
-  if (verified.length) {
-    if (verified.length > 1 && verified[0].matchLength === verified[1].matchLength) return undefined;
-    return verified[0].source;
+// Parse a source ID when future structured outputs provide one; existing model
+// outputs are resolved against the indexed source's exact title/aliases instead.
+function findPublication(text: string): PublicationLink | undefined {
+  const explicit = /\[source:([a-z0-9-]+)\]/i.exec(text);
+  if (explicit) return indexedPublications.find(s => s.sourceId === explicit[1]);
+  const normalized = normalizePublicationTitle(text.replace(/^\s*[-*+]\s+/, "")
+    .replace(/^\s*(?:\*\*|__|\*)/, "").replace(/^[(\s*]+/, ""));
+  if (!normalized) return undefined;
+  const candidates = indexedPublications.flatMap(source =>
+    [source.title, ...source.aliases].map(alias => ({source, key: normalizePublicationTitle(alias)}))
+      .filter(x => x.key.length >= 12 && (normalized === x.key || normalized.startsWith(x.key + " "))));
+  const bySource = new Map<string, {source: PublicationLink; length: number}>();
+  for (const {source, key} of candidates) {
+    const prev = bySource.get(source.sourceId);
+    if (!prev || prev.length < key.length) bySource.set(source.sourceId, {source, length: key.length});
   }
-  // Future PDFs continue to be discovered at build time. Ambiguity among
-  // genuinely different unverified publications remains fail-closed.
-  const discovered = pdfCandidates(text, availablePdfSources);
-  if (!discovered.length) return undefined;
-  if (discovered.length > 1 && discovered[0].matchLength === discovered[1].matchLength) return undefined;
-  return discovered[0].source;
+  const ranked = [...bySource.values()].sort((a,b) => b.length - a.length);
+  if (ranked.length > 1 && ranked[0].length === ranked[1].length) return undefined;
+  return ranked[0]?.source;
 }
 
 type ReadingSection = { name: string; pages: number[]; unpaged: boolean };
-type ReadingGroup = { title: string; file?: string; sections: ReadingSection[] };
+type ReadingGroup = { title: string; sourceId?: string; pdfUrl?: string; sections: ReadingSection[] };
 
 function readingGroups(lines: string[]): ReadingGroup[] {
   const groups: ReadingGroup[] = [];
   for (const raw of lines) {
     const text = raw.replace(/^\s*[-*+]\s+/, "").trim();
+    const cleanedText = text.replace(/\[source:[a-z0-9-]+\]/gi, "").trim();
     if (!text) continue;
-    const matched = findPdfSource(text);
+    const matched = findPublication(text);
     let title: string;
     let detail: string;
     if (matched) {
       title = matched.title;
-      detail = text.replace(/^.*?\s+[—–]\s+/, "");
+      detail = cleanedText.replace(/^.*?\s+[—–]\s+/, "");
       // For author-prefixed book references, strip the full source prefix, not just the first em dash.
-      const pageBreak = text.lastIndexOf(" — ");
-      if (pageBreak >= 0) detail = text.slice(pageBreak + 3);
-      if (detail === text) detail = "Relevant passages";
+      const pageBreak = cleanedText.lastIndexOf(" — ");
+      if (pageBreak >= 0) detail = cleanedText.slice(pageBreak + 3);
+      if (detail === cleanedText) detail = "Relevant passages";
     } else {
-      const split = text.indexOf(" — ");
-      title = split >= 0 ? text.slice(0, split).trim() : text;
-      detail = split >= 0 ? text.slice(split + 3).trim() : "Relevant passages";
+      const split = cleanedText.indexOf(" — ");
+      title = split >= 0 ? cleanedText.slice(0, split).trim() : cleanedText;
+      detail = split >= 0 ? cleanedText.slice(split + 3).trim() : "Relevant passages";
     }
     detail = detail.replace(/\s*\[complete indexed section\]\s*/gi, "").trim();
     const pageMatch = /\[PDF\s+p\.\s*(\d+)\]/i.exec(detail);
     const page = pageMatch ? Number(pageMatch[1]) : undefined;
     detail = detail.replace(/\s*\[PDF\s+p\.\s*\d+\]\s*/gi, "").trim() || "Relevant passages";
     let group = groups.find(item => item.title === title);
-    if (!group) { group = { title, file: matched?.file, sections: [] }; groups.push(group); }
+    if (!group) { group = { title, sourceId: matched?.sourceId, pdfUrl: matched?.pdfUrl, sections: [] }; groups.push(group); }
     let section = group.sections.find(item => item.name === detail);
     if (!section) { section = { name: detail, pages: [], unpaged: false }; group.sections.push(section); }
     if (page !== undefined && !section.pages.includes(page)) section.pages.push(page);
@@ -133,7 +103,7 @@ function FurtherReading({ lines }: { lines: string[] }) {
   return <div className={styles.furtherReadingSources}>
     {groups.map(group => {
       const firstPage = group.sections.flatMap(item => item.pages)[0];
-      const fileUrl = group.file ? `/pdfs/${group.file}` : null;
+      const fileUrl = group.pdfUrl || null;
       return <section key={group.title} className={styles.furtherReadingSource}>
         <div className={styles.furtherReadingSourceTitle}>
           {fileUrl ? <a href={firstPage ? `${fileUrl}#page=${firstPage}` : fileUrl} target="_blank" rel="noopener noreferrer" title="Open source PDF">{group.title}</a> : group.title}

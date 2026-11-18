@@ -1,0 +1,21 @@
+{
+  "generatedBy": "scripts/generate-pdf-registry.mjs",
+  "sources": [
+    {
+      "sourceId": "reason-revelation-and-the-architecture-of-truth",
+      "title": "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews",
+      "pdfUrl": "/pdfs/ReasonRevelationTruth_FreePdf_v2.1.pdf",
+      "aliases": [
+        "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews"
+      ]
+    },
+    {
+      "sourceId": "architecture-of-debt-money-and-interest",
+      "title": "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis",
+      "pdfUrl": "/pdfs/ArchitectureOfDebtMoneyAndInterest_freepdf.pdf",
+      "aliases": [
+        "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis"
+      ]
+    }
+  ]
+}
