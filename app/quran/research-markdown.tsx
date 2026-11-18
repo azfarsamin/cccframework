@@ -89,7 +89,14 @@ function readingGroups(lines: string[]): ReadingGroup[] {
     const page = pageMatch ? Number(pageMatch[1]) : undefined;
     detail = detail.replace(/\s*\[PDF\s+p\.\s*\d+\]\s*/gi, "").trim() || "Relevant passages";
     let group = groups.find(item => item.title === title);
-    if (!group) { group = { title, sourceId: matched?.sourceId, pdfUrl: matched?.pdfUrl, sections: [] }; groups.push(group); }
+    if (!group) {
+      group = { title, sourceId: matched?.sourceId, pdfUrl: matched?.pdfUrl, sections: [] };
+      groups.push(group);
+    } else if (matched && !group.pdfUrl) {
+      // A later citation may resolve even if the first citation did not.
+      group.sourceId = matched.sourceId;
+      group.pdfUrl = matched.pdfUrl;
+    }
     let section = group.sections.find(item => item.name === detail);
     if (!section) { section = { name: detail, pages: [], unpaged: false }; group.sections.push(section); }
     if (page !== undefined && !section.pages.includes(page)) section.pages.push(page);
@@ -103,7 +110,12 @@ function FurtherReading({ lines }: { lines: string[] }) {
   return <div className={styles.furtherReadingSources}>
     {groups.map(group => {
       const firstPage = group.sections.flatMap(item => item.pages)[0];
-      const fileUrl = group.pdfUrl || null;
+      // Some model-generated citation lines cannot be resolved as a whole.
+      // Retry against the clean publication heading before leaving it unlinked.
+      const resolved = group.sourceId
+        ? indexedPublications.find(item => item.sourceId === group.sourceId)
+        : findPublication(group.title);
+      const fileUrl = group.pdfUrl || resolved?.pdfUrl || null;
       return <section key={group.title} className={styles.furtherReadingSource}>
         <div className={styles.furtherReadingSourceTitle}>
           {fileUrl ? <a href={firstPage ? `${fileUrl}#page=${firstPage}` : fileUrl} target="_blank" rel="noopener noreferrer" title="Open source PDF">{group.title}</a> : group.title}
