@@ -1,5 +1,7 @@
 "use client";
 
+import { corpusEncodingToArabic } from "../../lib/corpus-readable";
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { ResearchMarkdown } from "./research-markdown";
 import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./analysis-verse-links";
@@ -1765,7 +1767,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                 Selected {evidenceAudit.gerransNotes?.length || 0} of {evidenceAudit.gerransNotesAvailable || 0} direct notes.
               </p>}
               <p><strong>Corpus lemma coverage:</strong></p>
-              <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{entry.lemma}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
+              <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{corpusEncodingToArabic(entry.lemma)}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
             </details>}
             {argumentAudit && <details className={styles.note}>
               <summary>Argument reconstruction: {argumentAudit.claims.length} claim(s) tested before interpretation</summary>

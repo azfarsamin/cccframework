@@ -152,6 +152,14 @@ function publicationHeading(line: string): { title: string; suppliedUrl?: string
   if (linked) return { title: linked[1].trim(), suppliedUrl: safeLink(linked[2]) };
   const bold = /^\*\*(.+?)\*\*$/.exec(text);
   if (bold) return { title: bold[1].trim() };
+  // Older model outputs use unformatted publication titles. Only recognize
+  // known publications, inside the Further Reading section, not arbitrary prose.
+  const plain = text.replace(/\\([*_])/g, "$1").trim();
+  const matched = findPublication(plain) || (
+    /\bSam Gerrans\b/i.test(plain) && /\bThe Qur['’]an:\s*A Complete Revelation\b/i.test(plain)
+      ? indexedPublications.find(item => item.sourceId === "sam-gerrans-complete-revelation") : undefined
+  );
+  if (matched) return { title: plain };
   return undefined;
 }
 
@@ -161,11 +169,11 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
   for (const raw of lines) {
     if (!raw.trim()) continue;
     const isBullet = /^\s*[-*+]\s+/.test(raw);
-    if (!isBullet) {
-      const heading = publicationHeading(raw);
-      if (!heading) continue;
-      // Source headings can begin with the author, e.g. "Sam Gerrans, *The Qur'an...*".
-      // Recognize the already-registered publication without changing its index.
+    // Model output may emit publication headings and section lines without
+    // Markdown bullets. Resolve known headings first; otherwise append a
+    // section to the active publication, preserving citation text verbatim.
+    const heading = !isBullet ? publicationHeading(raw) : undefined;
+    if (heading) {
       const source = findPublication(heading.title) || (
         /\bSam Gerrans\b/i.test(heading.title) && /\bThe Qur['’]an:\s*A Complete Revelation\b/i.test(heading.title)
           ? indexedPublications.find(item => item.sourceId === "sam-gerrans-complete-revelation")
@@ -174,7 +182,7 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
       current = { title: heading.title, pdfUrl: source?.pdfUrl || heading.suppliedUrl, bullets: [] };
       groups.push(current);
     } else if (current) {
-      current.bullets.push(raw.replace(/^\s*[-*+]\s+/, ""));
+      current.bullets.push(isBullet ? raw.replace(/^\s*[-*+]\s+/, "") : raw.trim());
     }
   }
   return <div className={styles.furtherReadingSources}>
@@ -211,12 +219,16 @@ export function ResearchMarkdown({ source }: { source: string }) {
     if (!line.trim()) { i++; continue; }
     if (/^\s*---+\s*$/.test(line)) { blocks.push(<hr key={i} />); i++; continue; }
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-    if (heading) {
-      if (heading[1].length < 3) blocks.push(<h2 key={i}>{inlineMarkdown(heading[2])}</h2>);
-      else blocks.push(<h3 key={i}>{inlineMarkdown(heading[2])}</h3>);
+    // Older valid GLM output often omits Markdown heading markers entirely.
+    // Recognize ONLY the Further Reading section, avoiding changes to other prose.
+    const plainReadingHeading = !heading && isFurtherReadingHeading(line);
+    if (heading || plainReadingHeading) {
+      const headingText = heading ? heading[2] : line.trim();
+      if (!heading || heading[1].length < 3) blocks.push(<h2 key={i}>{inlineMarkdown(headingText)}</h2>);
+      else blocks.push(<h3 key={i}>{inlineMarkdown(headingText)}</h3>);
       i++;
       // Group only the completed Further Reading list; preserve all other Markdown intact.
-      if (isFurtherReadingHeading(heading[2])) {
+      if (isFurtherReadingHeading(headingText)) {
         const entries: string[] = [];
         while (i < lines.length && !/^\s*#{1,3}\s+/.test(lines[i])) {
           if (lines[i].trim()) entries.push(lines[i]);
