@@ -3,11 +3,23 @@ import styles from "./quran.module.css";
 import publicationLinks from "./generated-publication-links.json";
 import publicationMap from "../../data/publication-pdf-links.json";
 
-// No HTML injection, external links or third-party dependencies. Supports the
-// Markdown emitted by the research models: headings, emphasis, lists and code.
+// Render a small, safe subset of research Markdown: headings, emphasis, lists,
+// code and validated links. No raw HTML or third-party Markdown dependencies.
+function safeLink(raw: string): string | undefined {
+  // Never allow arbitrary protocols or relative paths into an anchor.
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  if (/^https:\/\//i.test(raw)) return raw;
+  return undefined;
+}
+
 function inlineMarkdown(value: string): ReactNode[] {
-  const tokens = value.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g);
+  const tokens = value.split(/(\[[^\]\n]+\]\([^\s)\n]+(?:\s+"[^"\n]*")?\)|\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`)/g);
   return tokens.map((token, index) => {
+    const link = /^\[([^\]\n]+)\]\(([^\s)\n]+)(?:\s+"[^"\n]*")?\)$/.exec(token);
+    if (link) {
+      const href = safeLink(link[2]);
+      if (href) return <a key={index} href={href} target="_blank" rel="noopener noreferrer">{inlineMarkdown(link[1])}</a>;
+    }
     if (token.startsWith("**") && token.endsWith("**")) return <strong key={index}>{token.slice(2, -2)}</strong>;
     if (token.startsWith("*") && token.endsWith("*")) return <em key={index}>{token.slice(1, -1)}</em>;
     if (token.startsWith("`") && token.endsWith("`")) return <code key={index}>{token.slice(1, -1)}</code>;
@@ -129,6 +141,55 @@ function FurtherReading({ lines }: { lines: string[] }) {
   </div>;
 }
 
+// The synthesis model sometimes emits already-grouped Further Reading:
+// a bold or linked publication heading followed by its section bullets.
+// Handle that *before* the legacy flat-list grouper, which assumes all lines
+// start with a dash and therefore silently skips article headings.
+function publicationHeading(line: string): { title: string; suppliedUrl?: string } | undefined {
+  const text = line.trim();
+  const linked = /^\[\*\*(.+?)\*\*\]\(([^\s)]+)(?:\s+"[^"]*")?\)$/.exec(text)
+    || /^\[(.+?)\]\(([^\s)]+)(?:\s+"[^"]*")?\)$/.exec(text);
+  if (linked) return { title: linked[1].trim(), suppliedUrl: safeLink(linked[2]) };
+  const bold = /^\*\*(.+?)\*\*$/.exec(text);
+  if (bold) return { title: bold[1].trim() };
+  return undefined;
+}
+
+function GroupedFurtherReading({ lines }: { lines: string[] }) {
+  const groups: Array<{ title: string; pdfUrl?: string; bullets: string[] }> = [];
+  let current: (typeof groups)[number] | undefined;
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const isBullet = /^\s*[-*+]\s+/.test(raw);
+    if (!isBullet) {
+      const heading = publicationHeading(raw);
+      if (!heading) continue;
+      const source = findPublication(heading.title);
+      current = { title: heading.title, pdfUrl: source?.pdfUrl || heading.suppliedUrl, bullets: [] };
+      groups.push(current);
+    } else if (current) {
+      current.bullets.push(raw.replace(/^\s*[-*+]\s+/, ""));
+    }
+  }
+  return <div className={styles.furtherReadingSources}>
+    {groups.map((group, groupIndex) => <section key={`${groupIndex}-${group.title}`} className={styles.furtherReadingSource}>
+      <div className={styles.furtherReadingSourceTitle}>
+        {group.pdfUrl
+          ? <a href={group.pdfUrl} target="_blank" rel="noopener noreferrer" title="Open source PDF">{group.title}</a>
+          : group.title}
+      </div>
+      {group.bullets.length > 0 && <ul>{group.bullets.map((bullet, index) =>
+        <li key={index} className={styles.furtherReadingSection}>{inlineMarkdown(bullet)}</li>
+      )}</ul>}
+    </section>)}
+  </div>;
+}
+
+function isFurtherReadingHeading(value: string): boolean {
+  // Accept optional section number, Unicode spaces, and heading punctuation.
+  return /^(?:5[.)]\s*)?further\s+reading\s*:?$/i.test(value.replace(/\u00a0/g, " ").trim());
+}
+
 export function ResearchMarkdown({ source }: { source: string }) {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -143,15 +204,20 @@ export function ResearchMarkdown({ source }: { source: string }) {
       else blocks.push(<h3 key={i}>{inlineMarkdown(heading[2])}</h3>);
       i++;
       // Group only the completed Further Reading list; preserve all other Markdown intact.
-      if (/^(?:5[.)]\s*)?further reading\s*$/i.test(heading[2].trim())) {
+      if (isFurtherReadingHeading(heading[2])) {
         const entries: string[] = [];
-        while (i < lines.length) {
-          if (!lines[i].trim()) { i++; continue; }
-          if (!/^\s*[-*+]\s+/.test(lines[i])) break;
-          entries.push(lines[i]);
+        while (i < lines.length && !/^\s*#{1,3}\s+/.test(lines[i])) {
+          if (lines[i].trim()) entries.push(lines[i]);
           i++;
         }
-        if (entries.length) blocks.push(<FurtherReading key={`reading-${i}`} lines={entries} />);
+        if (entries.length) {
+          // Already grouped headings are preserved; older flat citation lists
+          // continue through the existing readingGroups() implementation.
+          const grouped = entries.some(line => !/^\s*[-*+]\s+/.test(line) && publicationHeading(line));
+          blocks.push(grouped
+            ? <GroupedFurtherReading key={`reading-${i}`} lines={entries} />
+            : <FurtherReading key={`reading-${i}`} lines={entries} />);
+        }
       }
       continue;
     }
