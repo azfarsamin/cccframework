@@ -744,6 +744,81 @@
         "assert_upstream_unchanged": true,
         "assert_candidate_only": true
       }
+    },
+    {
+      "id": "25:5:1",
+      "arabic": "وَقَالُوا",
+      "category": "presentation_encoding",
+      "status": "original_annotation_supported",
+      "original": {
+        "encoded_surface": "wa+qaAlu+w^A@"
+      },
+      "recommended": {
+        "reader_transliteration": "wa-qālū"
+      },
+      "confidence": "high",
+      "reason": "Extended Buckwalter source annotation is not an incorrect morphology entry; raw notation leaked into reader-facing text and must be converted only in the presentation/evidence layer.",
+      "sources": [
+        {
+          "kind": "local_corpus",
+          "url": "public/data/morphology.json",
+          "supports": "Exact token and annotation retained; presentation fixed without modifying raw corpus"
+        }
+      ],
+      "comment_status": "Checked 2026-11-18; regression tests/corpus-readable.test.mjs; original morphology preserved.",
+      "roman_aliases": [
+        "wa-qālū"
+      ]
+    },
+    {
+      "id": "25:5:4",
+      "arabic": "ٱكْتَتَبَهَا",
+      "category": "presentation_encoding",
+      "status": "original_annotation_supported",
+      "original": {
+        "encoded_surface": "{kotataba+haA"
+      },
+      "recommended": {
+        "reader_transliteration": "iktatabahā"
+      },
+      "confidence": "high",
+      "reason": "Extended Buckwalter source annotation is not an incorrect morphology entry; raw notation leaked into reader-facing text and must be converted only in the presentation/evidence layer.",
+      "sources": [
+        {
+          "kind": "local_corpus",
+          "url": "public/data/morphology.json",
+          "supports": "Exact token and annotation retained; presentation fixed without modifying raw corpus"
+        }
+      ],
+      "comment_status": "Checked 2026-11-18; regression tests/corpus-readable.test.mjs; original morphology preserved.",
+      "roman_aliases": [
+        "iktatabahā"
+      ]
+    },
+    {
+      "id": "25:5:6",
+      "arabic": "تُمْلَىٰ",
+      "category": "presentation_encoding",
+      "status": "original_annotation_supported",
+      "original": {
+        "encoded_surface": "tumolaY`"
+      },
+      "recommended": {
+        "reader_transliteration": "tumlā"
+      },
+      "confidence": "high",
+      "reason": "Extended Buckwalter source annotation is not an incorrect morphology entry; raw notation leaked into reader-facing text and must be converted only in the presentation/evidence layer.",
+      "sources": [
+        {
+          "kind": "local_corpus",
+          "url": "public/data/morphology.json",
+          "supports": "Exact token and annotation retained; presentation fixed without modifying raw corpus"
+        }
+      ],
+      "comment_status": "Checked 2026-11-18; regression tests/corpus-readable.test.mjs; original morphology preserved.",
+      "roman_aliases": [
+        "tumlā"
+      ]
     }
   ],
   "community_import": {
