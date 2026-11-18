@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import styles from "./quran.module.css";
+import pdfRegistry from "./generated-pdf-registry.json";
 
 // No HTML injection, external links or third-party dependencies. Supports the
 // Markdown emitted by the research models: headings, emphasis, lists and code.
@@ -14,15 +15,35 @@ function inlineMarkdown(value: string): ReactNode[] {
 }
 
 
-// Presentation-only source registry. Only PDFs confirmed under public/pdfs are linked.
-// Sources without a verified local PDF remain text; never invent an external URL.
-const furtherReadingPdfSources: { test: RegExp; title: string; file: string }[] = [
-  { test: /Reason, Revelation, and the Architecture of Truth/i, title: "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews", file: "ReasonRevelationTruth_FreePdf_v2.1.pdf" },
-  { test: /The God Protocol/i, title: "The God Protocol — Sam Gerrans (Second Edition, 2022)", file: "The-God-Protocol-Ed-2.pdf" },
-  { test: /Addenda to The Qur[’']an|Addenda-to-The-Quran/i, title: "Addenda to The Qur’an: A Complete Revelation — Sam Gerrans", file: "Addenda-to-The-Quran-A-Complete-Revelation.pdf" },
-  { test: /The Qur[’']an: A Complete Revelation|The Quran: A Complete Revelation/i, title: "The Qur’an: A Complete Revelation — Sam Gerrans (Third Edition)", file: "The-Quran-A-Complete-Revelation-Ed-3.pdf" },
-  { test: /The Architecture of Debt-Money and Interest|Architecture of Debt-Money and Interest/i, title: "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis", file: "ArchitectureOfDebtMoneyAndInterest_freepdf.pdf" },
-];
+// Build-time registry: only PDFs actually present in public/pdfs receive links.
+// Known aliases cover abbreviated filenames; newly added PDFs are discovered
+// automatically when Vercel rebuilds. Ambiguous titles remain plain text.
+type PdfSource = { file: string; title: string; aliases: string[] };
+const availablePdfSources: PdfSource[] = pdfRegistry.sources;
+
+function normalizePublicationTitle(value: string): string {
+  return value.toLowerCase()
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[ʾʿ‘’'`]/g, "").replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(?:pdf|freepdf|edition|ed|second|third|2022|2026)\b/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+
+function findPdfSource(text: string): PdfSource | undefined {
+  const normalized = normalizePublicationTitle(text);
+  if (!normalized) return undefined;
+  // Search for a complete title/alias at the start of the bibliographic line.
+  // Longest match wins; ties between different files are treated as ambiguous.
+  const candidates = availablePdfSources.flatMap(source =>
+    source.aliases.map(alias => ({ source, normalizedAlias: normalizePublicationTitle(alias) })))
+    .filter(({ normalizedAlias }) => normalizedAlias.length >= 12 &&
+      (normalized === normalizedAlias || normalized.startsWith(normalizedAlias + " ")))
+    .sort((a, b) => b.normalizedAlias.length - a.normalizedAlias.length);
+  if (!candidates.length) return undefined;
+  if (candidates.length > 1 && candidates[0].normalizedAlias.length === candidates[1].normalizedAlias.length &&
+      candidates[0].source.file !== candidates[1].source.file) return undefined;
+  return candidates[0].source;
+}
 
 type ReadingSection = { name: string; pages: number[]; unpaged: boolean };
 type ReadingGroup = { title: string; file?: string; sections: ReadingSection[] };
@@ -32,7 +53,7 @@ function readingGroups(lines: string[]): ReadingGroup[] {
   for (const raw of lines) {
     const text = raw.replace(/^\s*[-*+]\s+/, "").trim();
     if (!text) continue;
-    const matched = furtherReadingPdfSources.find(source => source.test.test(text));
+    const matched = findPdfSource(text);
     let title: string;
     let detail: string;
     if (matched) {

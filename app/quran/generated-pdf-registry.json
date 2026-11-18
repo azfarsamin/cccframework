@@ -1,0 +1,70 @@
+{
+  "generatedBy": "scripts/generate-pdf-registry.mjs",
+  "sources": [
+    {
+      "file": "AERCabstract.pdf",
+      "title": "AERCabstract",
+      "aliases": [
+        "AERCabstract"
+      ]
+    },
+    {
+      "file": "ArchitectureOfDebtMoneyAndInterest_freepdf.pdf",
+      "title": "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis",
+      "aliases": [
+        "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis",
+        "ArchitectureOfDebtMoneyAndInterest",
+        "Architecture of Debt Money and Interest",
+        "The Architecture of Debt-Money and Interest"
+      ]
+    },
+    {
+      "file": "Article_Reassessing_Prophetic_Literacy.pdf",
+      "title": "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+      "aliases": [
+        "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+        "Reassessing Prophetic Literacy",
+        "Article Reassessing Prophetic Literacy",
+        "Reassessing Prophetic Literacy and the Written Transmission of Revelation"
+      ]
+    },
+    {
+      "file": "ReasonRevelationTruth_FreePdf_v2.1.pdf",
+      "title": "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews",
+      "aliases": [
+        "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews",
+        "ReasonRevelationTruth",
+        "Reason Revelation and the Architecture of Truth",
+        "Reason Revelation Truth",
+        "A Framework for Evaluating Worldviews"
+      ]
+    },
+    {
+      "file": "The-God-Protocol-Ed-2.pdf",
+      "title": "The God Protocol — Sam Gerrans (Second Edition, 2022)",
+      "aliases": [
+        "The God Protocol — Sam Gerrans (Second Edition, 2022)",
+        "The God Protocol 2",
+        "The God Protocol",
+        "Sam Gerrans The God Protocol"
+      ]
+    },
+    {
+      "file": "The-Quran-A-Complete-Revelation-Ed-3.pdf",
+      "title": "The Qur’an: A Complete Revelation — Sam Gerrans (Third Edition)",
+      "aliases": [
+        "The Qur’an: A Complete Revelation — Sam Gerrans (Third Edition)",
+        "The Quran A Complete Revelation 3",
+        "The Quran A Complete Revelation",
+        "The Qur'an: A Complete Revelation"
+      ]
+    },
+    {
+      "file": "aerc-2026-slides.pdf",
+      "title": "aerc slides",
+      "aliases": [
+        "aerc slides"
+      ]
+    }
+  ]
+}
