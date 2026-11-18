@@ -34,7 +34,7 @@ function normalizePublicationTitle(value: string): string {
 // an existing, explicitly confirmed publication in public/pdfs/. New sources
 // still follow the automatic build-time registry and aliases file.
 const verifiedPdfFallbacks: PdfSource[] = [{
-  file: "Article_Reassessing_Prophetic_Literacy.pdf",
+  file: "reassessing-prophetic-literacy-written-revelation.pdf",
   title: "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
   aliases: [
     "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
