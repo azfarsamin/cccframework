@@ -35,6 +35,16 @@ export function parseReaderCitationHash(hash: string): {chapter:number; verse:nu
 // partial numbers. All candidate references are checked against surah lengths.
 const REFERENCE = /(?<![\w:/])([1-9]\d{0,2}):([1-9]\d{0,2})(?![\w:/])/g;
 
+// References bearing a biblical book name belong to that book, never the Qurʾān.
+// Keep this narrowly scoped to the text immediately before the candidate number:
+// "Deut. 18:15" is blocked, but a subsequent "Q 7:157" remains linkable.
+const BIBLICAL_BOOK_BEFORE_REFERENCE = /(?:\b(?:Genesis|Gen\.?|Exodus|Exod\.?|Ex\.?|Leviticus|Lev\.?|Numbers|Num\.?|Deuteronomy|Deut\.?|Joshua|Josh\.?|Judges|Judg\.?|Ruth|Samuel|Sam\.?|Kings|Kgs\.?|Chronicles|Chron\.?|Chr\.?|Ezra|Nehemiah|Neh\.?|Esther|Est\.?|Job|Psalms?|Ps\.?|Proverbs|Prov\.?|Ecclesiastes|Eccl\.?|Song of Solomon|Song of Songs|Isaiah|Isa\.?|Jeremiah|Jer\.?|Lamentations|Lam\.?|Ezekiel|Ezek\.?|Daniel|Dan\.?|Hosea|Hos\.?|Joel|Amos|Obadiah|Obad\.?|Jonah|Micah|Mic\.?|Nahum|Nah\.?|Habakkuk|Hab\.?|Zephaniah|Zeph\.?|Haggai|Hag\.?|Zechariah|Zech\.?|Malachi|Mal\.?|Matthew|Matt\.?|Mt\.?|Mark|Mk\.?|Luke|Lk\.?|John|Jn\.?|Acts|Romans|Rom\.?|Corinthians|Cor\.?|Galatians|Gal\.?|Ephesians|Eph\.?|Philippians|Phil\.?|Colossians|Col\.?|Thessalonians|Thess\.?|Timothy|Tim\.?|Titus|Philemon|Phlm\.?|Hebrews|Heb\.?|James|Jas\.?|Peter|Pet\.?|Jude|Revelation|Rev\.?)(?:\s+\d)?\s*(?:chapter\s*)?)$/i;
+
+export function isBiblicalCitationAt(text: string, referenceOffset: number): boolean {
+  const before = text.slice(Math.max(0, referenceOffset - 70), referenceOffset);
+  return BIBLICAL_BOOK_BEFORE_REFERENCE.test(before);
+}
+
 export function decorateRenderedVerseReferences(container: HTMLElement): number {
   const doc = container.ownerDocument;
   const walker = doc.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -60,7 +70,7 @@ export function decorateRenderedVerseReferences(container: HTMLElement): number 
       const index = match.index ?? 0;
       const chapter = Number(match[1]);
       const verse = Number(match[2]);
-      if (!validVerseReference(chapter, verse)) continue;
+      if (!validVerseReference(chapter, verse) || isBiblicalCitationAt(text, index)) continue;
       fragment.append(doc.createTextNode(text.slice(cursor, index)));
       const link = doc.createElement('a');
       link.href = `#ccc-quran-ref-${chapter}-${verse}`;

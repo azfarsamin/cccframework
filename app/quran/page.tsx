@@ -677,6 +677,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
   const [evidenceAudit, setEvidenceAudit] = useState<{
     references: string[];
     researchSources: { id: string; title: string; section: string; complete?: boolean; parts?: number }[];
+    gerransNotes?: { id: string; verse: string; noteNumber: number; pdfPage: number; printedPage: number; complete: boolean }[];
+    gerransNotesAvailable?: number;
+    gerransNotesOmitted?: { id: string; reason: string }[];
     focalReference?: string;
     contextReferences?: string[];
     researchSections?: { section: string; article: string; complete: boolean; parts: number }[];
@@ -1254,7 +1257,10 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
           const event = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim() || "message";
           const data = frame.split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
           if (!data) return;
-          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string; complete?: boolean; parts?: number }[]; researchReferences?: string[];
+          let value: { text?: string; message?: string; incomplete?: boolean; partial?: boolean; invalidReferences?: string[]; finishReason?: string; references?: string[]; researchSources?: { id: string; title: string; section: string; complete?: boolean; parts?: number }[];
+            gerransNotes?: { id: string; verse: string; noteNumber: number; pdfPage: number; printedPage: number; complete: boolean }[];
+            gerransNotesAvailable?: number; gerransNotesOmitted?: { id: string; reason: string }[];
+            researchReferences?: string[];
             focalReference?: string; contextReferences?: string[]; researchSections?: { section: string; article: string; complete: boolean; parts: number }[];
             reconstruction?: { issue: string; claims: { claim: string; source: string; premises: string[]; evidenceRefs: string[]; status: string }[]; disputed: string[]; notNecessarilyDisputed: string[] };
             unsuppliedReferences?: string[]; lexical?: { lemma: string; total: number; supplied: number }[]; sources?: Record<string, string[]>; findings?: { quote: string; issue: string; evidenceRef: string; evidenceQuote: string; suggestion: string }[]; unresolved?: string[];
@@ -1268,6 +1274,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
           } else if (event === "evidence") {
             discovered = (value.references || []).filter(r => /^\d{1,3}:\d{1,3}$/.test(r));
             setEvidenceAudit({ references: discovered, researchSources: value.researchSources || [],
+              gerransNotes: value.gerransNotes || [], gerransNotesAvailable: value.gerransNotesAvailable || 0,
+              gerransNotesOmitted: value.gerransNotesOmitted || [],
               researchReferences: value.researchReferences || [], lexical: value.lexical || [],
               sources: value.sources || {}, focalReference: value.focalReference,
               contextReferences: value.contextReferences || [], researchSections: value.researchSections || [] });
@@ -1739,13 +1747,23 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {loading && <button type="button" className={styles.secondary} onClick={cancelAnalysis}>Stop analysis</button>}
             {status && <p role="status" className={styles.status}>{status}</p>}
             {evidenceAudit && <details className={styles.note}>
-              <summary>Evidence audit: {evidenceAudit.references.length} comparison passages; {evidenceAudit.researchSources.length} restored research sections</summary>
+              <summary>Evidence audit: {evidenceAudit.references.length} comparison passages; {evidenceAudit.researchSources.length} restored research sections; {evidenceAudit.gerransNotes?.length || 0} Gerrans notes</summary>
               <p className={styles.hint}>These are search leads verified against the local Qurʾān, not independent proof of an article's conclusion. Evidence remains fixed across the analysis stages.</p>
               <p><strong>Focal verse:</strong> {evidenceAudit.focalReference || analysisReference}</p>
               <p><strong>Immediate context (full Arabic):</strong> {(evidenceAudit.contextReferences || []).join(", ")}</p>
               <p><strong>Additional full-Arabic comparisons:</strong> {evidenceAudit.references.join(", ")}</p>
               <p><strong>Restored indexed research sections:</strong></p>
               <ul>{evidenceAudit.researchSources.map(src => <li key={src.id}>{src.title} — {src.section} ({src.parts || 1} indexed parts; {src.complete ? "complete" : "truncated"})</li>)}</ul>
+              {(evidenceAudit.gerransNotes?.length || 0) > 0 && <>
+                <p><strong>Selected verse-specific commentary — Sam Gerrans, The Qur’an: A Complete Revelation:</strong></p>
+                <ul>{evidenceAudit.gerransNotes?.map(note => <li key={note.id}>
+                  {note.verse}#{note.noteNumber} ({note.complete ? "complete" : "partial"}; PDF p. <a href={`/pdfs/The-Quran-A-Complete-Revelation-Ed-3.pdf#page=${note.pdfPage}`} target="_blank" rel="noopener noreferrer">{note.pdfPage}</a>; printed p. {note.printedPage})
+                </li>)}</ul>
+              </>}
+              {(evidenceAudit.gerransNotesOmitted?.length || 0) > 0 && <p className={styles.hint}>
+                Gerrans notes omitted from model context: {evidenceAudit.gerransNotesOmitted?.map(note => `${note.id} (${note.reason})`).join(", ")}.
+                Selected {evidenceAudit.gerransNotes?.length || 0} of {evidenceAudit.gerransNotesAvailable || 0} direct notes.
+              </p>}
               <p><strong>Corpus lemma coverage:</strong></p>
               <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{entry.lemma}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
             </details>}

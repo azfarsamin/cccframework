@@ -164,7 +164,13 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
     if (!isBullet) {
       const heading = publicationHeading(raw);
       if (!heading) continue;
-      const source = findPublication(heading.title);
+      // Source headings can begin with the author, e.g. "Sam Gerrans, *The Qur'an...*".
+      // Recognize the already-registered publication without changing its index.
+      const source = findPublication(heading.title) || (
+        /\bSam Gerrans\b/i.test(heading.title) && /\bThe Qur['’]an:\s*A Complete Revelation\b/i.test(heading.title)
+          ? indexedPublications.find(item => item.sourceId === "sam-gerrans-complete-revelation")
+          : undefined
+      );
       current = { title: heading.title, pdfUrl: source?.pdfUrl || heading.suppliedUrl, bullets: [] };
       groups.push(current);
     } else if (current) {
@@ -179,7 +185,13 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
           : group.title}
       </div>
       {group.bullets.length > 0 && <ul>{group.bullets.map((bullet, index) =>
-        <li key={index} className={styles.furtherReadingSection}>{inlineMarkdown(bullet)}</li>
+        <li key={index} className={styles.furtherReadingSection}>{inlineMarkdown(
+          // Link verified, already-supplied PDF page references; do not invent pages.
+          group.pdfUrl && /\bSam Gerrans\b/i.test(group.title)
+            ? bullet.replace(/\bPDF p\.\s*(\d+)\b/g, (_match, page: string) =>
+                `PDF p. [${page}](${group.pdfUrl}#page=${page} "Open PDF page ${page}")`)
+            : bullet
+        )}</li>
       )}</ul>}
     </section>)}
   </div>;
