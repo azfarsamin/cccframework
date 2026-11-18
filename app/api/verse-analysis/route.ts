@@ -613,6 +613,15 @@ export async function POST(req: NextRequest) {
   if (stage === "discovery") {
     const payload = { references: evidenceRefs, candidateCount: plan.candidateCount,
       researchSources: plan.researchSources, researchReferences: plan.researchReferences,
+      // The verse-specific Gerrans stream is distinct from indexed article sections.
+      // Report exactly the notes selected for the model, without double-counting them.
+      gerransNotes: gerransSelection.selected.map(note => ({
+        id: note.id, verse: note.verse, noteNumber: note.note_number,
+        pdfPage: note.pdf_page_start, printedPage: note.printed_page_start,
+        complete: true,
+      })),
+      gerransNotesAvailable: gerransSelection.totalDirectNotes,
+      gerransNotesOmitted: gerransSelection.omitted,
       filteredResearchSections: plan.rejectedResearch,
       focalReference: ref, contextReferences: contextRefs,
       researchSections: plan.researchUnits.map(u=>({section:u.section,article:u.title,complete:u.complete,parts:u.chunkIds.length})),
