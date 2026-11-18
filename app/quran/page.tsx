@@ -379,9 +379,7 @@ function corpusRomanization(value: string): string {
       if (last) output += last;
       continue;
     }
-    // Source-only orthographic controls have no reader-facing romanization.
-    // Never render raw extended-Buckwalter punctuation as Latin transliteration.
-    output += letters[character] ?? (/^[\[\],.#;:%!+_@\-"']$/.test(character) ? "" : "");
+    output += letters[character] ?? character;
   }
   return output;
 }
@@ -397,12 +395,6 @@ function inspectorTransliteration(word: MorphWord): string {
     if (kind === "DET") {
       output += output && /[aeiouāīū]$/i.test(output) ? "l-" : "al-";
       articleBeforeStem = true;
-      continue;
-    }
-    // Plural verb orthographic ending w^A@ denotes -ū, not literal "w^A@".
-    if (/^w\^?A@?$/.test(surface) && /u$/.test(output)) {
-      output = output.slice(0, -1) + "ū";
-      articleBeforeStem = false;
       continue;
     }
     const adjusted = articleBeforeStem && surface.length > 1 && surface[1] === "~"
@@ -1551,9 +1543,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <div className={styles.inspectorWordLine}>
-                <span className={styles.inspectorTransliteration}>
-                  {inspectorRomanized || "—"}
-                </span>
+                <span className={styles.inspectorTransliteration}>{inspectorRomanized || "—"}</span>
                 <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display || (inspectedWord?.s.map(segment => translitToArabic(segment[0])).join("") ?? "")}</span>
               </div>
               <div className={styles.wordMeaning} lang="en" aria-live="polite">
@@ -1582,7 +1572,6 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                       </dl>
                     </div>
                   ))}
-                  <p className={styles.grammarNote}>These are corpus annotations. Perfect/imperfect describe grammatical aspect, not necessarily the real-world time of an event.</p>
                   {correctionNotice && <p className={styles.grammarNote}><strong>Reviewed local correction:</strong> {correctionNotice}</p>}
                 </div>
 
@@ -1652,7 +1641,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               />
               <button type="submit" disabled={!rootQuery.trim() || morphLoading}>Find root</button>
             </form>
-            <p className={styles.hint}>Select a first letter, then a root. Choosing a root fills the search box and searches automatically. You can also paste an Arabic root into the box and press Find root.</p>
+            <p className={styles.hint}>Select a first letter, then a root. You can also paste an Arabic root into the box and press Find root.</p>
             <div style={{ marginTop: 12, marginBottom: 12, border: "1px solid #d9dfe8", borderRadius: 10, padding: 12, background: "#f8f9fb" }}>
               <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>Advanced corpus analysis</div>
               <p className={styles.hint} style={{ marginTop: 0 }}>Explore this root across grammatical forms, or find all verbs of a form across the Qurʾān.</p>
