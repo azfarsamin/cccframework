@@ -13,6 +13,73 @@ function inlineMarkdown(value: string): ReactNode[] {
   });
 }
 
+
+// Presentation-only source registry. Only PDFs confirmed under public/pdfs are linked.
+// Sources without a verified local PDF remain text; never invent an external URL.
+const furtherReadingPdfSources: { test: RegExp; title: string; file: string }[] = [
+  { test: /Reason, Revelation, and the Architecture of Truth/i, title: "Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews", file: "ReasonRevelationTruth_FreePdf_v2.1.pdf" },
+  { test: /The God Protocol/i, title: "The God Protocol — Sam Gerrans (Second Edition, 2022)", file: "The-God-Protocol-Ed-2.pdf" },
+  { test: /Addenda to The Qur[’']an|Addenda-to-The-Quran/i, title: "Addenda to The Qur’an: A Complete Revelation — Sam Gerrans", file: "Addenda-to-The-Quran-A-Complete-Revelation.pdf" },
+  { test: /The Qur[’']an: A Complete Revelation|The Quran: A Complete Revelation/i, title: "The Qur’an: A Complete Revelation — Sam Gerrans (Third Edition)", file: "The-Quran-A-Complete-Revelation-Ed-3.pdf" },
+  { test: /The Architecture of Debt-Money and Interest|Architecture of Debt-Money and Interest/i, title: "The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis", file: "ArchitectureOfDebtMoneyAndInterest_freepdf.pdf" },
+];
+
+type ReadingSection = { name: string; pages: number[]; unpaged: boolean };
+type ReadingGroup = { title: string; file?: string; sections: ReadingSection[] };
+
+function readingGroups(lines: string[]): ReadingGroup[] {
+  const groups: ReadingGroup[] = [];
+  for (const raw of lines) {
+    const text = raw.replace(/^\s*[-*+]\s+/, "").trim();
+    if (!text) continue;
+    const matched = furtherReadingPdfSources.find(source => source.test.test(text));
+    let title: string;
+    let detail: string;
+    if (matched) {
+      title = matched.title;
+      detail = text.replace(/^.*?\s+[—–]\s+/, "");
+      // For author-prefixed book references, strip the full source prefix, not just the first em dash.
+      const pageBreak = text.lastIndexOf(" — ");
+      if (pageBreak >= 0) detail = text.slice(pageBreak + 3);
+      if (detail === text) detail = "Relevant passages";
+    } else {
+      const split = text.indexOf(" — ");
+      title = split >= 0 ? text.slice(0, split).trim() : text;
+      detail = split >= 0 ? text.slice(split + 3).trim() : "Relevant passages";
+    }
+    detail = detail.replace(/\s*\[complete indexed section\]\s*/gi, "").trim();
+    const pageMatch = /\[PDF\s+p\.\s*(\d+)\]/i.exec(detail);
+    const page = pageMatch ? Number(pageMatch[1]) : undefined;
+    detail = detail.replace(/\s*\[PDF\s+p\.\s*\d+\]\s*/gi, "").trim() || "Relevant passages";
+    let group = groups.find(item => item.title === title);
+    if (!group) { group = { title, file: matched?.file, sections: [] }; groups.push(group); }
+    let section = group.sections.find(item => item.name === detail);
+    if (!section) { section = { name: detail, pages: [], unpaged: false }; group.sections.push(section); }
+    if (page !== undefined && !section.pages.includes(page)) section.pages.push(page);
+    if (page === undefined) section.unpaged = true;
+  }
+  return groups;
+}
+
+function FurtherReading({ lines }: { lines: string[] }) {
+  const groups = readingGroups(lines);
+  return <div className={styles.furtherReadingSources}>
+    {groups.map(group => {
+      const firstPage = group.sections.flatMap(item => item.pages)[0];
+      const fileUrl = group.file ? `/pdfs/${group.file}` : null;
+      return <section key={group.title} className={styles.furtherReadingSource}>
+        <div className={styles.furtherReadingSourceTitle}>
+          {fileUrl ? <a href={firstPage ? `${fileUrl}#page=${firstPage}` : fileUrl} target="_blank" rel="noopener noreferrer" title="Open source PDF">{group.title}</a> : group.title}
+        </div>
+        <ul>{group.sections.map(section => <li key={section.name} className={styles.furtherReadingSection}>
+          {section.name}
+          {section.pages.length > 0 && <span> (PDF {section.pages.length === 1 ? "p." : "pp."} {section.pages.sort((a,b) => a-b).map((page, index) => <span key={page}>{index ? ", " : ""}{fileUrl ? <a href={`${fileUrl}#page=${page}`} target="_blank" rel="noopener noreferrer" title={`Open PDF page ${page}`}>{page}</a> : page}</span>)})</span>}
+        </li>)}</ul>
+      </section>;
+    })}
+  </div>;
+}
+
 export function ResearchMarkdown({ source }: { source: string }) {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -25,7 +92,19 @@ export function ResearchMarkdown({ source }: { source: string }) {
     if (heading) {
       if (heading[1].length < 3) blocks.push(<h2 key={i}>{inlineMarkdown(heading[2])}</h2>);
       else blocks.push(<h3 key={i}>{inlineMarkdown(heading[2])}</h3>);
-      i++; continue;
+      i++;
+      // Group only the completed Further Reading list; preserve all other Markdown intact.
+      if (/^(?:5[.)]\s*)?further reading\s*$/i.test(heading[2].trim())) {
+        const entries: string[] = [];
+        while (i < lines.length) {
+          if (!lines[i].trim()) { i++; continue; }
+          if (!/^\s*[-*+]\s+/.test(lines[i])) break;
+          entries.push(lines[i]);
+          i++;
+        }
+        if (entries.length) blocks.push(<FurtherReading key={`reading-${i}`} lines={entries} />);
+      }
+      continue;
     }
     if (/^\s*>\s?/.test(line)) {
       blocks.push(<blockquote key={i}>{inlineMarkdown(line.replace(/^\s*>\s?/, ""))}</blockquote>);

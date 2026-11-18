@@ -262,3 +262,18 @@
 .note[open] a {
   color: #174b89 !important;
 }
+
+/* UI-2026-11-18: distinct inspector columns even when the analysis pane is narrow. */
+.inspectorWordLine { display:grid; grid-template-columns:minmax(0,1fr) minmax(120px,1fr); align-items:center; column-gap:32px; width:100%; min-width:0; direction:ltr; }
+.inspectorTransliteration { display:block; min-width:0; overflow-wrap:anywhere; text-align:left; font-size:16px; line-height:1.5; color:#24527f; }
+.inspectorWordLine .inspectorArabic { display:block; justify-self:end; width:100%; text-align:right; direction:rtl; white-space:normal; line-height:1.8; }
+@media(max-width:520px) { .inspectorWordLine { column-gap:20px; grid-template-columns:minmax(0,1fr) minmax(95px,1fr); } }
+
+/* Consolidated source entries in Further Reading; renderer-only, no prompt changes. */
+.furtherReadingSources { display:flex; flex-direction:column; gap:12px; margin:8px 0 18px; }
+.furtherReadingSource { border:1px solid #e0e5ec; background:#fafbfc; padding:12px 14px; border-radius:9px; min-width:0; }
+.furtherReadingSourceTitle { font-weight:700; color:#203754; line-height:1.5; overflow-wrap:anywhere; }
+.furtherReadingSourceTitle a, .furtherReadingSection a { color:#24527f; text-decoration:underline; text-underline-offset:2px; }
+.furtherReadingSource ul { margin:7px 0 0 0; padding-left:20px; }
+.furtherReadingSource li { margin:4px 0; line-height:1.5; overflow-wrap:anywhere; }
+.furtherReadingSection { font-size:0.94em; }

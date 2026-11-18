@@ -1292,7 +1292,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             setAiResponse(collected);
             if (value.unsuppliedReferences?.length) setUnsuppliedReferences(value.unsuppliedReferences);
             const warnings = value.invalidReferences?.length ? ` Unverified references: ${value.invalidReferences.join(", ")}.` : "";
-            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "discovery" ? "Evidence selected. Preparing attributed research angles…" : stage === "reconstruction" ? "Research angles prepared. Beginning grammar…" : stage === "foundation" ? "Grammar and verse proximity complete. Beginning pan-textual evidence…" : stage === "synthesis" ? "Five research sections generated. Checking factual accuracy…" : "Verification complete.") + warnings);
+            setStatus((stageIncomplete ? `Stage ${stage} was truncated (finish: ${value.finishReason || "unknown"}).` : stage === "discovery" ? "Evidence selected. Reconstructing arguments…" : stage === "reconstruction" ? "Argument reconstruction complete. Beginning grammar…" : stage === "foundation" ? "Grammar and context complete. Beginning synthesis…" : stage === "synthesis" ? "Five sections generated. Checking material claims…" : "Verification complete.") + warnings);
           } else if (event === "error") {
             completed = true;
             failed = true;
@@ -1543,9 +1543,7 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
             {wordChoice && <div className={styles.wordInspector}>
               <strong>Word {wordChoice.reference}:{wordChoice.index}</strong>
               <div className={styles.inspectorWordLine}>
-                <span className={styles.inspectorTransliteration}>
-                  {inspectorRomanized || "—"}
-                </span>
+                <span className={styles.inspectorTransliteration}>{inspectorRomanized || "—"}</span>
                 <span dir="rtl" lang="ar" className={styles.inspectorArabic}>{wordChoice.display || (inspectedWord?.s.map(segment => translitToArabic(segment[0])).join("") ?? "")}</span>
               </div>
               <div className={styles.wordMeaning} lang="en" aria-live="polite">
@@ -1574,7 +1572,6 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                       </dl>
                     </div>
                   ))}
-                  <p className={styles.grammarNote}>These are corpus annotations. Perfect/imperfect describe grammatical aspect, not necessarily the real-world time of an event.</p>
                   {correctionNotice && <p className={styles.grammarNote}><strong>Reviewed local correction:</strong> {correctionNotice}</p>}
                 </div>
 
@@ -1644,14 +1641,14 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               />
               <button type="submit" disabled={!rootQuery.trim() || morphLoading}>Find root</button>
             </form>
-            <p className={styles.hint}>Select a first letter, then a root. Choosing a root fills the search box and searches automatically. You can also paste an Arabic root into the box and press Find root.</p>
+            <p className={styles.hint}>Select a first letter, then a root. You can also paste an Arabic root into the box and press Find root.</p>
             <div style={{ marginTop: 12, marginBottom: 12, border: "1px solid #d9dfe8", borderRadius: 10, padding: 12, background: "#f8f9fb" }}>
               <div style={{ fontSize: 13, fontWeight: 650, marginBottom: 4 }}>Advanced corpus analysis</div>
               <p className={styles.hint} style={{ marginTop: 0 }}>Explore this root across grammatical forms, or find all verbs of a form across the Qurʾān.</p>
-              <a target="_blank" rel="noopener noreferrer" title="Search the selected root in CCC Corpus Search without interrupting the Reader" style={{ color: "#234469", fontSize: 13, fontWeight: 650 }} href={normalizedRoot(rootQuery)
+              <a target="_blank" rel="noopener noreferrer" title="Open corpus tools in a new tab without interrupting the Reader analysis" style={{ color: "#234469", fontSize: 13, fontWeight: 650 }} href={rootOptions.some(option => option.root === normalizedRoot(rootQuery))
                 ? `/quran/corpus?mode=root&letter=${encodeURIComponent(normalizedRoot(rootQuery)[0])}&root=${encodeURIComponent(normalizedRoot(rootQuery))}&form=any`
                 : "/quran/corpus"}>
-                Search this root in CCC Corpus Search ↗
+                Open in Corpus Search ↗
               </a>
             </div>
             {morphError && <p role="alert" className={styles.searchError}>{morphError}</p>}
@@ -1753,8 +1750,8 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
               <ul>{evidenceAudit.lexical.map(entry => <li key={entry.lemma}>{entry.lemma}: {entry.supplied} / {entry.total} verse occurrences supplied in full</li>)}</ul>
             </details>}
             {argumentAudit && <details className={styles.note}>
-              <summary>Indexed research preparation: {argumentAudit.claims.length} research angle(s) identified</summary>
-              <p><strong>Indexed research focus:</strong> {argumentAudit.issue}</p>
+              <summary>Argument reconstruction: {argumentAudit.claims.length} claim(s) tested before interpretation</summary>
+              <p><strong>Issue:</strong> {argumentAudit.issue}</p>
               <ul>{argumentAudit.claims.map((item,i)=><li key={`argument-${i}`}><strong>{item.claim}</strong> ({item.status}; {item.source})
                 {item.premises.length > 0 && <ul>{item.premises.map((premise,j)=><li key={`premise-${j}`}>{premise}</li>)}</ul>}
                 <span>Evidence references: {item.evidenceRefs.join(", ") || "none verified"}</span>
