@@ -29,40 +29,66 @@ function normalizePublicationTitle(value: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
-// A verified public PDF may precede regeneration of a deployed build-time
-// registry. This narrow fallback is NOT generic fuzzy matching: the filename is
-// an existing, explicitly confirmed publication in public/pdfs/. New sources
-// still follow the automatic build-time registry and aliases file.
-const verifiedPdfFallbacks: PdfSource[] = [{
-  file: "reassessing-prophetic-literacy-written-revelation.pdf",
-  title: "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
-  aliases: [
-    "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
-    "Reassessing Prophetic Literacy and the Written Transmission of Revelation",
-    "Reassessing Prophetic Literacy",
-  ],
-}];
+// Explicit publication-to-file mappings take priority over a generated registry.
+// This matters after a PDF is renamed: a stale registry may still contain the old
+// filename under the same title. Never let that duplicate suppress the live link.
+// These two filenames have been confirmed in the deployed public/pdfs folder.
+const verifiedPdfSources: PdfSource[] = [
+  {
+    file: "reassessing-prophetic-literacy-written-revelation.pdf",
+    title: "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+    aliases: [
+      "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+      "Reassessing Prophetic Literacy and the Written Transmission of Revelation",
+      "Reassessing Prophetic Literacy",
+    ],
+  },
+  {
+    file: "quran-hadith-marriageable-age-textual-analysis.pdf",
+    title: "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+    aliases: [
+      "The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis",
+      "The Qur’an, Hadith, and the Debate on Marriageable Age",
+      "Quran Hadith Marriageable Age Textual Analysis",
+    ],
+  },
+];
+
+function pdfCandidates(text: string, sources: PdfSource[]): { source: PdfSource; matchLength: number }[] {
+  const normalized = normalizePublicationTitle(text);
+  if (!normalized) return [];
+  const matches = sources.flatMap(source =>
+    [source.title, ...source.aliases].map(alias => ({
+      source,
+      matchLength: normalizePublicationTitle(alias),
+    })))
+    .filter(({ matchLength }) => matchLength.length >= 12 &&
+      (normalized === matchLength || normalized.startsWith(matchLength + " ")))
+    .map(({ source, matchLength }) => ({ source, matchLength: matchLength.length }))
+    .sort((a, b) => b.matchLength - a.matchLength);
+  // A title can be repeated in aliases for the SAME file; this is not an ambiguity.
+  const seen = new Set<string>();
+  return matches.filter(({ source }) => {
+    if (seen.has(source.file)) return false;
+    seen.add(source.file);
+    return true;
+  });
+}
 
 function findPdfSource(text: string): PdfSource | undefined {
-  const normalized = normalizePublicationTitle(text);
-  if (!normalized) return undefined;
-  // Search for a complete title/alias at the start of the bibliographic line.
-  // Longest match wins; ties between different files are treated as ambiguous.
-  const sources = [...availablePdfSources];
-  // Also resolve this previously verified publication when a deployed registry
-  // was generated before its PDF was added. A registry hit remains preferred.
-  for (const source of verifiedPdfFallbacks) {
-    if (!sources.some(item => item.file === source.file)) sources.push(source);
+  // Explicit, verified mappings are authoritative for these publications,
+  // regardless of stale aliases or filenames in the generated registry.
+  const verified = pdfCandidates(text, verifiedPdfSources);
+  if (verified.length) {
+    if (verified.length > 1 && verified[0].matchLength === verified[1].matchLength) return undefined;
+    return verified[0].source;
   }
-  const candidates = sources.flatMap(source =>
-    source.aliases.map(alias => ({ source, normalizedAlias: normalizePublicationTitle(alias) })))
-    .filter(({ normalizedAlias }) => normalizedAlias.length >= 12 &&
-      (normalized === normalizedAlias || normalized.startsWith(normalizedAlias + " ")))
-    .sort((a, b) => b.normalizedAlias.length - a.normalizedAlias.length);
-  if (!candidates.length) return undefined;
-  if (candidates.length > 1 && candidates[0].normalizedAlias.length === candidates[1].normalizedAlias.length &&
-      candidates[0].source.file !== candidates[1].source.file) return undefined;
-  return candidates[0].source;
+  // Future PDFs continue to be discovered at build time. Ambiguity among
+  // genuinely different unverified publications remains fail-closed.
+  const discovered = pdfCandidates(text, availablePdfSources);
+  if (!discovered.length) return undefined;
+  if (discovered.length > 1 && discovered[0].matchLength === discovered[1].matchLength) return undefined;
+  return discovered[0].source;
 }
 
 type ReadingSection = { name: string; pages: number[]; unpaged: boolean };
