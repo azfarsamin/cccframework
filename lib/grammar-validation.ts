@@ -42,6 +42,66 @@ export function deterministicGrammarSheet(ref:string,morph:Morphology):string{
       `FORM=${f.form}; ASPECT=${f.aspect||"not annotated"}; VOICE=${f.voice||"not annotated"}; PERSON=${f.personTag||"NOT ANNOTATED"}; MOOD=${f.mood||"NOT ANNOTATED — do not infer"}`];
   }).join("\n")||"No annotated verbs in the focal verse.";
 }
+/** Noun/adjective case facts are verified from each token's STEM annotation.
+ * An idaafa gives the following mudaf ilayh genitive case, not necessarily
+ * the governing case of its head. A corpus case tag does not establish the
+ * token's syntactic function (e.g. second object versus haal).
+ */
+const nominalPositions = new Set(["N", "ADJ", "PN"]);
+const caseNames: Record<string,string> = { NOM:"nominative", ACC:"accusative", GEN:"genitive" };
+function nominalFacts(w:MorphWord) {
+  const part = w.s.find(([,pos])=>nominalPositions.has(pos));
+  if(!part)return null;
+  const tags=part[2].split("|").filter(Boolean);
+  const caseTag=["NOM","ACC","GEN"].find(t=>tags.includes(t));
+  return {pos:part[1],caseName:caseTag?caseNames[caseTag]:undefined,tags};
+}
+export function deterministicNominalSheet(ref:string,morph:Morphology):string{
+  return (morph[ref]||[]).flatMap((w,i)=>{
+    const f=nominalFacts(w); if(!f)return [];
+    return [`${ref} word ${i+1}: ${w.s.map(x=>x[0]).join("")} [lemma=${w.l||"?"}; root=${w.r||"?"}] `+
+      `POS=${f.pos}; CASE=${f.caseName||"NOT ANNOTATED — do not infer"}; `+
+      `SYNTAX=not annotated (do not infer grammatical role from case or idaafa membership)`];
+  }).join("\n")||"No annotated nominal cases in the focal verse.";
+}
+// Buckwalter surfaces contain corpus-specific vowel markers. Keep only Arabic
+// letters, then match exact Arabic word tokens in the analysis; never guess
+// cases from transliteration or from other words in the same sentence.
+const buckwalterConsonants:Record<string,string>={
+  "'":"ء","|":"آ",">":"أ","&":"ؤ","<":"إ","}":"ئ",A:"ا",b:"ب",p:"ة",t:"ت",v:"ث",j:"ج",H:"ح",x:"خ",d:"د","*":"ذ",r:"ر",z:"ز",s:"س","$":"ش",S:"ص",D:"ض",T:"ط",Z:"ظ",E:"ع",g:"غ",f:"ف",q:"ق",k:"ك",l:"ل",m:"م",n:"ن",h:"ه",w:"و",Y:"ى",y:"ي","{":"ٱ"
+};
+function corpusArabicSurface(w:MorphWord):string {
+  return normalizeArabic(w.s.map(([text])=>[...text].map(c=>buckwalterConsonants[c]||"").join("")).join(""));
+}
+function explicitNominalCases(analysis:string,ref:string,morph:Morphology):GrammarFinding[]{
+  const words=morph[ref]||[]; const findings:GrammarFinding[]=[]; const found=new Set<number>();
+  const grammarSection=(analysis.split(/##\s*1\.\s*Grammar and morphology/i)[1]||"")
+    .split(/##\s*2\./)[0];
+  for(const line of units(grammarSection)) {
+    const matchCase=/\b(nominative|accusative|genitive)\s+(?:case|noun|adjective|proper noun)\b|\b(?:case\s*(?:is|:)\s*)(nominative|accusative|genitive)\b/gi;
+    const caseClaims=[...line.matchAll(matchCase)].map(m=>(m[1]||m[2]).toLowerCase());
+    if(new Set(caseClaims).size!==1)continue;
+    const explicit=line.match(/\bword\s+(\d{1,3})\b/i);
+    const named=words.flatMap((w,i)=>{
+      if(!nominalFacts(w))return [];
+      const form=corpusArabicSurface(w);if(form.length<3)return [];
+      const matches=new Set((line.match(/[\u0621-\u064A\u064B-\u065F\u0670\u0671]{3,}/g)||[])
+        .map(normalizeArabic));
+      return matches.has(form)?[i]:[];
+    });
+    const target=explicit&&line.includes(ref)?Number(explicit[1])-1:named.length===1?named[0]:-1;
+    if(target<0||found.has(target)||!nominalFacts(words[target]))continue;
+    const fact=nominalFacts(words[target])!;
+    if(!fact.caseName||fact.caseName===caseClaims[0])continue;
+    found.add(target);
+    findings.push({quote:line.slice(0,240),
+      issue:`Token-aligned nominal case mismatch: claimed ${caseClaims[0]}; annotated ${fact.caseName}.`,
+      evidenceRef:`${ref} word ${target+1}`,evidenceQuote:`${words[target].s.map(x=>x[0]).join("")}: ${fact.tags.join("|")}`,
+      suggestion:"Correct the case label if the reviewed corpus annotation is supported; assess idaafa membership and syntactic role separately."});
+    if(findings.length>=4)break;
+  }
+  return findings;
+}
 // Split on sentence and clause delimiters. Do NOT take a grammar label from
 // another verb elsewhere in a long sentence (the cause of Q 2:282 false flags).
 function units(text:string){return text.split(/(?:[.?!](?=\s|$)|;|\n|[—–])\s*/).map(s=>s.trim()).filter(Boolean);}
@@ -119,6 +179,7 @@ export function validateGrammarClaims(analysis:string,refs:string|string[],morph
       if(findings.length>=6)return findings;
     }
   }
+  findings.push(...explicitNominalCases(analysis, selected[0], morph));
   // Structural grammar guard. Relative mā/allaḏī does not itself license
   // subjunctive or jussive. This is a claim about the stated RULE, not an
   // attempt to override a potentially disputable corpus mood annotation.
