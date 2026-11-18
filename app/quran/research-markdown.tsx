@@ -29,12 +29,32 @@ function normalizePublicationTitle(value: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
+// A verified public PDF may precede regeneration of a deployed build-time
+// registry. This narrow fallback is NOT generic fuzzy matching: the filename is
+// an existing, explicitly confirmed publication in public/pdfs/. New sources
+// still follow the automatic build-time registry and aliases file.
+const verifiedPdfFallbacks: PdfSource[] = [{
+  file: "Article_Reassessing_Prophetic_Literacy.pdf",
+  title: "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+  aliases: [
+    "Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān",
+    "Reassessing Prophetic Literacy and the Written Transmission of Revelation",
+    "Reassessing Prophetic Literacy",
+  ],
+}];
+
 function findPdfSource(text: string): PdfSource | undefined {
   const normalized = normalizePublicationTitle(text);
   if (!normalized) return undefined;
   // Search for a complete title/alias at the start of the bibliographic line.
   // Longest match wins; ties between different files are treated as ambiguous.
-  const candidates = availablePdfSources.flatMap(source =>
+  const sources = [...availablePdfSources];
+  // Also resolve this previously verified publication when a deployed registry
+  // was generated before its PDF was added. A registry hit remains preferred.
+  for (const source of verifiedPdfFallbacks) {
+    if (!sources.some(item => item.file === source.file)) sources.push(source);
+  }
+  const candidates = sources.flatMap(source =>
     source.aliases.map(alias => ({ source, normalizedAlias: normalizePublicationTitle(alias) })))
     .filter(({ normalizedAlias }) => normalizedAlias.length >= 12 &&
       (normalized === normalizedAlias || normalized.startsWith(normalizedAlias + " ")))
