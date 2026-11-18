@@ -2,22 +2,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { validateCalibrationClaims } from "../../../lib/calibration-validation";
+import { deterministicGrammarSheet, validateGrammarClaims } from "../../../lib/grammar-validation";
+import { reviewAnalysisQuality } from "../../../lib/analysis-quality";
+import { CCC_EPISTEMIC_DIRECTIVE, CCC_REASONING_SAFEGUARDS, CCC_QURAN_FIRST_CALIBRATION } from "../../../lib/ccc-epistemic-directive";
+import { correctionPrompt, correctedGrammarSheet } from "../../../lib/corpus-corrections";
 import { gerransPromptNotes } from "../../../lib/gerrans-footnote-index";
-import { searchResearch, expandResearchEvidence, neighboringResearchReferences, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
+import { searchResearch, expandResearchEvidence, neighboringResearchReferences, rankRelevantResearch, type ResearchEvidenceUnit } from "../../../lib/research-retrieval";
+import { fullArticleEvidenceForVerse, findFullArticleIdsForVerse, readFullResearchArticle, restoreArgumentSectionsForVerse } from "../../../lib/full-research-index";
 
 export const runtime = "nodejs";
-export const maxDuration = 150; // Requires a Vercel deployment with >=150s function duration.
-// Fail before the platform's 150-second limit, preserving any streamed text.
-// A shorter response and leaner evidence payload should normally finish well before this.
-const UPSTREAM_LIMIT_MS = 132000;
-const MAX_OUTPUT_TOKENS = 4200; // Budget for each of the two streamed writing stages.
-const AUDIT_OUTPUT_TOKENS = 1600;
-const RECONSTRUCTION_OUTPUT_TOKENS = 3400; // Headroom for reliable structured argument reconstruction; billing tracks actual generated tokens.
+// 300s with Vercel Fluid Compute works on Hobby and higher plans. Pro/Enterprise
+// may raise this to 800s after confirming the project's runtime entitlement.
+// Each stage is a SEPARATE request; the browser orchestrates them sequentially.
+export const maxDuration = 300;
+const UPSTREAM_LIMIT_MS = 270000; // Keep 30s for SSE completion and cleanup.
+const MAX_OUTPUT_TOKENS = 4200; // Non-reasoning model default.
+const AUDIT_OUTPUT_TOKENS = 3000;
+const RECONSTRUCTION_OUTPUT_TOKENS = 3400;
+// DeepSeek V4 Pro counts private reasoning and visible text in the SAME budget.
+// Give its reconstruction and verification stages headroom without streaming reasoning.
+const PRO_RECONSTRUCTION_TOKENS = 6000;
+const PRO_WRITING_TOKENS = 16000;
+const PRO_AUDIT_TOKENS = 9000;
 
 const HEARTBEAT_MS = 12000;
-const EVIDENCE_LIMIT = 24;
-const EVIDENCE_TEXT_BUDGET = 18000;
-const RESEARCH_TEXT_BUDGET = 15500;
+const EVIDENCE_LIMIT = 36;
+const EVIDENCE_TEXT_BUDGET = 24000;
+// Pilot-specific narrative parallels are retrieval requirements, not predetermined interpretations.
+// Supply their COMPLETE Arabic before selecting lower-priority root or lemma leads.
+const ESSENTIAL_NARRATIVE_PARALLELS: Record<string,string[]> = {
+  "2:30": ["7:11", "38:71", "38:72", "38:73", "21:20"],
+  "28:10": ["22:46", "7:179"],
+  "22:46": ["7:179", "28:10"],
+  "25:5": ["29:48", "2:78"],
+  "2:78": ["3:20", "3:75", "7:157", "7:158", "62:2"],
+  "17:36": ["49:6", "39:18"]
+};
+const RESEARCH_TEXT_BUDGET = 21000;
 // User-authored research excerpts enrich discovery but never override Qur'anic wording.
 
 type MorphSegment = [string, string, string];
@@ -176,6 +198,7 @@ type EvidencePlan = {
   researchUnits: ResearchEvidenceUnit[];
   researchContext: string;
   researchReferences: string[];
+  rejectedResearch: string[];
   sources: Record<string, string[]>;
   candidateCount: number;
 };
@@ -218,8 +241,8 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     lexical.push({ lemma, total: occurrences.length, references: occurrences, supplied: 0 });
     // Exhaustive for rare lemmas. For common terms keep the *full inventory*
     // visible, but do not swamp the interpretation prompt with dozens of verses.
-    const n = occurrences.length <= 16 ? occurrences.length : Math.min(12, occurrences.length);
-    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 16 ? 38 : 11, `same lemma ${lemma}`));
+    const n = occurrences.length <= 24 ? occurrences.length : Math.min(12, occurrences.length);
+    occurrences.filter(r => r !== ref).slice(0, n).forEach(r => offer(r, occurrences.length <= 24 ? 38 : 11, `same lemma ${lemma}`));
   }
   lexical.sort((a,b) => a.total-b.total || a.lemma.localeCompare(b.lemma));
   // Search 12 rather than 4 passages. Only a subset of high-relevance
@@ -228,6 +251,7 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
   let researchContext = "No directly relevant indexed research excerpts were found.";
   let researchSources: EvidencePlan["researchSources"] = [];
   let researchUnits: ResearchEvidenceUnit[] = [];
+  let rejectedResearch: string[] = [];
   let linkedResearch: string[] = [];
   const researchCounts = new Map<string, { count: number; sections: Set<string> }>();
   try {
@@ -235,7 +259,10 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     // This restores tables and premises that were split across indexed chunks.
     const hits = await searchResearch("", ref, 12);
     const onTopic = hits.filter(h => !h.externalDiscussion);
-    researchUnits = await expandResearchEvidence(onTopic.length ? onTopic : hits, 7, RESEARCH_TEXT_BUDGET);
+    const expanded = await expandResearchEvidence(onTopic.length ? onTopic : hits, 8, RESEARCH_TEXT_BUDGET);
+    const chosen = rankRelevantResearch(ref, expanded, 3);
+    researchUnits = chosen.accepted;
+    rejectedResearch = chosen.rejected.map(u => `${u.title} — ${u.section}`);
     researchContext = researchUnits.length
       ? researchUnits.map(u =>
           `[Research unit ${u.key}; ${u.complete ? "complete section" : "TRUNCATED SECTION"}; ${u.chunkIds.length} indexed parts; verses: ${u.verseRefs.join(", ")}]\n${u.title} — ${u.section}\n${u.text}`
@@ -243,8 +270,65 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
       : "No directly relevant indexed research sections were found.";
     researchSources = researchUnits.map(u => ({ id:u.key,title:u.title,section:u.section,
       complete:u.complete,parts:u.chunkIds.length }));
-    linkedResearch = (await neighboringResearchReferences(researchUnits)).filter(r => r !== ref && Boolean(corpus[r]));
-    for (const r of linkedResearch) offer(r, 20, "related research section citation lead");
+    // Complete-article linkage (schema v2): the *whole* indexed source is
+    // available, even when only several sections fit the inference context.
+    // Cross-section citations are discovery leads, NEVER proof of author claims.
+    // This prevents the focal-verse citation gate from severing related premises.
+    // Add newly indexed sources without editing the legacy chunk index.
+    // An article enters by an explicit focal reference, never a doctrine bonus.
+    const fullIds=[...new Set([...researchUnits.map(u => u.articleId),
+      ...findFullArticleIdsForVerse(ref,2)])];
+    const fullEvidence = fullArticleEvidenceForVerse(ref,fullIds,36);
+    // Restore the complete research ARGUMENT, including its comparative table
+    // and related sections. Do not filter by the first two verse-linked sections:
+    // evidence in a table often has no focal verse citation in its individual rows.
+    const restoration = restoreArgumentSectionsForVerse(ref,fullIds,24500,12);
+    const restoredArticles = new Set(restoration.sections.map(s=>s.articleId));
+    // When the complete index restores sections of the same article, prefer the
+    // authenticated original over incomplete legacy excerpts from that article.
+    const droppedKeys = new Set(researchUnits.filter(u=>restoredArticles.has(u.articleId)).map(u=>u.key));
+    const keptLegacy = researchUnits.filter(u=>!droppedKeys.has(u.key));
+    researchUnits = [...keptLegacy];
+    researchSources = researchSources.filter(u=>!droppedKeys.has(u.id));
+    for(const section of restoration.sections){
+      const citationFrequency:Record<string,number>={};
+      for(const verse of section.verseRefs)citationFrequency[verse]=1;
+      researchUnits.push({key:section.sectionId,articleId:section.articleId,title:section.articleTitle,
+        section:section.heading,text:section.text,verseRefs:section.verseRefs,
+        citationFrequency,chunkIds:[section.sectionId],complete:true,score:60});
+      researchSources.push({id:section.sectionId,title:section.articleTitle,
+        section:section.heading,complete:true,parts:1});
+    }
+    researchContext = researchUnits.length
+      ? researchUnits.map(u=>
+          `[RESTORED ${u.complete?'COMPLETE':'INCOMPLETE'} RESEARCH SECTION ${u.key}; source: ${u.title}; section: ${u.section}; verses: ${u.verseRefs.join(', ')}]\n${u.text}`
+        ).join("\n\n")
+      : 'No directly relevant indexed research sections were restored.';
+    if(restoration.omitted.length){
+      researchContext += `\n\n[RETRIEVAL COVERAGE: ${restoration.sections.length} complete source sections delivered; `+
+        `${restoration.omitted.length} related sections NOT delivered due to context budget. `+
+        `Do not claim an omitted section or table was supplied or examined. `+
+        `Omitted headings: ${restoration.omitted.map(x=>x.heading).join(' | ')}]`;
+    }
+    const sectionNavigation = fullEvidence.articles.map(a => {
+      const anchors = a.sections.filter(s => a.directSections.includes(s.id));
+      return `[COMPLETE SOURCE INDEX: ${a.title}; ${a.totalSections} sections, source hash ${a.sourceSha256.slice(0,12)}; focal sections: ${anchors.map(s=>s.heading).join(' | ') || 'none'}; additional headings/verse citations remain indexed for retrieval. A citation lead is not a fully read section.]`;
+    });
+    researchContext += "\n\n" + sectionNavigation.join("\n");
+    for (const entry of fullEvidence.references) {
+      if (!corpus[entry.ref] || entry.ref === ref) continue;
+      offer(entry.ref, Math.min(36, 3 + entry.score * 2),
+        `full-article cross-section citation (${entry.sections.length} sections)`);
+      const old = researchCounts.get(entry.ref) || {count:0,sections:new Set<string>()};
+      old.count += Math.min(3,entry.score);
+      entry.sections.forEach(s=>old.sections.add(s));
+      researchCounts.set(entry.ref,old);
+    }
+
+    // Adjacent sections may be useful leads but cannot override directly cited
+    // passages. They never supply claims to the argument reconstruction.
+    linkedResearch = (await neighboringResearchReferences(researchUnits, 1, 6)).filter(r => r !== ref && Boolean(corpus[r]));
+    for (const r of linkedResearch) offer(r, 3, "neighboring research citation lead");
     // Include citations from the complete restored sections, not just from
     // individually retrieved snippets. Parsing in-text references catches
     // references that were omitted from an individual chunk's metadata.
@@ -269,14 +353,41 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
   }
   const researchReferences = [...researchCounts.keys()].sort((a,b) =>
     (researchCounts.get(b)!.count-researchCounts.get(a)!.count) || compareRefs(a,b));
-  const highResearch = researchReferences.filter(r => (researchCounts.get(r)?.count || 0) >= 2).slice(0, 15);
-  const otherResearch = researchReferences.filter(r => !highResearch.includes(r)).slice(0, 12);
-  // Prevent one polysemous lemma from consuming the entire evidence budget.
-  const rareLemma = lexical.filter(l => l.total <= 16).flatMap(l => l.references.filter(r => r !== ref).slice(0, 2)).slice(0, 6);
+  // Allocate evidence by ARGUMENT RELEVANCE, not by the length of a common
+  // word's occurrence list. The previous all-occurrences-first policy let
+  // junah (24 verses) displace dayn (3) and qarḍ references in Q 2:282.
+  // Conversely, a focal verse with a small number of content lemmas (e.g.
+  // Q 33:34, hikma) should still receive their complete occurrence sets.
+  const rankedResearch = researchReferences.slice(0, 8);
+  // Guarantee a small number of DIRECT citations from each restored research
+  // section, so an unrelated high-frequency vocabulary set cannot erase a
+  // distinct argument such as qarḍ while analyzing dayn.
+  const diverseResearch = researchUnits.flatMap(u =>
+    u.verseRefs.filter(r => r !== ref && Boolean(corpus[r])).slice(0, 2));
+  const conceptFamilies = lexical.filter(l => l.total >= 2 && l.total <= 32)
+    .map(l => {
+      // Centrality depends on how many *different* cited verses contain the
+      // lemma, not frequency of an article's repeated citations. Small common
+      // epithets must not displace a topical lemma such as hikma or hadith.
+      const cited = l.references.filter(r => researchCounts.has(r)).length;
+      const priority = cited * 8 + (cited >= 3 ? 25 : 0) + 12 / Math.sqrt(l.total);
+      return { ...l, priority };
+    }).sort((a,b) => b.priority-a.priority || a.total-b.total || a.lemma.localeCompare(b.lemma));
+  // Priority tiers: (1) essential Qurʾānic parallels and internal lemma families; (2) the
+  // complete occurrence set for a small *central* lemma; (3) other rare
+  // content lemmas; (4) neighborhood/root-discovery leads. This prevents a
+  // 19-occurrence topic lemma being crowded out by unrelated grammatical words.
+  const central = conceptFamilies.filter(f => f.priority >= 36).slice(0, 2);
+  const remainingFamilies = conceptFamilies.filter(f => !central.includes(f));
+  const centralRefs = central.flatMap(f => f.references.filter(r => r !== ref));
+  const breadthRefs = remainingFamilies.flatMap(f => f.references.filter(r => r !== ref).slice(0, 2));
   const majorRoot = candidates.filter(c => c.required).slice(0, 8).map(c => c.ref);
   const ranked = [...scored.entries()].sort((a,b) => b[1].score-a[1].score || compareRefs(a[0],b[0])).map(([r]) => r);
-  // Qurʾānic lexical and morphology leads lead the evidence field; indexed research adds optional comparisons.
-  const order = [...new Set([...rareLemma, ...majorRoot, ...ranked, ...highResearch, ...otherResearch, ...linkedResearch])];
+  const essentials = (ESSENTIAL_NARRATIVE_PARALLELS[ref] || []).filter(r => Boolean(corpus[r]) && r !== ref);
+  const order = [...new Set([
+    ...essentials, ...centralRefs, ...breadthRefs, ...majorRoot, ...ranked,
+    ...rankedResearch, ...diverseResearch, ...researchReferences.slice(8,12), ...linkedResearch.slice(0, 3)
+  ])];
   const references: string[] = [];
   let characters = 0;
   for (const r of order) {
@@ -285,9 +396,11 @@ async function buildEvidencePlan(ref: string, corpus: Corpus, morph: Morphology)
     references.push(r); characters += len;
   }
   for (const entry of lexical) entry.supplied = entry.references.filter(r => references.includes(r) || r === ref).length;
-  const sources = Object.fromEntries(references.map(r => [r, scored.get(r)?.sources || []]));
+  const missingEssentials = essentials.filter(r => !references.includes(r));
+  if (missingEssentials.length) console.warn("Essential comparison verses exceeded evidence budget", {ref,missingEssentials});
+  const sources = Object.fromEntries(references.map(r => [r, scored.get(r)?.sources || (essentials.includes(r) ? ["essential narrative comparison"] : [])]));
   return { references, lexical, researchSources, researchUnits, researchContext,
-    researchReferences, sources, candidateCount: candidates.length };
+    researchReferences, rejectedResearch, sources, candidateCount: candidates.length };
 }
 function compareRefs(a: string, b: string): number {
   const [ca, va] = a.split(":").map(Number); const [cb, vb] = b.split(":").map(Number);
@@ -350,20 +463,57 @@ function parseReconstruction(raw: string, allowed: Set<string>): Reconstruction 
   return {claims,issue:obj.issue.slice(0,800),disputed:clean(obj.disputed),notNecessarilyDisputed:clean(obj.notNecessarilyDisputed)};
 }
 
-const RECONSTRUCTION_SYSTEM = `Extract faithful, attributed Qurʾān-centric research angles for the later Further Reading sections, without evaluating or rebutting them. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use only supplied text and verified references. No hadith or tafsīr.
+// Extract a complete JSON object, tolerating a model's accidental markdown fence
+// or leading/trailing commentary. Never repair or infer missing JSON fields.
+function parseStructuredObject(raw: string): Record<string, unknown> | null {
+  const candidate = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch { /* Attempt to isolate one complete JSON object without synthesizing content. */ }
+  const start = candidate.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0, quoted = false, escaped = false;
+  for (let i = start; i < candidate.length; i++) {
+    const ch = candidate[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) {
+      try {
+        const parsed: unknown = JSON.parse(candidate.slice(start, i + 1));
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+      } catch { return null; }
+    }
+  }
+  return null;
+}
+
+const RECONSTRUCTION_SYSTEM = `Extract faithful, attributed Qurʾān-centric research angles for the later Further Reading sections, without evaluating or rebutting them. Work from the focal Arabic and full RESTORED research sections (including complete tables and cited comparison examples). You are not an advocate for either the repository or a mainstream interpretation. Do not critique, refute, agree, or invent competing interpretations in this stage. State the exact conclusion each relevant article argues for, its distinct supporting premises, and the affirmative Qurʾānic passages cited. Explain what a reported accusation or rebuttal actually disputes, separately from any associated actions, assumptions or implications; do not assert that an implicit action is historically verified without supporting evidence. Distinguish actual claims about grammar, logic, and history. Treat cross-root comparisons as relevant to derivational morphology. Preserve distinctions between explicit scriptural wording and author inferences. If the source section is marked truncated, state that it is incomplete rather than claiming evidence is absent. Use supplied text and verified references. Hadith, tafsīr and other external material in RESTORED research sections may be reconstructed as evidence CLAIMS under Correspondence, never as independent doctrinal authority. Do not erase the author’s external comparisons.
 Return ONLY compact JSON with keys: {"issue":"the exact interpretive dispute","claims":[{"claim":"faithful affirmative proposition","source":"research section title or focal verse","premises":["supporting observation","inferential link"],"evidenceRefs":["chapter:verse"],"status":"textual|inference|external"}],"disputed":["what competing assertions actually contest"],"notNecessarilyDisputed":["what a rebuttal does NOT by itself negate"]}. Max 4 claims, up to 3 concise premises per claim and 6 evidenceRefs per claim; up to 3 brief items in each disputed list. Each claim <= 35 words; each premise <= 20 words. Keep all JSON compact (ideally under 1300 output tokens). Do not repeat the supplied texts, add commentary, use markdown fences, or provide a verdict.`;
 
-const AUDIT_SYSTEM = `You are a Qurʾān-centric proof-checker. The Qurʾān's text is the primary calibration standard; indexed articles are researched arguments and do not inherit authority merely from authorship. Evaluate ALL claims using identical proof obligations, without artificial balance or defensive objections.
-Check the completed analysis against FULL Arabic, annotated morphology, contextual passages, restored full research sections, and the prior neutral argument reconstruction. Audit the strongest ACTUAL supporting argument before claiming a contradiction. To label a claim contradicted, identify (1) the exact proposition, (2) the exact affirmative contrary evidence, and (3) why both propositions cannot be true simultaneously. Mere alternatives, absence of a second identical lemma, transitivity versus self-directed semantics, or an unsupported possibility do not by themselves prove a contradiction. A rebuttal of one aspect of reported speech does not automatically rebut every associated activity; separate WHAT is contested from WHAT is established. Do not promote the converse mistake of treating the unchallenged portion of hostile speech as independently verified history. Cross-root examples are relevant to pattern-level morphology; a representative set cannot prove a universal rule. Distinguish provenance: supplied full Arabic, research assertions, and model background knowledge. Never invent verses, lexical evidence, or external citations. Findings are advisory only.
-Return ONLY JSON {"findings":[{"quote":"exact unique substring from analysis","issue":"specific material error and actual logical relationship","evidence_kind":"quran|research|reconstruction","evidence_ref":"chapter:verse OR source unit key OR reconstruction","evidence_quote":"contiguous exact text from that source","suggestion":"evidence-grounded correction"}],"unresolved":[]}. Max 4 findings and 2 unresolved. Valid evidence is (a) verbatim Arabic from a supplied Qurʾānic verse, (b) verbatim quoted text from a RESTORED research section, or (c) verbatim text of the VALIDATED reconstruction. An objection to the article's actual claim can cite research evidence; do not falsely assert its table was absent. Use empty arrays when there are no substantiated material errors.`;
+const AUDIT_SYSTEM = `MANDATORY PRESENTATION AND SYNTAX CHECK: Flag exposed raw Buckwalter lemma identifiers or backend terms (manifest, chunk, coverage telemetry). Flag any claim that فِي الْأَرْضِ governs the accusative خَلِيفَةً; that a feminine-patterned form cannot refer to a man; that خَلِيفَة is an "ء-pattern noun"; or that the six جَاعِل occurrences all concern appointment to a human role (18:8 is a counterexample). Distinguish 2:33's knowledge demonstration from the unspecified concealed matters.
+QURʾĀN-CENTRIC SEMANTIC AUDIT: For any material challenge to the reconstructed interpretation, cite affirmative Arabic contextual counterevidence; neither conventional translation nor the indexed author's conclusion receives a presumption. For claims of two distinct Qurʾānic faculties or categories, test the SAME-SCENE contrast, repeated subject/predicate clusters, and any counterexamples before deciding whether the distinction is functional, contextual, synonymous, or exclusive. A word's non-occurrence with one predicate is not proof of semantic impossibility; test the full lemma set and distinguish verse counts from token counts. The ability to share a function does not establish synonymy, and lexical distinction alone does not demonstrate total functional separation. When the article describes perception, reasoning, knowledge, emotion and belief, identify the ACTUAL predicates and the semantic roles the verses assign; do not import contemporary neuroanatomy as a correcting standard or infer empirical physiology from theological imagery. Claims such as 'never', 'only', 'always', and 'all' require coverage and counterexample checks; partial retrieval does not authorize universal declarations.
+Verify root claims by separately identifying the two words and their roots; semantic opposition or parallel meaning does not imply one triliteral root. If a reported word or root is not in the supplied Arabic, do not invent it. Feature validation: check explicitly named verbs against actual person, number, gender, aspect and governing syntax. Do not infer recurrence or habitual conduct from imperfect aspect alone; a single ongoing event may be imperfect. Separate a personal vow or abstention from claiming divine legislation binding others, unless the text establishes that broader act. The immediate continuation of a passage can support a strong inference without making it explicit; consider 66:1–2 and their oath-release connection as a GENERAL example of this methodological distinction, not as a preordained doctrinal conclusion. Evaluate all passages using the same method.
+INDEPENDENT CALIBRATION AUDIT: Explicitly test whether a purported objection addresses the reconstructed proposition or silently substitutes a stronger universal proposition. For 25:5-type Form VIII analyses, do not conclude that a procurement/causative lexical sense is impossible merely because the stem is not Form II/IV. For reported speech, reject neither all incidental historical information nor accept it as verified simply due to its occurrence in an allegation. Distinguish (A) authentic historical report, (B) truthful ordinary testimony, and (C) independently binding divine legislation. None entails the next automatically. A normative Qurʾānic criterion can apply to future institutions even when they are not named. Test whether a later authority claim meets that criterion; do not reject applicability merely because the institution postdates the verse. A hypothetical alternative needs positive evidence before it may reduce a well-supported conclusion. Equally, do not turn absence of authorization into a blanket prohibition of truthful history. Check for subject-switch claims justified solely by identical 3MS morphology, and require positive syntactic context for an alternative antecedent. If a topic-relevant Qurʾānic restriction is affirmative, do not reclassify it as mere silence.
+You are a Qurʾān-centric proof-checker. The Qurʾān's text is the primary calibration standard; indexed articles are researched arguments and do not inherit authority merely from authorship. Evaluate ALL claims using identical proof obligations, without artificial balance or defensive objections.
+Check the completed analysis against FULL Arabic, annotated morphology (including reviewed local corrections), contextual passages, restored full research sections, and the prior neutral argument reconstruction. Audit the strongest ACTUAL supporting argument before claiming a contradiction. Test the source argument at its actual scope rather than substituting a universal claim. Distinguish divine origin of legislation from the messenger’s revelation-dependent transmission or implementation. A plausible motive, adjacent oath reference, or other context does not alone prove a specific event mechanism; do not call an inference compelled if affirmative, material counterevidence remains unresolved; hypothetical alternatives alone are not counterevidence. Check every claim of a shared Arabic root against both terms. To label a claim contradicted, identify (1) the exact proposition, (2) the exact affirmative contrary evidence, and (3) why both propositions cannot be true simultaneously. Mere alternatives, absence of a second identical lemma, transitivity versus self-directed semantics, or an unsupported possibility do not by themselves prove a contradiction. A rebuttal of one aspect of reported speech does not automatically rebut every associated activity; separate WHAT is contested from WHAT is established. Do not promote the converse mistake of treating the unchallenged portion of hostile speech as independently verified history. Cross-root examples are relevant to pattern-level morphology; a representative set cannot prove a universal rule. Distinguish provenance: supplied full Arabic, research assertions, and model background knowledge. Never invent verses, lexical evidence, or external citations. Findings are advisory only.
+Return ONLY compact, valid JSON {"findings":[{"quote":"short exact substring of analysis","issue":"specific material error","evidence_kind":"quran|research|reconstruction","evidence_ref":"chapter:verse OR source unit key OR reconstruction","evidence_quote":"short verbatim source excerpt","suggestion":"short precise correction"}],"unresolved":[]}. Max 2 findings and 2 unresolved. Each text value <= 240 characters. No markdown, no commentary, no repeated analysis. Prefer {"findings":[],"unresolved":[]} when no independently substantiated material error. Valid evidence is (a) verbatim Arabic from a supplied Qurʾānic verse, (b) verbatim quoted text from a RESTORED research section, or (c) verbatim text of the VALIDATED reconstruction. An objection to the article's actual claim can cite research evidence; do not falsely assert its table was absent. Use empty arrays when there are no substantiated material errors. For morphology, distinguish syntactic transitivity from reflexivity and distinguish a negative particle from a conditional particle by the clause syntax; do not infer semantic age from gender/number agreement.`;
 
-const SYSTEM = `Investigate a Qurʾānic verse through verified grammar, verse proximity and independent pan-textual evidence. Use CCC (coherence, correspondence, calibration) internally as a method, not as an obligatory verdict. Qurʾān-centric: no hadith, tafsīr, inherited reconstruction, or privileged mainstream doctrines. The Qurʾān is the reference standard; authored articles are evidence-bearing arguments, not scripture.
-RESEARCH ROLE: Reconstructed arguments are attributed research notes for sections 4–5, not a mandate to follow their research question in sections 1–3. Preserve their actual premises and Qurʾānic evidence faithfully when summarizing them. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
+const SYSTEM = `PAN-TEXTUAL CONCEPT TEST: First identify what the Arabic positively predicates of each term. When two related words occur in the SAME verse, distinguish their syntactic roles and the action/state assigned to each; prioritize this direct contrast over an unsupported inherited synonym. Test the pattern across all available relevant occurrences, including passages that might challenge the proposed distinction. Evaluate competing explanations using the SAME evidentiary standard. Do not invent an equally likely traditional interpretation without affirmative Arabic evidence. Also, avoid the converse error: co-occurrence or a distinctive example can support functional difference without proving the concepts never overlap. If a source argues a closed Qurʾānic system of perceptual and moral faculties, reconstruct its cumulative chain before checking each step; treat claims of exclusivity and psychological mechanism as distinct inferences from actual textual predicates. Do not silently equate qalb, fuʾād, ṣadr, nafs, samʿ and baṣar simply because an English translation uses 'heart' or 'mind'. Do not treat the modern physiological account as the default measure of Qurʾānic moral language; discuss external physiology only where the research question requires it. CCC is a method for evaluating evidence; its terminology need not appear verbatim in the focal verse. Do not turn an internal semantic distinction into a claim that two anatomical organs have been proven.
+GRAMMATICAL CALIBRATION: Do not assert two expressions share a root unless separately confirmed from their actual Arabic roots. Distinguish semantic association from derivational morphology; an alleged opposite may have a different root. Do not infer exclusive scripture authority from a generic noun or grammatical coordination alone; inspect what each verse positively authorizes. For Quranic claims about messenger obedience, distinguish direct contemporaneous obedience, revelational source, and later attribution to a posthumous corpus. Keep absence of explicit canon authorization distinct from demonstrating impossibility. Identify person, number, gender and verbal form for the actual named token; do not confuse a verb's subject with the following plural addressees. Imperfect morphology alone does not establish repeated or habitual conduct; test the immediate discourse. Distinguish (a) personal abstention, (b) a religious claim of prohibition, and (c) binding legislation for others without collapsing them. Adjacent verses may provide strong contextual inference without supplying an explicit identity claim. Treat indexed research as attributed investigative directions, not the primary question or established fact. A positive functional contrast and a claim of total non-overlap are different propositions: weigh the former without assuming the latter. Only report complete lexical coverage when all lemma occurrences have been supplied and examined. These are general rules for every passage, not verse-specific verdicts.
+LOGICAL CALIBRATION: Preserve the precise question being investigated, and test material objections only against affirmative evidence; do not grant a hypothetical reading standing because it is conceivable or traditional. Separate historical recording from independent divine norm-making. A general Qurʾānic criterion is capable of applying to later institutions without naming them. Context establishes meaning; it does not by itself impose an expiry date on a principle. Where a messenger expressly follows revelation only, distinguish that positive restriction from mere non-mention of later literature. Do not overstate a Qurʾānic statement as prohibiting ordinary truthful speech or history. Explicit statements, cumulative inference and true unknowns must receive distinct confidence.
+READER-FACING WRITING RULES: Never print backend identifiers or provenance implementation names (e.g. Buckwalter, manifest, xaliyfap, jaAEil, >afosadu, jEl, internal lemma ids, retrieval window, chunk). Use Arabic script and standard scholarly transliteration (e.g. jāʿil, khalīfa, fasād, safk); the supplied romanized corpus identifiers are search keys ONLY, not publishable transliteration. Keep evidentiary limitations in natural language, and cite concrete passages examined. Do not include raw coverage telemetry or lists of internal keys in interpretation/calibration. Check Arabic dependency: فِي الْأَرْضِ is a locative phrase; it does NOT govern the accusative خَلِيفَةً, the active participle جَاعِلٌ licenses its object. Lexical grammatical gender and the word-final tāʾ marbūṭa cannot be treated as an automatic contradiction, and do not invent an "ء-pattern" classification. Compare predicate meanings individually: 18:8 is making the earth bare, not appointment to an office. A possible implication about Adam's descendants must be labelled an inference. Do not conflate God's knowledge of what the angels concealed (2:33) with a specification of the precise concealed contents.
+Investigate a Qurʾānic verse through verified grammar, verse proximity and independent pan-textual evidence. Use CCC (coherence, correspondence, calibration) internally as a method, not as an obligatory verdict. Qurʾān-alone interpretive and doctrinal authority. External hadith, tafsīr, manuscripts and historical evidence supplied in indexed research may be examined as claims on the Correspondence axis, NEVER as independent doctrinal authorities. Neither mainstream traditions nor the research author enjoy presumptive evidentiary superiority.
+RESEARCH ROLE: Reconstructed arguments are attributed research notes for sections 4–5, not a mandate to follow their research question in sections 1–3. Preserve their actual premises and Qurʾānic evidence faithfully when summarizing them. Do not shrink a pattern-level argument into a demand for a second identical lemma. Comparative morphology across roots and different topics may be directly probative of a form's function. Do not dismiss a table without testing the listed forms against the supplied morphological data. A table listed in the source index is not the same as a table delivered in full; if a complete table is restored, analyze its actual rows, and if a budget omission occurred, report that precise limitation. A representative table supports an inference, not automatically a universal proposition. Distinguish factual corrections to a table from rejection of its entire argument.
 LOGICAL TEST: For each proposed objection, identify precisely which proposition it contradicts. Check that the contrary evidence makes the proposition false, rather than merely describing a different aspect. Transitive verbs may still describe self-directed or benefactive action; assess these dimensions separately, not through category confusion. A false allegation about a thing's origin or identity need not falsify an activity associated with it; nor does the allegation alone independently establish that activity happened. Apply this general distinction to ANY reported speech. Never infer that all associated clauses share the same truth status without argument.
 AFFIRMATIVE EVIDENCE: A competing interpretation requires specific affirmative Arabic evidence and transparent provenance. A hypothetical grammatical possibility is not evidence against a supported interpretation. Equally, a strong inferential preference does not establish absolute lexical impossibility. External linguistic claims must be labeled external; do not import them silently or pretend they cannot exist because a Qurʾānic word occurs once. No manufactured opposition, neutrality, or uncertainty. Identify demonstrated errors in any interpretation. Attribute certainty to the actual inferential strength.
-GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings.
+CORPUS DQ OVERRIDES: Corrections marked correction_supported for an identified verse/token supersede raw corpus tags in the analysis; original_annotation_supported records mean the original corpus is right and the model must not contradict it. In particular in 28:10, إِنْ كَادَتْ لَتُبْدِي uses lightened emphatic inna with distinguishing lām (not conditional in); قَلْبِهَا contains a masculine singular noun with feminine possessive suffix; لِتَكُونَ is from ك و ن, not ك و د. Treat these as verified lexical/syntactic facts, NOT doctrinal conclusions. Explain any genuine conflicting annotations only in private review findings; do not present corrected tags as competing equally credible parses. GRAMMAR: Distinguish morphology tags from syntax, negating lā from prohibitive lā, conditional in from emphatic inna, active from passive, explicit agency from inferred agency. Do not invent lexical evidence from shared roots or fabricate variant readings. A conjunction does not automatically entail semantic non-identity; a singular pronoun is not automatically a proof of one single lawgiver. Morphological similarity or semantic opposition does not prove the same root. A morphological gender/number or verb-form tag does not itself prove a semantic age threshold, category exclusion, contractual ethic, or universally fixed meaning. When a corpus annotation and Arabic syntax disagree, report the conflict instead of asserting a tag is infallible. Apply the supplied local reviewed-correction register, where available, and distinguish approved grammatical corrections from unresolved candidate revisions. A source annotation is not automatically the gold standard.
 EVIDENCE PROVENANCE: Explicitly distinguish focal Arabic, full supplied comparison verses, tagged morphology, source-article arguments, and unsupplied material. The lexical manifest may list occurrences not supplied in full; do not claim exhaustive semantic evaluation where coverage is partial. Immediate context and cited passages have priority over weak root parallels. Treat any truncated research section as incomplete, not absent.
-RESEARCH PURPOSE: Offer researchers the relevant linguistic, contextual and pan-textual evidence to pursue their own conclusions. Indexed scholarship must not determine sections 1–3. In section 4 preserve authors' arguments accurately without unsolicited rebuttals, particularly when their claims depart from mainstream interpretations. OUTPUT: Respond only under the stage's prescribed headings. Stage 1 covers grammar and verse proximity; stage 2 covers independent pan-textual evidence, attributed Qurʾān-centric research angles, and verified Further Reading citations. No separate conclusion or verdict is required. State (A) explicit wording, (B) cumulative inference and (C) genuinely undetermined matters. Assess correspondence only if external evidence was supplied; otherwise say not tested. Do not invent external evidence. Use Unicode Arabic, no HTML entities.`;
+RESEARCH PURPOSE: Offer researchers the relevant linguistic, contextual and pan-textual evidence to pursue their own conclusions. Indexed scholarship must not determine sections 1–3. In section 4 preserve authors' arguments accurately without unsolicited rebuttals, particularly when their claims depart from mainstream interpretations. OUTPUT: Respond only under the stage's prescribed headings. Stage 1 covers grammar and verse proximity; stage 2 covers independent pan-textual evidence, attributed Qurʾān-centric research angles, and verified Further Reading citations. No separate conclusion or verdict is required. State (A) explicit wording, (B) cumulative inference and (C) genuinely undetermined matters. Assess Correspondence against external claims actually present in restored research sections or other supplied evidence; if none were supplied or retrieved, say precisely that and do not invent sources. Do not dismiss an available external claim on the basis that it lacks independent Qurʾānic authority. Use Unicode Arabic, no HTML entities.`;
 
 export async function POST(req: NextRequest) {
   const passcode = process.env.CCC_RESEARCH_PASSCODE;
@@ -410,6 +560,10 @@ export async function POST(req: NextRequest) {
   if (!evidenceRefs.length)
     return NextResponse.json({ error: "Insufficient verified Qur'anic evidence for analysis." }, { status: 503 });
   const evidence = evidenceText(evidenceRefs, corpus);
+  const grammarConstraints = correctedGrammarSheet(ref, deterministicGrammarSheet(ref, morph));
+  const localCorrections = correctionPrompt([ref, ...evidenceRefs]);
+  const coverageGaps = plan.lexical.filter(l => l.total <= 24 && l.supplied < l.total)
+    .map(l => `${l.lemma}: ${l.supplied}/${l.total} full Arabic`).slice(0,12);
   // Verse-linked Gerrans commentary is attributed research, not primary Qurʾānic evidence.
   // Limit the supplemental context to three complete notes / 1,800 characters to
   // preserve current inference latency and avoid chopping an author's argument.
@@ -445,16 +599,20 @@ export async function POST(req: NextRequest) {
     : stage === "foundation" ? process.env.VERSE_ANALYSIS_FOUNDATION_MODEL
     : stage === "synthesis" ? process.env.VERSE_ANALYSIS_SYNTHESIS_MODEL
     : process.env.VERSE_ANALYSIS_AUDIT_MODEL) || baseModel;
+  const deepSeekV4Pro = /deepseek-v4-pro/i.test(model);
+  const maxTokens = deepSeekV4Pro
+    ? (stage === "audit" ? PRO_AUDIT_TOKENS : stage === "reconstruction" ? PRO_RECONSTRUCTION_TOKENS : PRO_WRITING_TOKENS)
+    : (stage === "audit" ? AUDIT_OUTPUT_TOKENS : stage === "reconstruction" ? RECONSTRUCTION_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS);
   // Evidence discovery is now a deterministic local operation: zero Chutes
   // tokens, no JSON parsing/truncation failure, stable across repeated runs.
   if (stage === "discovery") {
     const payload = { references: evidenceRefs, candidateCount: plan.candidateCount,
-      coverageGaps: plan.lexical.filter(x => x.supplied < x.total && x.total <= 16)
-        .map(x => `Not every ${x.lemma} occurrence fits the evidence budget.`),
       researchSources: plan.researchSources, researchReferences: plan.researchReferences,
+      filteredResearchSections: plan.rejectedResearch,
       focalReference: ref, contextReferences: contextRefs,
       researchSections: plan.researchUnits.map(u=>({section:u.section,article:u.title,complete:u.complete,parts:u.chunkIds.length})),
       lexical: plan.lexical.map(x => ({ lemma:x.lemma, total:x.total, supplied:x.supplied })),
+      coverageGaps,
       sources: plan.sources };
     const frames = [
       `event: evidence\ndata: ${JSON.stringify(payload)}\n\n`,
@@ -491,7 +649,8 @@ export async function POST(req: NextRequest) {
       let finishReason = "";
       let reasoningTokensObserved = 0;
       let reasoningCharactersObserved = 0;
-      let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
+      let usage: { prompt_tokens?: number; completion_tokens?: number;
+       completion_tokens_details?: { reasoning_tokens?: number }; reasoning_tokens?: number } | undefined;
       let invalid = new Set<string>();
       const validateReferences = (text: string) => {
         const matches = [...text.matchAll(/\b(\d{1,3}):(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?\b/g)];
@@ -517,32 +676,45 @@ export async function POST(req: NextRequest) {
       };
       try {
         emit(controller, "status", { message: `${stage === "reconstruction" ? "Reconstructing article premises" : stage === "foundation" ? "Analyzing grammar and context" : stage === "synthesis" ? "Synthesizing Qurʾānic evidence" : "Checking material claims"} for ${ref}…`, reference: ref, stage });
+        console.info("Verse analysis stage started", {
+          ref, stage, model, maxOutputTokens: maxTokens,
+          evidenceVerses: evidenceRefs.length,
+          restoredResearchSections: plan.researchUnits.length,
+          researchContextCharacters: researchContext.length,
+          gerransNotesIncluded: researchContext.includes("SAM GERRANS"),
+          nonThinkingRequested: deepSeekV4Pro || model === "deepseek-ai/DeepSeek-V3.2-TEE" || model.startsWith("zai-org/GLM-5.2-"),
+        });
         const response = await fetch("https://llm.chutes.ai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
           signal: abort.signal,
           body: JSON.stringify({
-            model, temperature: 0, max_tokens: stage === "audit" ? AUDIT_OUTPUT_TOKENS : stage === "reconstruction" ? RECONSTRUCTION_OUTPUT_TOKENS : MAX_OUTPUT_TOKENS, stream: true,
-            // Both model families can default to extended reasoning, which uses
-            // completion tokens before final-answer text is produced. Apply the
-            // template option appropriate to the exact selected model family.
-            ...(model === "deepseek-ai/DeepSeek-V3.2-TEE"
-              ? { chat_template_kwargs: { thinking_mode: "chat" } }
-              : model === "zai-org/GLM-5.2-Fast" || model.startsWith("zai-org/GLM-5.2-")
-                ? { chat_template_kwargs: { enable_thinking: false } }
-                : {}),
+            model, temperature: 0, max_tokens: maxTokens, stream: true,
+            // DeepSeek V4 Pro: its native template uses thinking_mode="chat" to
+            // suppress private reasoning. vLLM also maps reasoning_effort="none"
+            // to non-thinking on compatible deployments. Send both explicitly;
+            // test the selected Chutes deployment before relying on this behavior.
+            // No research, output-length, or verification policy changes.
+            ...(deepSeekV4Pro ? { reasoning_effort: "none" } : {}),
+            ...(deepSeekV4Pro
+              ? { chat_template_kwargs: { thinking_mode: "chat", enable_thinking: false } }
+              : model === "deepseek-ai/DeepSeek-V3.2-TEE"
+                ? { chat_template_kwargs: { thinking_mode: "chat" } }
+                : model === "zai-org/GLM-5.2-Fast" || model.startsWith("zai-org/GLM-5.2-")
+                  ? { chat_template_kwargs: { enable_thinking: false } }
+                  : {}),
             messages: [
-              { role: "system", content: stage === "audit" ? AUDIT_SYSTEM : stage === "reconstruction" ? RECONSTRUCTION_SYSTEM : SYSTEM },
+              { role: "system", content: `${CCC_EPISTEMIC_DIRECTIVE}\n\n${CCC_REASONING_SAFEGUARDS}\n\n${CCC_QURAN_FIRST_CALIBRATION}\n\nSTAGE-SPECIFIC INSTRUCTIONS:\n${stage === "audit" ? AUDIT_SYSTEM : stage === "reconstruction" ? RECONSTRUCTION_SYSTEM : SYSTEM}` },
               { role: "user", content: stage === "audit"
 
-                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION RESEARCH FIELD:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
-                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nVERIFIED INDEXED RESEARCH CITATION CATALOGUE (only these title/section pairs may appear in Further research):\n${researchCitationCatalogue}\n\nRESTORED INDEXED RESEARCH SECTIONS (for research angles and further reading, not to set the first three sections):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `ATTRIBUTED INDEXED RESEARCH NOTES (for sections 4–5 only; do not steer sections 1–3):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nDevelop an independent Qurʾān-first research field; present indexed ideas faithfully only as attributed research angles.` }
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION RESEARCH FIELD:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nVERIFIED INDEXED RESEARCH CITATION CATALOGUE (only these title/section pairs may appear in Further research):\n${researchCitationCatalogue}\n\nRESTORED INDEXED RESEARCH SECTIONS (for research angles and further reading, not to set the first three sections):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `ATTRIBUTED INDEXED RESEARCH NOTES (for sections 4–5 only; do not steer sections 1–3):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nDevelop an independent Qurʾān-first research field; present indexed ideas faithfully only as attributed research angles.` }
             ],
           }),
         });
         if (!response.ok) {
           console.error("Verse analysis upstream HTTP", { ref, model, status: response.status, ms: Date.now() - started });
-          finish("error", { message: `Chutes returned HTTP ${response.status}.`, partial: false });
+         finish("error", { message: `Chutes returned HTTP ${response.status} (stage: ${stage}; model: ${model}).${deepSeekV4Pro && response.status === 400 ? " Deployment may not accept the non-thinking parameters; check server logs." : ""}`, partial: false });
           return;
         }
         if (!response.body) {
@@ -561,7 +733,8 @@ export async function POST(req: NextRequest) {
           let msg: {
             error?: { message?: string } | string;
             choices?: { delta?: { content?: string | null; reasoning_content?: string | null }; finish_reason?: string | null }[];
-            usage?: { prompt_tokens?: number; completion_tokens?: number };
+            usage?: { prompt_tokens?: number; completion_tokens?: number;
+             completion_tokens_details?: { reasoning_tokens?: number }; reasoning_tokens?: number };
           };
           try { msg = JSON.parse(data); } catch { return; }
           if (msg.error) throw new Error(typeof msg.error === "string" ? msg.error : msg.error.message || "Model stream error");
@@ -598,24 +771,33 @@ export async function POST(req: NextRequest) {
         if (pending.trim()) handleFrame(pending.replace(/\r\n/g, "\n"));
         if (!answer.trim()) {
           console.error("Verse analysis returned no final text", {
-            ref, model, finishReason, providerDone, durationMs: Date.now() - started,
-            completionTokens: usage?.completion_tokens, reasoningChunks: reasoningTokensObserved,
-            reasoningCharacters: reasoningCharactersObserved,
-          });
+           ref, stage, model, finishReason, providerDone, durationMs: Date.now() - started,
+           promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+           providerReasoningTokens: usage?.completion_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens,
+           reasoningChunks: reasoningTokensObserved, reasoningCharacters: reasoningCharactersObserved,
+           nonThinkingRequested: deepSeekV4Pro,
+         });
           finish("error", { message: reasoningCharactersObserved
             ? `Chutes generated reasoning but no final answer (model: ${model}; finish: ${finishReason || "unknown"}; reasoning characters: ${reasoningCharactersObserved}). Check whether this Chutes deployment honors its non-thinking setting.`
             : `Chutes returned no final-answer text (model: ${model}; finish: ${finishReason || "not provided"}). Check deployment logs and model compatibility.`, partial: false });
           return;
         }
-        if (stage === "reconstruction") {
-          console.info("Verse argument reconstruction result", {
+        if (deepSeekV4Pro && reasoningCharactersObserved > 0) {
+         console.warn("DeepSeek non-thinking request not fully honored by deployment", {
+           ref, stage, model, finishReason,
+           reasoningCharacters: reasoningCharactersObserved,
+           providerReasoningTokens: usage?.completion_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens,
+         });
+       }
+       if (stage === "reconstruction") {
+         console.info("Verse argument reconstruction result", {
             ref, model, finishReason, providerDone, durationMs: Date.now() - started,
             promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
             reasoningChunks: reasoningTokensObserved, answerCharacters: answer.length,
-            maxOutputTokens: RECONSTRUCTION_OUTPUT_TOKENS,
+            maxOutputTokens: maxTokens,
           });
           if (finishReason === "length") {
-            finish("error", {message:`Argument reconstruction exceeded the ${RECONSTRUCTION_OUTPUT_TOKENS}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
+            finish("error", {message:`Argument reconstruction exceeded the ${maxTokens}-token output limit (model: ${model}; completion tokens: ${usage?.completion_tokens ?? "unreported"}). No synthesis attempted.`,partial:false});
             return;
           }
           if (!providerDone) {
@@ -632,18 +814,22 @@ export async function POST(req: NextRequest) {
           return;
         }
         if (stage === "audit") {
-          let parsed: { findings?: { quote?: string; issue?: string; evidence_kind?: string; evidence_ref?: string; evidence_quote?: string; suggestion?: string }[]; unresolved?: string[] };
-          try { parsed = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")); }
-          catch { finish("error", { message: "Verification JSON invalid; original analysis retained.", partial: false }); return; }
-          if (finishReason === "length" || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
-            finish("error", { message: "Verification incomplete; original analysis retained.", partial: false }); return;
+          const parsed = parseStructuredObject(answer) as { findings?: { quote?: string; issue?: string; evidence_kind?: string; evidence_ref?: string; evidence_quote?: string; suggestion?: string }[]; unresolved?: string[] } | null;
+          console.info("Verse verification response diagnostics", {ref,model,finishReason,providerDone,
+            promptTokens:usage?.prompt_tokens,completionTokens:usage?.completion_tokens,
+            answerCharacters:answer.length,maxOutputTokens:AUDIT_OUTPUT_TOKENS,validJson:Boolean(parsed)});
+          if (!parsed) {
+            finish("error", { message: `Verification could not parse valid JSON (model: ${model}; finish: ${finishReason || "unknown"}; tokens: ${usage?.completion_tokens ?? "unreported"}/${maxTokens}). Analysis retained as UNVERIFIED.`, partial: false }); return;
+          }
+          if (finishReason === "length" || !providerDone || !Array.isArray(parsed.findings) || !Array.isArray(parsed.unresolved)) {
+            finish("error", { message: `Verification incomplete or wrong schema (finish: ${finishReason || "unknown"}; completion: ${providerDone}; tokens: ${usage?.completion_tokens ?? "unreported"}/${maxTokens}). Analysis retained as UNVERIFIED.`, partial: false }); return;
           }
           // Validation requires a verbatim quote in an ACTUAL supplied verse.
           // Never silently replace generated analytical text based on a model's
           // self-certified verdict. Report grounded findings for human review.
           const supplied = new Set([ref, ...context.map(line => line.split(" ")[0]), ...evidenceRefs]);
           const normalize = (v: string) => v.normalize("NFKD").replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, "");
-          const findings = (parsed.findings || []).slice(0,4).filter(item => {
+          const findings = (parsed.findings || []).slice(0,2).filter(item => {
             if (!item.quote || !item.issue || !item.evidence_ref || !item.evidence_quote || !item.suggestion) return false;
             if (!prior.includes(item.quote)) return false;
             const kind = item.evidence_kind || "quran";
@@ -657,17 +843,27 @@ export async function POST(req: NextRequest) {
           }).map(item => ({ quote:item.quote!, issue:item.issue!, evidenceRef:item.evidence_ref!, evidenceQuote:item.evidence_quote!, suggestion:item.suggestion! }));
           console.info("Verse analysis verification", { ref, model, durationMs: Date.now()-started,
             proposed: parsed.findings.length, grounded: findings.length, finishReason });
-          emit(controller, "audit", { findings, unresolved: parsed.unresolved.filter(x=>typeof x === "string").slice(0,2) });
-          finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started, findings:findings.length });
+          const deterministic = validateGrammarClaims(prior, [ref, ...contextRefs, ...evidenceRefs], morph, corpus);
+          const calibration = validateCalibrationClaims(prior, reconstruction.issue);
+          const quality = reviewAnalysisQuality(prior, ref, allSupplied);
+          const merged = [...deterministic, ...quality, ...calibration, ...findings].slice(0,8);
+          const unresolved = [...parsed.unresolved.filter(x=>typeof x === "string").slice(0,2),
+            ...coverageGaps.map(g=>`Central lemma incomplete: ${g}`)].slice(0,8);
+          emit(controller, "audit", { findings: merged, unresolved, deterministicFindings: deterministic.length, calibrationFindings: calibration.length,
+            modelFindings: findings.length, presentationFindings: quality.length, grammarStatus: deterministic.length ? "token-aligned-flags" : "checked-no-detected-conflict",
+            evidenceStatus: coverageGaps.length ? "partial" : "selected-lemmas-covered" });
+          finish("done", { reference:ref, stage, finishReason, incomplete:false, durationMs: Date.now()-started,
+            findings:merged.length, deterministicFindings:deterministic.length, calibrationFindings:calibration.length, evidenceGaps:coverageGaps.length });
           return;
         }
         validateReferences(answer);
         const outsideEvidence = [...new Set([...answer.matchAll(/\b(\d{1,3}:\d{1,3})\b/g)].map(m=>m[1]))]
           .filter(verseRef=>verifyReference(verseRef,corpus) && !allSupplied.has(verseRef));
         console.info("Verse analysis streamed", {
-          ref, model, durationMs: Date.now() - started, finishReason,
-          promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
-          contentLength: answer.length, morphologyWords: focalMorph.length, evidenceVerses: evidenceRefs.length,
+          ref, stage, model, durationMs: Date.now() - started, finishReason,
+         promptTokens: usage?.prompt_tokens, completionTokens: usage?.completion_tokens,
+         providerReasoningTokens: usage?.completion_tokens_details?.reasoning_tokens ?? usage?.reasoning_tokens,
+         contentLength: answer.length, morphologyWords: focalMorph.length, evidenceVerses: evidenceRefs.length,
           providerDone, reasoningChunks: reasoningTokensObserved,
         });
         finish("done", {
@@ -710,5 +906,5 @@ export async function POST(req: NextRequest) {
 
 // A lightweight route check for distinguishing deployment/middleware problems from Chutes failures.
 export async function GET() {
-  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.1" });
+  return NextResponse.json({ service: "verse-analysis", status: "ready", version: "7.9.2" });
 }
