@@ -1,3 +1,4 @@
+import { verifyGhillAghlalSeparation } from "../../../lib/analysis-lexeme-qa";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -863,7 +864,8 @@ export async function POST(req: NextRequest) {
           const deterministic = validateGrammarClaims(prior, [ref, ...contextRefs, ...evidenceRefs], morph, corpus);
           const calibration = validateCalibrationClaims(prior, reconstruction.issue);
           const quality = reviewAnalysisQuality(prior, ref, allSupplied);
-          const merged = [...deterministic, ...quality, ...calibration, ...findings].slice(0,8);
+          const lexemeFindings = verifyGhillAghlalSeparation(prior, ref);
+          const merged = [...lexemeFindings, ...deterministic, ...quality, ...calibration, ...findings].slice(0,8);
           const unresolved = [...parsed.unresolved.filter(x=>typeof x === "string").slice(0,2),
             ...coverageGaps.map(g=>`Central lemma incomplete: ${g}`)].slice(0,8);
           emit(controller, "audit", { findings: merged, unresolved, deterministicFindings: deterministic.length, calibrationFindings: calibration.length,
