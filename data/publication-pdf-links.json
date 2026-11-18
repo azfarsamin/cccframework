@@ -1,0 +1,12 @@
+{
+  "description": "Stable indexed source IDs to public PDFs. Register exceptional/abbreviated filenames here. The build only links files actually present in public/pdfs. New filename matches can be discovered automatically.",
+  "sources": [
+    {"sourceId":"reassessing-prophetic-literacy-written-revelation","file":"reassessing-prophetic-literacy-written-revelation.pdf","aliases":["Reassessing Prophetic Literacy and the Written Transmission of Revelation: A Linguistic and Textual Analysis of the Qurʾān","Reassessing Prophetic Literacy"]},
+    {"sourceId":"quran-hadith-marriageable-age-textual-analysis","file":"quran-hadith-marriageable-age-textual-analysis.pdf","aliases":["The Qur'an, Hadith, and the Debate on Marriageable Age: A Textual Analysis"]},
+    {"sourceId":"reason-revelation-and-the-architecture-of-truth","file":"ReasonRevelationTruth_FreePdf_v2.1.pdf","aliases":["Reason, Revelation, and the Architecture of Truth: A Framework for Evaluating Worldviews"]},
+    {"sourceId":"architecture-of-debt-money-and-interest","file":"ArchitectureOfDebtMoneyAndInterest_freepdf.pdf","aliases":["The Architecture of Debt-Money and Interest: A Qurʾānic Diagnosis"]},
+    {"sourceId":"sam-gerrans-the-god-protocol","file":"The-God-Protocol-Ed-2.pdf","title":"The God Protocol — Sam Gerrans (Second Edition, 2022)","aliases":["The God Protocol","The God Protocol — Sam Gerrans"]},
+    {"sourceId":"sam-gerrans-complete-revelation","file":"The-Quran-A-Complete-Revelation-Ed-3.pdf","title":"The Qur’an: A Complete Revelation — Sam Gerrans (Third Edition)","aliases":["The Qur’an: A Complete Revelation","The Qur'an: A Complete Revelation"]},
+    {"sourceId":"sam-gerrans-addenda-to-the-quran-a-complete-revelation","file":"Addenda-to-The-Quran-A-Complete-Revelation.pdf","title":"Addenda to The Qur’an: A Complete Revelation — Sam Gerrans","aliases":["Addenda to The Qur’an: A Complete Revelation"]}
+  ]
+}
