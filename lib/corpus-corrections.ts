@@ -7,7 +7,9 @@ export function correctionRecords(refs: string[]): CorrectionRecord[] {
   return records.filter(e => refsSet.has(e.id.split(":").slice(0,2).join(":")));
 }
 export function correctionPrompt(refs: string[]): string {
-  const records = correctionRecords(refs);
+  // Presentation-only encoding records are tracked for audit, not supplied
+  // as rival grammatical interpretations or downstream doctrine.
+  const records = correctionRecords(refs).filter(e => e.category !== "presentation_encoding");
   if (!records.length) return "No adjudicated local correction records apply to the supplied verses.";
   return "AUTHORITATIVE REVIEWED LOCAL CORPUS ANNOTATION REVIEW (do not infer any doctrinal conclusion from these records):\n" +
     records.map(e => `${e.id} ${e.arabic}: status=${e.status}; raw corpus=${JSON.stringify(e.original)}; reviewed=${JSON.stringify(e.recommended)}; confidence=${e.confidence}; rationale=${e.reason}; sources=${e.sources.map(s => s.url).join(", ")}. ${e.status === "requires_adjudication" ? "NOT VERIFIED: preserve ambiguity and do not override corpus." : "Use this reviewed correction rather than the raw corpus tag for the specific token. Do not claim this correction was merged upstream."}`).join("\n");
