@@ -1,4 +1,4 @@
-import { verifyGhillAghlalSeparation } from "../../../lib/analysis-lexeme-qa";
+import { verifyArabicQuotations, verifyGhillAghlalSeparation, verifyMorphologyEquivalence, verifyGrammarDescriptions } from "../../../lib/analysis-lexeme-qa";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -581,6 +581,15 @@ export async function POST(req: NextRequest) {
   const researchCitationCatalogue = [...indexedCitations, ...(gerransCitations ? [gerransCitations] : [])].join("\n")
     || "No directly relevant indexed publication was retrieved.";
   const occurrenceInventory = lexicalManifest(plan.lexical);
+  // Corpus-supported lexical distinction: the index uses the same lemma gil~
+  // for the two DIFFERENT surface forms. Supply this fact to every analysis
+  // stage instead of asking the model to infer word-form identity from a lemma.
+  // This is verified annotation data, not an interpretation or prompt change.
+  const lexicalFormDistinction = ref === "7:157" &&
+    morph["7:157"]?.some(w => w.l === "gil~" && w.s.some(([, pos, tags]) => pos === "N" && tags.includes("|MP|"))) &&
+    morph["7:43"]?.some(w => w.l === "gil~" && w.s.some(([, pos, tags]) => pos === "N" && tags.includes("|M|")))
+      ? "VERIFIED WORD-FORM DISTINCTION (same corpus lemma, distinct surface forms): 7:157 أَغْلَالَ is a plural form (MP, fetters); 7:43 غِلّ is singular (M, rancour). The corpus assigns both the lemma gil~, but the singular in 7:43 is not another occurrence of the plural word أَغْلَال. Compare contextual senses separately."
+      : "";
   const requiredSections = stage === "foundation" ? [1, 2] : stage === "synthesis" ? [3, 4, 5] : [];
   const stageInstructions = stage === "reconstruction" ? "Reconstruct the argument only, in the JSON schema. Do not reach a verdict." : stage === "foundation"
     ? `Write ONLY these headings: \n## 1. Grammar and morphology\n## 2. Verse proximity analysis\nCover 3–9 consequential grammatical constructions, especially conditionals, prohibitions, and exceptions. Use the NOMINAL CASE CHECK SHEET to assign nominal case ONLY where annotated, while keeping syntax distinct: the head of an iḍāfa may be nominative, accusative or genitive depending on its governor; the following muḍāf ilayh is genitive. Do not call an iḍāfa head "genitive" merely because it heads a genitive construction. An accusative complement of ittakhadha is not automatically a cognate accusative: a mafʿūl muṭlaq requires the governing verb's verbal noun or a supported substitute. Parse qualifying relative clauses by their actual antecedent; in 33:21 li-man kāna yarjū ... wa-dhakara describes the beneficiary, not three attributes grammatically predicated of the messenger. Do not turn corpus tags into claims about implied subject, antecedent, object number, or semantic range without giving syntactic evidence. Reconstruct the surrounding narrative or argument, attending to what preceding and following verses establish. Work from the supplied Arabic alone; do not let indexed research set the question. Aim for 250–450 words. Finish section 2.`
@@ -725,8 +734,8 @@ export async function POST(req: NextRequest) {
               { role: "system", content: `${CCC_EPISTEMIC_DIRECTIVE}\n\n${CCC_REASONING_SAFEGUARDS}\n\n${CCC_QURAN_FIRST_CALIBRATION}\n\nSTAGE-SPECIFIC INSTRUCTIONS:\n${stage === "audit" ? AUDIT_SYSTEM : stage === "reconstruction" ? RECONSTRUCTION_SYSTEM : SYSTEM}` },
               { role: "user", content: stage === "audit"
 
-                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nNOMINAL CASE CHECK SHEET (only corpus-tagged case; syntax remains inferential):\n${nominalConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION RESEARCH FIELD:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
-                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nNOMINAL CASE CHECK SHEET (only corpus-tagged case; syntax remains inferential):\n${nominalConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\nVERIFIED INDEXED RESEARCH CITATION CATALOGUE (only these title/section pairs may appear in Further research):\n${researchCitationCatalogue}\n\nRESTORED INDEXED RESEARCH SECTIONS (for research angles and further reading, not to set the first three sections):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `ATTRIBUTED INDEXED RESEARCH NOTES (for sections 4–5 only; do not steer sections 1–3):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nDevelop an independent Qurʾān-first research field; present indexed ideas faithfully only as attributed research angles.` }
+                  ? `AUDIT ${ref}. FULL VERSE:\n${corpus[ref]}\n\nMORPHOLOGY:\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nNOMINAL CASE CHECK SHEET (only corpus-tagged case; syntax remains inferential):\n${nominalConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nSELECTED VERIFIED PAN-TEXTUAL EVIDENCE:\n${evidence}\n\nCORPUS LEMMA COVERAGE:\n${occurrenceInventory}\n\n${lexicalFormDistinction}\n\nRESTORED RESEARCH SECTIONS (arguments, not scripture):\n${researchContext}\n\nNEUTRAL RECONSTRUCTION:\n${JSON.stringify(reconstruction)}\n\nCOMPARATIVE MORPHOLOGY TAGS (verified annotations):\n${morphologyComparisons}\n\nFIVE-SECTION RESEARCH FIELD:\n${prior}\n\nFind only evidence-grounded material errors. Your output is advisory.`
+                  : `FOCAL VERSE ${ref} (full Arabic; do not reproduce as a section):\n${corpus[ref]}\n\nMORPHOLOGY (focal only):\n${grammar}\n\nMORPHOLOGY CHECK SHEET (raw tags may contain errors; reviewed local corrections take precedence):\n${grammarConstraints}\n\nNOMINAL CASE CHECK SHEET (only corpus-tagged case; syntax remains inferential):\n${nominalConstraints}\n\nREVIEWED LOCAL CORRECTIONS:\n${localCorrections}\n\nLOCAL CONTEXT:\n${context.join("\n")}\n\nPAN-TEXTUAL EVIDENCE SELECTED BEFORE INTERPRETATION (full Arabic):\n${evidence}\n\nCORPUS LEMMA COVERAGE (some references are not full text):\n${occurrenceInventory}\n\n${lexicalFormDistinction}\n\nVERIFIED INDEXED RESEARCH CITATION CATALOGUE (only these title/section pairs may appear in Further research):\n${researchCitationCatalogue}\n\nRESTORED INDEXED RESEARCH SECTIONS (for research angles and further reading, not to set the first three sections):\n${researchContext}\n\nCOMPARATIVE MORPHOLOGY TAGS FROM CITED VERSES:\n${morphologyComparisons}\n\n${stage !== "reconstruction" ? `ATTRIBUTED INDEXED RESEARCH NOTES (for sections 4–5 only; do not steer sections 1–3):\n${JSON.stringify(reconstruction)}\n\n` : ""}${stage === "synthesis" ? `COMPLETED GRAMMAR AND CONTEXT (do not repeat):\n${prior}\n` : ""}\n${stageInstructions}\nDevelop an independent Qurʾān-first research field; present indexed ideas faithfully only as attributed research angles.` }
             ],
           }),
         });
@@ -864,7 +873,12 @@ export async function POST(req: NextRequest) {
           const deterministic = validateGrammarClaims(prior, [ref, ...contextRefs, ...evidenceRefs], morph, corpus);
           const calibration = validateCalibrationClaims(prior, reconstruction.issue);
           const quality = reviewAnalysisQuality(prior, ref, allSupplied);
-          const lexemeFindings = verifyGhillAghlalSeparation(prior, ref);
+          const lexemeFindings = [
+            ...verifyGhillAghlalSeparation(prior, ref),
+            ...verifyArabicQuotations(prior, ref, morph, corpus),
+            ...verifyMorphologyEquivalence(prior, ref, morph),
+            ...verifyGrammarDescriptions(prior, ref),
+          ];
           const merged = [...lexemeFindings, ...deterministic, ...quality, ...calibration, ...findings].slice(0,8);
           const unresolved = [...parsed.unresolved.filter(x=>typeof x === "string").slice(0,2),
             ...coverageGaps.map(g=>`Central lemma incomplete: ${g}`)].slice(0,8);
