@@ -270,7 +270,7 @@ const buckwalterArabic: Record<string, string> = {
 function translitToArabic(value: string) {
   // Buckwalter vowels/diacritics are not independent Arabic letters.
   const marks = new Set(["a", "i", "u", "o", "~", "F", "N", "K", "`", "^"]);
-  return Array.from(value).filter(c => !marks.has(c)).map(c => buckwalterArabic[c] || c).join("");
+  return Array.from(value).filter(c => !marks.has(c) && c !== "@").map(c => buckwalterArabic[c] || (/[A-Za-z@]/.test(c) ? "" : c)).join("");
 }
 const partOfSpeechLabels: Record<string,string> = {
   DET: "Definite article", N: "Noun", PN: "Proper noun", V: "Verb",

@@ -196,14 +196,7 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
       </div>
       {group.bullets.length > 0 && <ul>{group.bullets.map((bullet, index) =>
         <li key={index} className={styles.furtherReadingSection}>{inlineMarkdown(
-          // Link verified, already-supplied PDF page references; do not invent pages.
-          group.pdfUrl && /\bSam Gerrans\b/i.test(group.title)
-            ? bullet.replace(/\bPDF p\.\s*(\d+)\b/g, (_match, page: string, offset: number, entire: string) => {
-                // A generated Markdown link must be preserved verbatim.
-                if (/^\]\(/.test(entire.slice(offset + _match.length))) return _match;
-                return `PDF p. [${page}](${group.pdfUrl}#page=${page} "Open PDF page ${page}")`;
-              })
-            : bullet
+bullet
         )}</li>
       )}</ul>}
     </section>)}
@@ -218,32 +211,53 @@ function isFurtherReadingHeading(value: string): boolean {
 /** Make verified Gerrans links part of the Markdown itself, not just the HTML
  * view. This also keeps copied and publishable analysis drafts link-complete.
  * Only acts inside Section 5, on the registered publication and page labels. */
+/** A single idempotent resolver for the editable/exported Markdown and the
+ * on-screen ResearchMarkdown renderer. Do not change arbitrary model citations:
+ * only a registered publication inside Further Reading may acquire PDF URLs.
+ * This function is intentionally safe to apply multiple times (the reader may
+ * normalize text before both display and publication-draft creation). */
 export function linkVerifiedFurtherReading(source: string): string {
-  const book = indexedPublications.find(p => p.sourceId === "sam-gerrans-complete-revelation");
-  if (!book) return source;
   const lines = source.split("\n");
-  let inFurtherReading = false;
-  return lines.map(line => {
-    if (/^\s*(?:#{1,3}\s*)?(?:5[.)]\s*)?Further reading\s*:?\s*$/i.test(line)) {
-      inFurtherReading = true;
+  let inReading = false;
+  let current: PublicationLink | undefined;
+  return lines.map((line) => {
+    if (/^\s*(?:#{1,3}\s*)?(?:5[.)]\s*)?Further reading\s*:?\s*$/i.test(line.replace(/\u00a0/g, " "))) {
+      inReading = true; current = undefined; return line;
+    }
+    if (!inReading) return line;
+    if (/^\s*#{1,3}\s+/.test(line)) { inReading = false; current = undefined; return line; }
+    if (!line.trim()) return line;
+    const isBullet = /^\s*[-*+]\s+/.test(line);
+    if (!isBullet) {
+      const heading = publicationHeading(line);
+      if (heading) {
+        current = findPublication(heading.title) ||
+          (/\bSam Gerrans\b/i.test(heading.title) && /The Qur['’ʾ]an:\s*A Complete Revelation/i.test(heading.title)
+            ? indexedPublications.find(p => p.sourceId === "sam-gerrans-complete-revelation") : undefined);
+        if (current && !heading.suppliedUrl) {
+          const indent = line.match(/^\s*/)?.[0] || "";
+          return `${indent}[**${heading.title}**](${current.pdfUrl} "Open source PDF")`;
+        }
+      }
       return line;
     }
-    if (!inFurtherReading) return line;
-    if (/^\s*#{1,3}\s+/.test(line)) { inFurtherReading = false; return line; }
-    const title = line.trim().replace(/^\*\*/, "").replace(/\*\*$/, "");
-    if (/^Sam Gerrans,\s*The Qur['’ʾ]an:\s*A Complete Revelation$/i.test(title) && !/^\s*\[/.test(line)) {
-      return `[**${title}**](${book.pdfUrl} "Open source PDF")`;
-    }
-    if (!/^\s*[-*+]\s+/.test(line) || !/Notes\s*(?:&|and)\s*Commentary/i.test(line)) return line;
-    return line.replace(/\bPDF p\.\s*(\d+)\b/g, (match, page: string, offset: number, text: string) => {
-      if (/^\]\(/.test(text.slice(offset + match.length))) return match;
-      return `PDF p. [${page}](${book.pdfUrl}#page=${page} "Open PDF page ${page}")`;
+    if (!current) return line;
+    // Repair escaped left parentheses from a previous broken release without
+    // escaping or relinking an existing valid [page](url) Markdown anchor.
+    let normalized = line.replace(/(PDF\s+p\.\s*\[\d+\])\\\(/gi, "$1(");
+    const pagePattern = /PDF\s+p\.\s*(?:\[(\d+)\]\([^\n)]*\))|(PDF\s+p\.\s*)(\d{1,5})/gi;
+    normalized = normalized.replace(pagePattern, (full, linkedPage: string | undefined, prefix: string | undefined, nakedPage: string | undefined) => {
+      if (linkedPage) return full; // already linked; idempotence
+      const page = Number(nakedPage);
+      if (!Number.isInteger(page) || page < 1 || page > 10000) return full;
+      return `${prefix}[${page}](${current!.pdfUrl}#page=${page} "Open PDF page ${page}")`;
     });
+    return normalized;
   }).join("\n");
 }
 
 export function ResearchMarkdown({ source }: { source: string }) {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  const lines = linkVerifiedFurtherReading(source.replace(/\r\n?/g, "\n")).split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {
