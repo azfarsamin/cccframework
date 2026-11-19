@@ -146,7 +146,7 @@ function FurtherReading({ lines }: { lines: string[] }) {
 // Handle that *before* the legacy flat-list grouper, which assumes all lines
 // start with a dash and therefore silently skips article headings.
 function publicationHeading(line: string): { title: string; suppliedUrl?: string } | undefined {
-  const text = line.trim();
+  const text = line.trim().replace(/\\([*_])/g, "$1");
   const linked = /^\[\*\*(.+?)\*\*\]\(([^\s)]+)(?:\s+"[^"]*")?\)$/.exec(text)
     || /^\[(.+?)\]\(([^\s)]+)(?:\s+"[^"]*")?\)$/.exec(text);
   if (linked) return { title: linked[1].trim(), suppliedUrl: safeLink(linked[2]) };
@@ -154,9 +154,9 @@ function publicationHeading(line: string): { title: string; suppliedUrl?: string
   if (bold) return { title: bold[1].trim() };
   // Older model outputs use unformatted publication titles. Only recognize
   // known publications, inside the Further Reading section, not arbitrary prose.
-  const plain = text.replace(/\\([*_])/g, "$1").trim();
+  const plain = text.replace(/\*\*/g, "").replace(/\*/g, "").replace(/_+/g, " ").trim();
   const matched = findPublication(plain) || (
-    /\bSam Gerrans\b/i.test(plain) && /\bThe Qur['’]an:\s*A Complete Revelation\b/i.test(plain)
+    /\bSam Gerrans\b/i.test(plain) && /\bThe Qur['’ʾ]an:\s*A Complete Revelation\b/i.test(plain)
       ? indexedPublications.find(item => item.sourceId === "sam-gerrans-complete-revelation") : undefined
   );
   if (matched) return { title: plain };
@@ -175,10 +175,12 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
     const heading = !isBullet ? publicationHeading(raw) : undefined;
     if (heading) {
       const source = findPublication(heading.title) || (
-        /\bSam Gerrans\b/i.test(heading.title) && /\bThe Qur['’]an:\s*A Complete Revelation\b/i.test(heading.title)
+        /\bSam Gerrans\b/i.test(heading.title) && /\bThe Qur['’ʾ]an:\s*A Complete Revelation\b/i.test(heading.title)
           ? indexedPublications.find(item => item.sourceId === "sam-gerrans-complete-revelation")
           : undefined
       );
+      // Some generated headings place the author first and emphasis around the
+      // work title. Match against the stable source identity, never filenames.
       current = { title: heading.title, pdfUrl: source?.pdfUrl || heading.suppliedUrl, bullets: [] };
       groups.push(current);
     } else if (current) {
@@ -196,8 +198,11 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
         <li key={index} className={styles.furtherReadingSection}>{inlineMarkdown(
           // Link verified, already-supplied PDF page references; do not invent pages.
           group.pdfUrl && /\bSam Gerrans\b/i.test(group.title)
-            ? bullet.replace(/\bPDF p\.\s*(\d+)\b/g, (_match, page: string) =>
-                `PDF p. [${page}](${group.pdfUrl}#page=${page} "Open PDF page ${page}")`)
+            ? bullet.replace(/\bPDF p\.\s*(\d+)\b/g, (_match, page: string, offset: number, entire: string) => {
+                // A generated Markdown link must be preserved verbatim.
+                if (/^\]\(/.test(entire.slice(offset + _match.length))) return _match;
+                return `PDF p. [${page}](${group.pdfUrl}#page=${page} "Open PDF page ${page}")`;
+              })
             : bullet
         )}</li>
       )}</ul>}
@@ -208,6 +213,33 @@ function GroupedFurtherReading({ lines }: { lines: string[] }) {
 function isFurtherReadingHeading(value: string): boolean {
   // Accept optional section number, Unicode spaces, and heading punctuation.
   return /^(?:5[.)]\s*)?further\s+reading\s*:?$/i.test(value.replace(/\u00a0/g, " ").trim());
+}
+
+/** Make verified Gerrans links part of the Markdown itself, not just the HTML
+ * view. This also keeps copied and publishable analysis drafts link-complete.
+ * Only acts inside Section 5, on the registered publication and page labels. */
+export function linkVerifiedFurtherReading(source: string): string {
+  const book = indexedPublications.find(p => p.sourceId === "sam-gerrans-complete-revelation");
+  if (!book) return source;
+  const lines = source.split("\n");
+  let inFurtherReading = false;
+  return lines.map(line => {
+    if (/^\s*(?:#{1,3}\s*)?(?:5[.)]\s*)?Further reading\s*:?\s*$/i.test(line)) {
+      inFurtherReading = true;
+      return line;
+    }
+    if (!inFurtherReading) return line;
+    if (/^\s*#{1,3}\s+/.test(line)) { inFurtherReading = false; return line; }
+    const title = line.trim().replace(/^\*\*/, "").replace(/\*\*$/, "");
+    if (/^Sam Gerrans,\s*The Qur['’ʾ]an:\s*A Complete Revelation$/i.test(title) && !/^\s*\[/.test(line)) {
+      return `[**${title}**](${book.pdfUrl} "Open source PDF")`;
+    }
+    if (!/^\s*[-*+]\s+/.test(line) || !/Notes\s*(?:&|and)\s*Commentary/i.test(line)) return line;
+    return line.replace(/\bPDF p\.\s*(\d+)\b/g, (match, page: string, offset: number, text: string) => {
+      if (/^\]\(/.test(text.slice(offset + match.length))) return match;
+      return `PDF p. [${page}](${book.pdfUrl}#page=${page} "Open PDF page ${page}")`;
+    });
+  }).join("\n");
 }
 
 export function ResearchMarkdown({ source }: { source: string }) {

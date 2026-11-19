@@ -3,7 +3,7 @@
 import { corpusEncodingToArabic } from "../../lib/corpus-readable";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { ResearchMarkdown } from "./research-markdown";
+import { ResearchMarkdown, linkVerifiedFurtherReading } from "./research-markdown";
 import { decorateRenderedVerseReferences, parseReaderCitationHash } from "./analysis-verse-links";
 import { VerseReferences } from "./verse-references";
 import styles from "./quran.module.css";
@@ -17,13 +17,13 @@ import { VerseAudioButton, VerseAudioDock, useQuranVerseAudio } from "./verse-au
 // Decode numeric character references as plain text; React/ResearchMarkdown still
 // controls rendering (never inject the output as HTML).
 function cleanAnalysisText(source: string): string {
-  return source.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (full, encoded: string) => {
+  return linkVerifiedFurtherReading(source.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (full, encoded: string) => {
     const hex = encoded[0].toLowerCase() === "x";
     const value = Number.parseInt(hex ? encoded.slice(1) : encoded, hex ? 16 : 10);
     return Number.isInteger(value) && value > 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
       ? String.fromCodePoint(value) : full;
   }).replace(/&(?:amp|lt|gt|quot|apos);/g, entity =>
-    ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '\"', "&apos;": "'" } as Record<string, string>)[entity] || entity);
+    ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '\"', "&apos;": "'" } as Record<string, string>)[entity] || entity));
 }
 
 
@@ -373,8 +373,13 @@ function corpusRomanization(value: string): string {
     '|':"ʾā", '{':"a", X:"kh", a:"a", i:"i", u:"u", F:"an", N:"un", K:"in",
     '`':"ā", '^':"", o:""
   };
+  // Extended Buckwalter may end plural verb suffixes with an orthographic
+  // alif and Quranic small-sign marker; neither contributes a spoken vowel.
+  // Apply multi-character vowel combinations before single-character decoding.
+  const phonetic = value.replace(/(?:\^?A@)$/g, "").replace(/@/g, "")
+    .replace(/aA/g, "ā").replace(/iy/g, "ī").replace(/uw/g, "ū");
   let output = "";
-  for (const character of value) {
+  for (const character of phonetic) {
     if (character === "~") {
       // Display shadda by doubling the preceding Latin segment where practical.
       const last = Array.from(output).pop();
@@ -401,10 +406,19 @@ function inspectorTransliteration(word: MorphWord): string {
     }
     const adjusted = articleBeforeStem && surface.length > 1 && surface[1] === "~"
       ? surface[0] + surface.slice(2) : surface;
-    output += corpusRomanization(adjusted);
+    // A proclitic such as fa- / wa- is distinct from the lexical stem.
+    if (!articleBeforeStem && kind !== "PRON" && word.s.length > 1 &&
+        /^(?:fa|wa)$/.test(surface) && output === "") {
+      output += corpusRomanization(adjusted) + "-";
+    } else {
+      output += corpusRomanization(adjusted);
+    }
     articleBeforeStem = false;
   }
-  return output;
+  // In 9:2:1 / 25:5:1 the verb's final short u and the plural suffix w
+  // form a single spoken long ū; the following written alif is silent.
+  return output.replace(/uw/g, "ū").replace(/u-w$/g, "ū")
+    .replace(/u(?:w)?ā$/g, "ū").replace(/[\^@]/g, "");
 }
 
 const ROOT_GROUP_ORDER = [
@@ -1570,7 +1584,9 @@ export function QuranResearchPage({ publicMode = false }: { publicMode?: boolean
                   {reviewedSegments.map((segment, ix) => (
                     <div key={ix} className={styles.grammarGroup}>
                       <div className={styles.grammarHeading}>
-                        <span>{segment[1] === "V" ? "Verb stem" : segment[1] === "PRON" ? "Pronoun" : partOfSpeechLabels[segment[1]] || "Word segment"}</span>
+                        <span>{segment[1] === "V" ? "Verb stem" : segment[1] === "PRON" && segment[2].includes("SUFFIX") &&
+                          inspectedWord?.s.some(s => s[1] === "V") ? "Verb subject ending" :
+                          segment[1] === "PRON" ? "Pronoun" : partOfSpeechLabels[segment[1]] || "Word segment"}</span>
                         <span dir="rtl" lang="ar" className={styles.grammarArabic}>{translitToArabic(segment[0])}</span>
                       </div>
                       <dl className={styles.grammarGrid}>
