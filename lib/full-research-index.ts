@@ -2,6 +2,7 @@
  * Generated JSON stores every paragraph and original line range. No model calls.
  * Section links cover the ENTIRE relevant article, not just top-ranked chunks.
  */
+import { assertResearchCatalogCoverage, findResearchSource } from './research-catalog';
 import debt from '../research/index/architecture-of-debt-money-and-interest.json';
 import hadith from '../research/index/does-the-quran-endorse-hadith-literature.json';
 import halal from '../research/index/halal-and-haram-quranic-perspective.json';
@@ -20,6 +21,13 @@ export type FullSourceParagraph = {id:string;section_id:string;line:number;text:
 export type FullArticle = {id:string;title:string;source_path:string;source_sha256:string;bytes:number;lines:number;sections:FullSourceSection[];paragraphs:FullSourceParagraph[];verse_to_sections:Record<string,string[]>;indexed_entire_source:boolean};
 const all = [debt,hadith,halal,hadithDistortions,preservation,moral,marriage,architecture,literacy,shams,gerrans,godProtocol] as FullArticle[];
 const byId = new Map(all.map(a=>[a.id,a]));
+assertResearchCatalogCoverage(all.map(a => a.id));
+for (const article of all) {
+  const canonical = findResearchSource(article.id)!;
+  if (canonical.source_sha256 !== article.source_sha256 || canonical.title !== article.title) {
+    throw new Error(`Research catalog/index mismatch for ${article.id}`);
+  }
+}
 export const fullResearchCatalog = all.map(a=>({id:a.id,title:a.title,source:a.source_path,sha256:a.source_sha256,sections:a.sections.length,paragraphs:a.paragraphs.length}));
 export function readFullResearchArticle(articleId:string):FullArticle|null {return byId.get(articleId) || null;}
 export function readOriginalResearchSection(articleId:string,sectionId:string):{article:FullArticle;section:FullSourceSection;originalText:string}|null {
