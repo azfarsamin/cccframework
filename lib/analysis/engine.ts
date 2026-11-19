@@ -407,7 +407,7 @@ function lexicalManifest(items: LexicalCoverage[]): string {
 }
 // Comparative morphology is relevant across roots and subject matters. Supply
 // annotation facts for cited patterns, not merely the focal word's tag.
-function comparativeMorphology(units: ResearchEvidenceUnit[], morph: Morphology, refs: string[]): string {
+function comparativeMorphology(units: ResearchEvidenceUnit[], morph: Morphology, refs: string[], corpus: Corpus): string {
   const patterns = new Set<string>();
   for (const unit of units) {
     if (!/\b(?:form|pattern|stem)\s+(?:VIII|VII|VI|V|IV|III|II|IX|X)\b/i.test(unit.text)) continue;
@@ -421,7 +421,7 @@ function comparativeMorphology(units: ResearchEvidenceUnit[], morph: Morphology,
   for (const ref of ordered) {
     for (const [i,word] of (morph[ref] || []).entries()) {
       if (!word.s.some(([,pos,tags])=> pos === "V" && [...patterns].some(p=>getTags(tags).includes(p)))) continue;
-      lines.push(`${ref}, word ${extractWordFacts(word,i)}`);
+      lines.push(`${ref}, word ${extractWordFacts(word, i, ref, corpus, (morph[ref] || []).length)}`);
       if (lines.length >= 24) break;
     }
     if (lines.length >= 24) break;
@@ -594,7 +594,7 @@ export async function runVerseAnalysis(req: NextRequest) {
   if ((stage === "foundation" || stage === "synthesis" || stage === "audit") && !reconstruction) {
     return NextResponse.json({error:"A validated argument reconstruction is required. Update the Reader and route together to v7.9."},{status:400});
   }
-  const morphologyComparisons = comparativeMorphology(plan.researchUnits,morph,[ref,...contextRefs,...evidenceRefs]);
+  const morphologyComparisons = comparativeMorphology(plan.researchUnits,morph,[ref,...contextRefs,...evidenceRefs],corpus);
   // A single default model drives discovery, writing and review, with optional overrides.
   // This route does not control unrelated CCC discovery routes elsewhere in the repository.
   const baseModel = process.env.VERSE_ANALYSIS_MODEL || "zai-org/GLM-5.2-Fast";
