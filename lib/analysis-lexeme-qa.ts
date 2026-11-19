@@ -64,12 +64,13 @@ export function verifyArabicQuotations(analysis:string,ref:string,morph:QaMorpho
 /** Check a narrowly scoped set of objective morphosyntactic errors in 7:157.
  * These are evidence-review findings and do not rewrite the generated answer. */
 export function verifyGrammarDescriptions(analysis:string,reference:string):LexemeFinding[] {
-  if(reference!=='7:157') return [];
+  // Reusable descriptive checks: specific verified lexical classifications are
+  // keyed by attested surface, NOT inferred from an MP gender/number annotation.
   const findings:LexemeFinding[]=[];
   const chunks=analysis.split(/\n|(?<=[.!?])\s+(?=[A-Zأ-يٱ])/);
   const add=(sentence:string,issue:string,arabic:string,suggestion:string)=> {
     if(findings.some(f=>f.issue===issue))return;
-    findings.push({quote:sentence.trim().slice(0,240),issue,evidenceRef:'7:157',evidenceQuote:arabic,suggestion});
+    findings.push({quote:sentence.trim().slice(0,240),issue,evidenceRef:reference,evidenceQuote:arabic,suggestion});
   };
   for(const sentence of chunks) {
     if(/(?:participial predicate|active participle)/i.test(sentence) && /(?:يَتَّبِعُونَ|yattabi[ʿ']?ūna)/i.test(sentence))
@@ -80,6 +81,12 @@ export function verifyGrammarDescriptions(analysis:string,reference:string):Lexe
       add(sentence,'al-khabāʾith is a broken plural; do not classify it as a masculine sound plural.','ٱلْخَبَـٰٓئِثَ','Use broken plural, accusative; distinguish corpus gender tag from morphological plural pattern.');
     if(/(?:ٱتََّبَعُوا|يَتََّبِعُونَ)/u.test(sentence))
       add(sentence,'The Arabic word is misspelled with duplicated diacritics.','ٱتَّبَعُوا۟ / يَتَّبِعُونَ','Quote the exact Arabic from the canonical verse text.');
+    // The Arabic Corpus's MP feature should never be presented as a sound
+    // masculine plural pattern. The pattern is a lexical property, not a gender
+    // agreement label. Apply only when an unambiguous sound-plural claim is made.
+    if (/\b(?:sound|regular)\s+masculine\s+plural\b/i.test(sentence) &&
+        /(?:khab[aā][ʾ']?ith|خَبَـٰٓئِث|خَبَائِث)/i.test(sentence))
+      add(sentence,'The documented khabāʾith form is a broken plural, not a sound masculine plural.','ٱلْخَبَـٰٓئِثَ','Describe plural formation separately from corpus grammatical gender/number.');
     if(findings.length>=4) break;
   }
   return findings;

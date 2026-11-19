@@ -49,6 +49,26 @@ export function deterministicGrammarSheet(ref:string,morph:Morphology):string{
  */
 const nominalPositions = new Set(["N", "ADJ", "PN"]);
 const caseNames: Record<string,string> = { NOM:"nominative", ACC:"accusative", GEN:"genitive" };
+/** Verified *forms*, not a guessed MP->sound-plural conversion. This registry can
+ * be extended after lexical review; it applies to every occurrence of each
+ * attested form and does not alter the morphology dataset. */
+const verifiedBrokenPlurals: Record<string,string> = {
+  "الخبائث": "خَبِيثَة",
+  "الاغلال": "غُلّ",
+  "اساطير": "أُسْطُورَة",
+};
+function documentedPluralPattern(word: MorphWord): string | undefined {
+  // The morphology JSON preserves Uthmani small alif in khabāʾith, so its
+  // consonantal skeleton differs from modern full-alif spelling. Match both
+  // the reviewed encoded surface and ordinary normalized orthography.
+  const form = corpusArabicSurface(word).replace(/^ال/, "");
+  const documentedKhabaaith = word.l === "xabiyvap" &&
+    word.s.some(([encoded]) => /^xaba[`^]*\}iva/.test(encoded));
+  const singular = documentedKhabaaith ? "خَبِيثَة" :
+    (verifiedBrokenPlurals[form] || verifiedBrokenPlurals["ال"+form]);
+  return singular ? `broken plural (verified lexical formation; singular ${singular})` : undefined;
+}
+
 function nominalFacts(w:MorphWord) {
   const part = w.s.find(([,pos])=>nominalPositions.has(pos));
   if(!part)return null;
@@ -61,6 +81,7 @@ export function deterministicNominalSheet(ref:string,morph:Morphology):string{
     const f=nominalFacts(w); if(!f)return [];
     return [`${ref} word ${i+1}: ${w.s.map(x=>x[0]).join("")} [lemma=${w.l||"?"}; root=${w.r||"?"}] `+
       `POS=${f.pos}; CASE=${f.caseName||"NOT ANNOTATED — do not infer"}; `+
+      `PLURAL_FORMATION=${documentedPluralPattern(w)||"NOT VERIFIED — MP/FP are grammatical features, not sound-plural patterns"}; `+
       `SYNTAX=not annotated (do not infer grammatical role from case or idaafa membership)`];
   }).join("\n")||"No annotated nominal cases in the focal verse.";
 }
