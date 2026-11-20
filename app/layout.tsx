@@ -1,7 +1,6 @@
-
 import "./globals.css";
 import type { Metadata } from "next";
-import SiteShell from "./site-shell";
+import Header from "./header";
 
 export const metadata: Metadata = {
   title: "CCC Framework",
@@ -17,7 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SiteShell>{children}</SiteShell>
+        <Header />
+        <main className="container main">{children}</main>
+        <footer className="footer">
+          <div className="container footerInner">
+            <div className="muted">© {new Date().getFullYear()} CCC Framework</div>
+          </div>
+        </footer>
       </body>
     </html>
   );
