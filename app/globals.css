@@ -500,3 +500,38 @@ p, h1, h2, h3 { max-width: 78ch; }
   .cccEssay h1 { margin-bottom: 25px; }
   .cccEssay p { font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
 }
+
+
+/* Qurʾānic Research — informational research page, isolated styles. */
+.qresearchPage { max-width: 980px; margin: 0 auto; }
+.qresearchKicker { font-size: 14px; color: var(--muted); margin: 2px 0 14px; }
+.qresearchPage h1 { max-width: none; font-size: clamp(38px, 5vw, 52px); line-height: 1.14; letter-spacing: -0.8px; margin: 0 0 14px; }
+.qresearchLead { max-width: 900px; font-size: clamp(17px, 1.8vw, 20px); line-height: 1.6; margin-bottom: 32px; }
+.qresearchMethod { display: grid; grid-template-columns: minmax(0,1fr) 64px minmax(0,1fr); gap: 12px; align-items: center; padding: 28px 26px; background: rgba(17,21,34,.54); border: 1px solid rgba(151,182,239,.23); border-radius: 18px; }
+.qresearchMethodPart { min-width: 0; text-align: center; }
+.qresearchMethodIcon { color: #8dbbff; width: 50px; height: 50px; margin: 0 auto 13px; }
+.qresearchMethodIcon svg { width: 100%; height: 100%; }
+.qresearchMethodPart h2 { max-width: none; font-size: 24px; line-height: 1.25; margin: 0 0 6px; }
+.qresearchMethodPart p { max-width: none; font-size: 16px; margin: 0 0 8px; }
+.qresearchMethodPart span { display: block; font-size: 16px; line-height: 1.6; }
+.qresearchMethodArrow { font-size: 42px; color: #d4dfef; text-align: center; }
+.qresearchSection { margin-top: 30px; padding: 28px 0 34px; border-top: 1px solid var(--hairline); }
+.qresearchSection h2 { max-width: none; font-size: 28px; margin: 0 0 20px; }
+.qresearchFocus { list-style: none; padding: 0; margin: 0; display: grid; gap: 17px; }
+.qresearchFocus li { display: flex; gap: 20px; align-items: center; font-size: 17px; line-height: 1.5; }
+.qresearchFocus svg { flex: none; width: 30px; height: 30px; color: #8dbbff; }
+.qresearchExplore { padding-bottom: 0; }
+.qresearchExplore p { max-width: 880px; font-size: 18px; line-height: 1.7; margin-bottom: 24px; }
+.qresearchLaunch { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
+.qresearchLaunchLink { display: inline-flex; gap: 18px; align-items: center; background: rgba(95,127,226,.29); border: 1px solid rgba(127,161,255,.65); padding: 13px 21px; border-radius: 12px; text-decoration: none; color: var(--text); font-size: 17px; font-weight: 600; }
+.qresearchLaunchLink:hover, .qresearchLaunchLink:focus-visible { background: rgba(95,127,226,.44); }
+.qresearchDomain { color: var(--muted); }
+@media (max-width: 700px) {
+  .qresearchMethod { grid-template-columns: 1fr; padding: 24px 16px; gap: 14px; }
+  .qresearchMethodArrow { transform: rotate(90deg); font-size: 32px; }
+  .qresearchMethodPart h2 { font-size: 21px; }
+  .qresearchSection h2 { font-size: 24px; }
+  .qresearchFocus li { font-size: 16px; gap: 14px; align-items: flex-start; }
+  .qresearchFocus svg { width: 25px; height: 25px; }
+  .qresearchExplore p { font-size: 16px; }
+}
