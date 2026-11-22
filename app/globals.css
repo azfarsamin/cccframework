@@ -470,3 +470,33 @@ p, h1, h2, h3 { max-width: 78ch; }
   .homeEssay h1 { margin-bottom: 25px; }
   .homeEssay p { font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
 }
+
+/* Text-first CCC Framework essay; other pages remain unchanged. */
+.cccEssay {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.cccEssay h1 {
+  max-width: none;
+  margin-bottom: 32px;
+  font-size: clamp(30px, 4.5vw, 44px);
+  line-height: 1.2;
+}
+
+.cccEssay p {
+  max-width: none;
+  margin: 0 0 23px;
+  font-size: 17px;
+  line-height: 1.78;
+}
+
+.cccEssay p strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .cccEssay h1 { margin-bottom: 25px; }
+  .cccEssay p { font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
+}
