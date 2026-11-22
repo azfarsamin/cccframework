@@ -24,7 +24,7 @@ export default function HomePage() {
       </p>
 
       <p>
-        So this book provides a structured method to evaluate religious and secular
+        So this work provides a structured method to evaluate religious and secular
         truth claims alike, asking one question:
       </p>
 
@@ -43,6 +43,7 @@ export default function HomePage() {
       </p>
 
       <p>
+        The value proposition of structured evaluation can be recognised through a stark reality:
         Human inquiry has long wrestled with the nature of truth. Every
         human-centered system eventually reaches one of three dead ends: it either
         collapses into circularity, regresses forever with one justification after
