@@ -32,6 +32,11 @@ body {
 }
 
 /* Header / Nav */
+/* Keep the expanded navigation on one line independently of the reading column. */
+.header .headerInner {
+  max-width: 1480px;
+}
+
 .header {
   position: sticky;
   top: 0;
@@ -46,10 +51,12 @@ body {
   align-items: center;
   justify-content: space-between;
   height: 64px;
-  gap: 16px;
+  gap: 28px;
 }
 
 .brand {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-weight: 650;
   text-decoration: none;
   color: var(--text);
@@ -58,12 +65,15 @@ body {
 
 .nav {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: clamp(2px, 0.7vw, 12px);
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .navLink {
+  white-space: nowrap;
   color: var(--muted);
   text-decoration: none;
   padding: 8px 10px;
@@ -81,7 +91,7 @@ body {
 .desktopNav { display: none; }
 .mobileOnly { display: inline-flex; }
 
-@media (min-width: 860px) {
+@media (min-width: 1180px) {
   .desktopNav { display: flex; }
   .mobileOnly { display: none; }
 }
