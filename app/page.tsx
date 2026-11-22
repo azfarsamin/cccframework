@@ -52,7 +52,7 @@ export default function HomePage() {
 
       <p>
         The key point is that humans cannot ground ultimate truth from within a
-        closed human system. Neither I nor anyone else can absolutely prove
+        closed human reasoning system. No one can absolutely prove
         metaphysical claims, such as whether God exists or not, from within human
         reason alone.
       </p>
