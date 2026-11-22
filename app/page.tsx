@@ -1,97 +1,74 @@
-import Link from "next/link";
-
 export default function HomePage() {
   return (
-    <>
-      <div className="kicker">Systems thinking • first principles • gap analysis</div>
-      <h1>Systems Thinking for Complex Problems</h1>
-      <p className="muted">
-        I help analyze complex systems from first principles to uncover hidden assumptions,
-        structural gaps, and leverage points for better decisions.
+    <article className="homeEssay">
+      <h1>Evaluating Belief Systems Methodologically</h1>
+
+      <p>
+        Human beings disagree about almost everything: morality, politics,
+        economics, and religion.
       </p>
 
-      <div className="ctaRow">
-        <Link className="button primary" href="/contact">Start a conversation</Link>
-        <Link className="button" href="/mybooks">View Books</Link>
-        <Link className="button" href="/myarticles">View Articles</Link>
-        <Link className="button" href="/ccc">What is CCC?</Link>
-      </div>
+      <p>
+        But why? If truth is so obvious, why do intelligent people still disagree?
+      </p>
 
-      <div className="hr" />
+      <p>
+        My argument is that most disagreements are not really about conclusions.
+        They are about assumptions people make before the argument even begins.
+      </p>
 
-      <div className="grid two">
-        <div className="card">
-          <h2>What I do</h2>
-          <ul className="list">
-            <li>Model systems and arguments from first principles</li>
-            <li>Identify contradictions, drift, and incentive failures</li>
-            <li>Turn messy problem spaces into clear decision frameworks</li>
-            <li>Deliver concise, actionable outputs (not fluff)</li>
-          </ul>
-        </div>
+      <p>
+        People argue at the level of conclusions, while the real disagreement sits
+        deeper — at the level of foundations. And those foundations are shaped by
+        how we use judgement to form our beliefs.
+      </p>
 
-        <div className="card">
-          <h2>Who this is for</h2>
-          <ul className="list">
-            <li>Founders and operators dealing with complexity and uncertainty</li>
-            <li>Researchers and writers building frameworks or long-form work</li>
-            <li>Teams evaluating AI systems, metrics, or decision processes</li>
-            <li>Organizations needing a structural “second brain” to stress-test assumptions</li>
-          </ul>
-        </div>
-      </div>
+      <p>
+        So this book provides a structured method to evaluate religious and secular
+        truth claims alike, asking one question:
+      </p>
 
-      <div className="hr" />
-      <div className="hr" />
+      <p>
+        <strong>
+          Which worldview survives when all truth claims are tested under the same
+          criteria?
+        </strong>
+      </p>
 
-      <div className="card">
-        <div className="kicker">Research / Talks</div>
-        <h2>AERC 2026</h2>
-        <p>
-          <strong>Coherence, Correspondence, Calibration: A Meta-Epistemology Applied to Austrian Economics</strong>
-        </p>
-        <p className="muted">
-          Conference presentation at the Austrian Economics Research Conference applying the CCC Framework to Austrian methodology, catallaxy, and decentralized intelligence systems.
-        </p>
+      <p>
+        Those criteria are simple: first principles must be internally coherent,
+        they must correspond to lived reality, and they must provide a way to
+        distinguish truth from error when reality diverges from our deeply held
+        beliefs.
+      </p>
 
-        <div className="bookActions">
-          <Link className="button" href="/work/aerc-2026">
-            View Presentation Page
-          </Link>
+      <p>
+        Human inquiry has long wrestled with the nature of truth. Every
+        human-centered system eventually reaches one of three dead ends: it either
+        collapses into circularity, regresses forever with one justification after
+        another, or stops dogmatically “because it just is."
+      </p>
 
-          <a
-            className="button primary"
-            href="/pdfs/aerc-2026-slides.pdf"
-            target="_blank"
-            rel="noreferrer"
-          >
-            View Slides (PDF)
-          </a>
-        </div>
-      </div>
-      <div className="grid three">
-        <div className="card">
-          <div className="kicker">Coherence</div>
-          <h2>Internal structure</h2>
-          <p>
-            Does the model hold together without contradiction? Are the definitions stable and the logic sound?
-          </p>
-        </div>
-        <div className="card">
-          <div className="kicker">Correspondence</div>
-          <h2>Reality fit</h2>
-          <p>
-            Does it match observed behavior and outcomes? Where does lived reality expose failure modes?
-          </p>
-        </div>
-        <div className="card">
-          <div className="kicker">Calibration</div>
-          <h2>Correction loop</h2>
-          <p>
-            What forces continuous correction? How do we prevent metric gaming, drift, and false certainty?
-          </p>
-        </div>
-      </div>
-    </>
+      <p>
+        The key point is that humans cannot ground ultimate truth from within a
+        closed human system. Neither I nor anyone else can absolutely prove
+        metaphysical claims, such as whether God exists or not, from within human
+        reason alone.
+      </p>
+
+      <p>
+        So the rational path is comparative evaluation: test competing worldviews
+        and see which one best fits reality.
+      </p>
+
+      <p>
+        <strong>
+          The Coherence-Correspondence-Calibration Framework evaluates internal
+          coherence, correspondence with reality and empirical evidence, and the
+          ability of the system to act as a reliable reference against which truth
+          claims can be tested.
+        </strong>
+      </p>
+    </article>
   );
 }

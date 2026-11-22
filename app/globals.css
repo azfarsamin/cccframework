@@ -440,3 +440,33 @@ p, h1, h2, h3 { max-width: 78ch; }
     max-width: 140px;
   }
 }
+
+/* Text-first homepage: intentionally no panels, cards, or CTAs. */
+.homeEssay {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.homeEssay h1 {
+  max-width: none;
+  margin-bottom: 32px;
+  font-size: clamp(30px, 4.5vw, 44px);
+  line-height: 1.18;
+}
+
+.homeEssay p {
+  max-width: none;
+  margin: 0 0 23px;
+  font-size: 17px;
+  line-height: 1.78;
+}
+
+.homeEssay p strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .homeEssay h1 { margin-bottom: 25px; }
+  .homeEssay p { font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
+}
