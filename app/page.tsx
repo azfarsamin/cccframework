@@ -20,11 +20,27 @@ export default function HomePage() {
       <p>
         People argue at the level of conclusions, while the real disagreement sits
         deeper — at the level of foundations. And those foundations are shaped by
-        how we use judgement to form our beliefs.
+        how we use judgement to form our beliefs, which we believe to be true.
+      </p>
+       <p>
+        Human inquiry has long wrestled with the nature of truth. Every
+        human-centered system eventually reaches one of three dead ends: it either
+        collapses into circularity, regresses forever with one justification after
+        another, or stops dogmatically “because it just is."
+      </p>
+  <p>
+        The key point is that humans cannot ground ultimate truth from within a
+        closed human reasoning system. No one can absolutely prove
+        metaphysical claims, such as whether God exists or not, from within human
+        reason alone.
       </p>
 
       <p>
-        So this work provides a structured method to evaluate religious and secular
+        So the rational path is comparative evaluation: test competing worldviews
+        and see which one best fits reality.
+      </p>
+      <p>
+        My work provides a structured method to evaluate religious and secular
         truth claims alike, asking one question:
       </p>
 
@@ -40,26 +56,6 @@ export default function HomePage() {
         they must correspond to lived reality, and they must provide a way to
         distinguish truth from error when reality diverges from our deeply held
         beliefs.
-      </p>
-
-      <p>
-        The value proposition of structured evaluation can be recognised through a stark reality:
-        Human inquiry has long wrestled with the nature of truth. Every
-        human-centered system eventually reaches one of three dead ends: it either
-        collapses into circularity, regresses forever with one justification after
-        another, or stops dogmatically “because it just is."
-      </p>
-
-      <p>
-        The key point is that humans cannot ground ultimate truth from within a
-        closed human reasoning system. No one can absolutely prove
-        metaphysical claims, such as whether God exists or not, from within human
-        reason alone.
-      </p>
-
-      <p>
-        So the rational path is comparative evaluation: test competing worldviews
-        and see which one best fits reality.
       </p>
 
       <p>
